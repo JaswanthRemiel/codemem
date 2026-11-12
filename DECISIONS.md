@@ -39,3 +39,34 @@ Each entry: context, options, decision, consequences.
 - **Context:** A working copy can hold local files that are not part of the project, and committed files must not name them.
 - **Decision:** `npm run lint`, `npm run format`, and `npm run format:check` list the project paths explicitly (`src`, `test`, `scripts`, `.github`, root `*.js` and `*.json`, and each root Markdown doc by name) instead of scanning the whole directory. There is no `.prettierignore`.
 - **Consequences:** A new top-level folder or root Markdown doc must be added to these scripts in `package.json`.
+
+## 007: Grammar WASM files are committed to the repo
+
+- **Context:** `web-tree-sitter` needs one `.wasm` file per language.
+- **Options:** (a) depend on the grammar npm packages, which bring native install scripts, (b) depend on a third-party bundle of prebuilt grammars, (c) commit the official release `.wasm` assets under `grammars/`.
+- **Decision:** (c). Sources and versions are listed in `grammars/README.md`.
+- **Consequences:** No extra dependency and no install step, at the cost of about 4 MB of binaries in git. Updating a grammar is a manual download.
+
+## 008: No worker pool for parsing
+
+- **Context:** The spec asks for a worker pool sized to the CPU count. The Phase 1 target is 100k lines in under 60 seconds.
+- **Decision:** Parse on one thread. Measured: 277k lines in 1.7s and 1.1M lines in 3.7s, well over ten times faster than the target.
+- **Consequences:** Less code and no worker startup cost. Revisit if parsing ever shows up as the slow stage; embedding is expected to dominate indexing time.
+
+## 009: Chunking rules beyond the spec
+
+- **Context:** The spec defines chunks for functions, methods, and classes, and line windows for unsupported languages. Real files also have nested functions, constants, imports, and top-level code.
+- **Decision:**
+  - Functions nested inside a function are symbols but get no chunk of their own; they stay in the outer function's chunk.
+  - Interfaces, types, and enums get one chunk each. Constants do not.
+  - Any lines no symbol chunk covers (imports, constants, top-level statements) become line windows, so nothing in a file is unsearchable.
+  - Overload signatures are folded into the implementation that follows them. A signature with no implementation in the same scope (an abstract method) is not a symbol; it still appears in the class header chunk.
+  - A symbol longer than 80 lines is split at statement boundaries. If one statement is itself longer than 80 lines it is cut by line count, so no symbol chunk exceeds the limit.
+  - Go structs use the kind `class` so their methods attach to them.
+- **Consequences:** Chunk sizes are bounded, which the packer relies on later. Class header chunks are the exception and are never split.
+
+## 010: Queries live next to the grammars
+
+- **Context:** The spec asks for `.scm` query files per language. They must ship in the npm package, which contains only `dist/`, `grammars/`, README, and LICENSE.
+- **Decision:** Keep the `.scm` files in `grammars/` beside the `.wasm` files, so no build step copies them.
+- **Consequences:** `src/parser/` has no query text; adding a language means adding two files to `grammars/` and one entry in the parser's language tables.

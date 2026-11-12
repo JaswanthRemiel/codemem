@@ -13,7 +13,8 @@
     "codemem": "dist/cli/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "grammars"
   ],
   "engines": {
     "node": ">=22.13.0"
@@ -22,15 +23,16 @@
     "build": "tsc -p tsconfig.build.json && node -e \"require('fs').chmodSync('dist/cli/index.js', 0o755)\"",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src test scripts eslint.config.js",
-    "format": "prettier --write src scripts .github \"test/*.{ts,mjs}\" \"*.{js,json}\" README.md DECISIONS.md PROGRESS.md SETUP.md",
-    "format:check": "prettier --check src scripts .github \"test/*.{ts,mjs}\" \"*.{js,json}\" README.md DECISIONS.md PROGRESS.md SETUP.md",
+    "format": "prettier --write src scripts .github grammars/README.md \"test/*.{ts,mjs}\" \"*.{js,json}\" README.md DECISIONS.md PROGRESS.md SETUP.md",
+    "format:check": "prettier --check src scripts .github grammars/README.md \"test/*.{ts,mjs}\" \"*.{js,json}\" README.md DECISIONS.md PROGRESS.md SETUP.md",
     "check:chars": "node scripts/check-chars.mjs",
     "test": "vitest run",
     "hooks": "git config core.hooksPath .githooks || exit 0",
     "prepare": "npm run build && npm run -s hooks"
   },
   "dependencies": {
-    "commander": "^15.1.0"
+    "commander": "^15.1.0",
+    "web-tree-sitter": "^0.27.2"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
