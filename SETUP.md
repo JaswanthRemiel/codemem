@@ -6,7 +6,7 @@ How to set up, run, and test codemem from a fresh machine. This file is updated 
 
 | Tool    | Version                               | Check            |
 | ------- | ------------------------------------- | ---------------- |
-| Node.js | 20.19.0 or newer (CI tests 20 and 22) | `node --version` |
+| Node.js | 22.13.0 or newer (CI tests 22 and 24) | `node --version` |
 | npm     | 10 or newer (ships with Node.js)      | `npm --version`  |
 | Git     | 2.30 or newer                         | `git --version`  |
 
@@ -91,7 +91,7 @@ Run from a fresh clone:
 ## Troubleshooting
 
 - **`npx .` says "Permission denied" or "command not found".** `dist/` is missing or stale. Run `npm run build`.
-- **`npm install` fails with an engine error.** Your Node.js is older than 20.19.0. Install a newer version.
+- **`npm install` fails with an engine error.** Your Node.js is older than 22.13.0. Install a newer version.
 - **A commit is rejected with "em dash or emoji".** The pre-commit hook found a banned character. The message gives the file and line; replace the character and commit again.
 - **Windows: `format:check` reports every file.** Line endings were converted to CRLF. Run `git add --renormalize .` and check out the files again.
 - **Grammar loading, SQLite extension loading, embedding model download.** These parts do not exist yet; their troubleshooting notes are added in Phases 1 to 3.

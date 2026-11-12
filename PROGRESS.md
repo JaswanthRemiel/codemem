@@ -20,7 +20,7 @@
 - Strict TypeScript, ESLint, Prettier, vitest.
 - `codemem --version` and a `codemem doctor` stub (Node.js version check only).
 - Em dash and emoji check in `npm run check:chars`, the pre-commit hook, and CI.
-- CI matrix: Ubuntu, macOS, Windows with Node 20 and 22.
+- CI matrix: Ubuntu, macOS, Windows with Node 22 and 24.
 - MIT license, `DECISIONS.md`, `PROGRESS.md`, `SETUP.md`.
 
 ## Next

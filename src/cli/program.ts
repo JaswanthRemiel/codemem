@@ -3,10 +3,10 @@ import { Command } from 'commander';
 
 const pkg = createRequire(import.meta.url)('../../package.json') as { version: string };
 
-/** True when a Node.js version string such as "20.19.0" meets the minimum (20.19.0). */
+/** True when a Node.js version string such as "22.13.0" meets the minimum (22.13.0). */
 export function nodeOk(version: string): boolean {
   const [major = 0, minor = 0] = version.split('.').map(Number);
-  return major > 20 || (major === 20 && minor >= 19);
+  return major > 22 || (major === 22 && minor >= 13);
 }
 
 export function buildProgram(): Command {
@@ -20,7 +20,7 @@ export function buildProgram(): Command {
     .action(() => {
       const version = process.versions.node;
       const ok = nodeOk(version);
-      console.log(`Node.js ${version}: ${ok ? 'ok' : 'too old, install Node.js 20.19.0 or newer'}`);
+      console.log(`Node.js ${version}: ${ok ? 'ok' : 'too old, install Node.js 22.13.0 or newer'}`);
       console.log(
         'Not checked yet (added in later phases): grammars, SQLite extensions, embedding model, index health',
       );
