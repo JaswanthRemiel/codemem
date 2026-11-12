@@ -30,4 +30,3 @@ Phase 1: scanner, parser, chunker, with three fixture repos.
 ## Known issues
 
 - `npm audit` reports moderate advisories for `minimatch`, pulled in by ESLint 10 and typescript-eslint 8. These are development tools only and are not part of the published package. No fixed release was available on 2026-11-12.
-- `README.md` does not exist yet; it is written in a later phase.
