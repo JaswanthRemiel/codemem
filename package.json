@@ -1,0 +1,43 @@
+{
+  "name": "codemem",
+  "version": "0.1.0",
+  "description": "Local-first MCP server and CLI that serves coding agents only the code context they need",
+  "license": "MIT",
+  "author": "Jaswanth Remiel AG",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JaswanthRemiel/codemem.git"
+  },
+  "type": "module",
+  "bin": {
+    "codemem": "dist/cli/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node -e \"require('fs').chmodSync('dist/cli/index.js', 0o755)\"",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check:chars": "node scripts/check-chars.mjs",
+    "test": "vitest run",
+    "hooks": "git config core.hooksPath .githooks || exit 0",
+    "prepare": "npm run build && npm run -s hooks"
+  },
+  "dependencies": {
+    "commander": "^14.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "eslint": "^10.14.0",
+    "prettier": "^3.10.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.2",
+    "vitest": "^4.1.12"
+  }
+}
