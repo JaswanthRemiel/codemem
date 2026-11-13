@@ -148,17 +148,19 @@ export default function hash(input: string): string
 ~250 tokens | 4 results
 ```
 
-The second search shares no word with the function it should find. `--debug` prints the ranking first, and the 150-token budget leaves room for one result:
+The second search shares no word with the function it should find. `--debug` prints the ranking first: three search results, then graph neighbors (the lines with `vector=-`). The 150-token budget leaves room for one result:
 
 ```text
 1. score=0.0164 keyword=- vector=1  src/auth.ts:10-23 authenticateUser
 2. score=0.0161 keyword=- vector=2  src/auth.ts:36-39 resetPassword  (dropped)
 3. score=0.0159 keyword=- vector=3  src/service.ts:33-38 UserService.login  (dropped)
+4. score=0.0079 keyword=- vector=-  src/service.ts:8-12 Log  (dropped)
+(seven more neighbors, all dropped)
 
---- src/auth.ts:10-23 function authenticateUser [vector]
+--- src/auth.ts:10-23 function authenticateUser [vector, called by UserService.login]
 (the function)
 
-~128 tokens | 1 result | 2 dropped for budget
+~134 tokens | 1 result | 10 dropped for budget
 ```
 
 The index is a single file, `.codemem/index.db`, in the directory you indexed. `index --full` reindexes every file and is how you switch embedding models. Token counts are approximate.
