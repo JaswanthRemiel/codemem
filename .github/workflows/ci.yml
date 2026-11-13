@@ -43,5 +43,10 @@ jobs:
       - run: npm run format:check
       - run: npm run typecheck
       - run: npm run check:chars
+      # The hybrid search tests use the real local embedding model (about 23 MB).
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/codemem
+          key: embedding-model-all-MiniLM-L6-v2-q8
       - run: npm run coverage
       - run: npx . --version

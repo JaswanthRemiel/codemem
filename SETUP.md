@@ -14,6 +14,8 @@ Normally no compiler or other build tools are needed: the tree-sitter grammars s
 
 The npm 11 requirement applies only to a checkout of this repo. The packaged tarball installs and runs with the npm 10 that ships with Node.js 22; CI checks that on every push.
 
+The first `codemem index`, `codemem doctor`, or `npm test` downloads the default embedding model (about 23 MB) from huggingface.co into `~/.cache/codemem/models`. Set `CODEMEM_CACHE_DIR` to keep it elsewhere. After that no network access is needed.
+
 OS notes:
 
 - macOS and Linux: nothing extra.
@@ -40,7 +42,7 @@ npm test
 npm run coverage
 ```
 
-Expected: every command exits with code 0. `npm run check:chars` prints `check-chars: N tracked files clean`. `npm test` ends with `Test Files  7 passed (7)`. `npm run coverage` runs the same tests, prints a coverage table, and fails if line coverage of `src/parser`, `src/chunker`, or `src/retriever` drops below 80%.
+Expected: every command exits with code 0. `npm run check:chars` prints `check-chars: N tracked files clean`. `npm test` ends with `Test Files  10 passed (10)`. `npm run coverage` runs the same tests, prints a coverage table, and fails if line coverage of `src/parser`, `src/chunker`, `src/retriever`, or `src/packer` drops below 80%.
 
 ## Run the CLI
 
@@ -53,16 +55,18 @@ Expected output:
 
 ```text
 0.1.0
-Node.js 22.x.x: ok
+Node.js: 22.x.x ok
 Grammar javascript: ok
 Grammar typescript: ok
 Grammar tsx: ok
 Grammar python: ok
 Grammar go: ok
-Not checked yet (added in later phases): SQLite extensions, embedding model, index health
+SQLite with FTS5 and sqlite-vec: ok
+Embedding model: local:Xenova/all-MiniLM-L6-v2 ok (384 dimensions)
+Not checked yet (added in a later phase): index health
 ```
 
-The Node.js version line shows your own version.
+The Node.js line shows your own version. A failed check prints `failed (...)` with a fix hint, and `doctor` exits with code 1.
 
 ## Inspect how a file is chunked
 
@@ -101,8 +105,8 @@ rm -rf /tmp/codemem-demo && cp -R test/fixtures/ts-app /tmp/codemem-demo
 cd /tmp/codemem-demo
 node "$CODEMEM/dist/cli/index.js" index
 node "$CODEMEM/dist/cli/index.js" index
-node "$CODEMEM/dist/cli/index.js" search authenticateUser -k 3
-node "$CODEMEM/dist/cli/index.js" search "user auth" -k 3
+node "$CODEMEM/dist/cli/index.js" search authenticateUser -k 2
+node "$CODEMEM/dist/cli/index.js" search "confirm sign-in credentials" -k 3 --budget 150 --debug
 ```
 
 On Windows PowerShell, replace the first three lines with:
@@ -118,29 +122,55 @@ and use `node "$CODEMEM/dist/cli/index.js"` the same way.
 Expected output (times vary):
 
 ```text
-Indexed 7 of 7 files (0 unchanged, 0 removed) in 0.28s. Index: 7 files, 32 symbols, 38 chunks.
-Indexed 0 of 7 files (7 unchanged, 0 removed) in 0.01s. Index: 7 files, 32 symbols, 38 chunks.
-1. src/auth.ts:10-23  function authenticateUser  [exact-symbol, keyword]
-   export async function authenticateUser(id: string, password: string): Promise<boolean>
-2. src/service.ts:1-2  window  [keyword]
-   import { authenticateUser, parseToken } from './auth';
-3. src/service.ts:33-38  method UserService.login  [keyword]
-   @Log('login') async login(id: string, password: string): Promise<boolean>
-1. src/auth.ts:10-23  function authenticateUser  [keyword]
-   export async function authenticateUser(id: string, password: string): Promise<boolean>
-2. src/service.ts:1-2  window  [keyword]
-   import { authenticateUser, parseToken } from './auth';
-3. src/auth.ts:5-8  interface Claims  [keyword]
-   export interface Claims
+Indexed 7 of 7 files (0 unchanged, 0 removed) in 0.49s. Embedded 38 chunks (0 from cache) with local:Xenova/all-MiniLM-L6-v2. Index: 7 files, 32 symbols, 38 chunks.
+Indexed 0 of 7 files (7 unchanged, 0 removed) in 0.01s. Embedded 0 chunks (0 from cache) with local:Xenova/all-MiniLM-L6-v2. Index: 7 files, 32 symbols, 38 chunks.
 ```
 
-The index is a single file, `.codemem/index.db`, in the directory you indexed. `index --full` reindexes every file. `search --debug` adds scores. Search is keyword-only until Phase 3 adds embeddings, and `--budget` arrives with the packer in the same phase.
+The first search prints two blocks and a footer. Each block starts with `--- path:start-end kind name [reasons]`:
 
-Optional settings go in `.codemem/config.json`; every field has a default:
+```text
+--- src/auth.ts:10-23 function authenticateUser [exact-symbol, keyword, vector]
+/**
+ * Checks a password against the stored hash.
+(the rest of the function)
+
+--- src/service.ts:1-2 lines [keyword, vector]
+import { authenticateUser, parseToken } from './auth';
+import { findUser, type User } from './db';
+
+~165 tokens | 2 results
+```
+
+The second search shares no word with the function it should find. `--debug` prints the ranking first, and the 150-token budget leaves room for one result:
+
+```text
+1. score=0.0164 keyword=- vector=1  src/auth.ts:10-23 authenticateUser
+2. score=0.0161 keyword=- vector=2  src/auth.ts:36-39 resetPassword  (dropped)
+3. score=0.0159 keyword=- vector=3  src/service.ts:33-38 UserService.login  (dropped)
+
+--- src/auth.ts:10-23 function authenticateUser [vector]
+(the function)
+
+~128 tokens | 1 result | 2 dropped for budget
+```
+
+The index is a single file, `.codemem/index.db`, in the directory you indexed. `index --full` reindexes every file and is how you switch embedding models. Token counts are approximate.
+
+Optional settings go in `.codemem/config.json`. Every field has a default; this example shows a few:
 
 ```json
-{ "include": ["src/**"], "exclude": ["**/*.test.ts"], "maxFileSizeKb": 512 }
+{
+  "include": ["src/**"],
+  "exclude": ["**/*.test.ts"],
+  "maxFileSizeKb": 512,
+  "embedding": { "provider": "local", "model": "Xenova/all-MiniLM-L6-v2", "batchSize": 8 },
+  "retrieval": { "rrfK": 60, "keywordLimit": 50, "vectorLimit": 50, "defaultBudgetTokens": 4000 }
+}
 ```
+
+- `embedding.provider`: `local` (default, nothing leaves the machine), `none` (keyword search only), or `openai` and `voyage`, which send your code to that service and read the key from `OPENAI_API_KEY` or `VOYAGE_API_KEY`.
+- `embedding.model`: for a slower, code-trained local model use `jinaai/jina-embeddings-v2-base-code` (163 MB download), then run `codemem index --full`.
+- `retrieval`: also `keywordWeights`, `defaultK`, `graphTopN`, `graphMaxNeighbors`, and `edgeWeights`. The three graph settings take effect in Phase 4.
 
 `codemem context` arrives in Phase 5 and `codemem stats` in Phase 7.
 
@@ -211,6 +241,21 @@ Run from a fresh clone, after `npm install`:
 | 4    | `search "user auth"` in the demo copy                                     | Result 1 is `function authenticateUser` with `[keyword]`                                                                                         |
 | 5    | `node "$CODEMEM/dist/cli/index.js" search x` in a directory with no index | `error: No index found in this directory; run \`codemem index\` first`, exit code 1                                                              |
 
+### Phase 3
+
+Run from a fresh clone, after `npm install`:
+
+| Step | Command                                                                           | Correct result                                                                                                 |
+| ---- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 1    | `npm run coverage`                                                                | `Test Files  10 passed (10)` and no threshold error                                                            |
+| 2    | `npx vitest run test/packer.test.ts`                                              | 7 tests pass, including `property: the output never exceeds the budget` and four `golden:` tests               |
+| 3    | `npx vitest run test/hybrid.test.ts`                                              | 4 tests pass: three natural-language queries with no shared keywords find their function                       |
+| 4    | `npx . doctor`                                                                    | `SQLite with FTS5 and sqlite-vec: ok` and `Embedding model: local:Xenova/all-MiniLM-L6-v2 ok (384 dimensions)` |
+| 5    | The commands in "Index a sample repo and query it"                                | The first `index` reports `Embedded 38 chunks`; the second reports `Embedded 0 chunks`                         |
+| 6    | `search "confirm sign-in credentials" -k 3 --budget 150 --debug` in the demo copy | Line 1 is `authenticateUser` with `keyword=- vector=1`; the footer reports at most 150 tokens                  |
+
+To regenerate the packer golden files after an intended change, run `npx vitest run test/packer.test.ts -u` and review the diff of `test/golden/`.
+
 ## Troubleshooting
 
 - **`npx .` says "Permission denied" or "command not found".** `dist/` is missing or stale. Run `npm run build`.
@@ -224,4 +269,7 @@ Run from a fresh clone, after `npm install`:
 - **`The index was written by a newer codemem`.** Delete `.codemem/index.db` and run `codemem index` again, or upgrade codemem.
 - **Search results look stale or wrong after upgrading codemem.** Run `codemem index --full`.
 - **Windows paths.** Paths in the index and in search output always use forward slashes, whatever the platform.
-- **SQLite extension loading (`sqlite-vec`), embedding model download.** These parts do not exist yet; their troubleshooting notes are added in Phase 3.
+- **`The sqlite-vec extension failed to load`.** The platform package for `sqlite-vec` is missing. Prebuilt extensions exist for macOS (x64, arm64), Linux (x64, arm64), and Windows (x64). Run `npm ls sqlite-vec` and reinstall with `npm install`. Other platforms are not supported yet.
+- **`Embedding model ... failed to load`.** The first use downloads the model from huggingface.co. Check the network connection or proxy, then run `npx . doctor`. A partial download can be cleared by deleting `~/.cache/codemem/models`. To work offline or without the model, set `"embedding": { "provider": "none" }` in `.codemem/config.json`; search then uses keywords only.
+- **`The index holds vectors from X but the configured model is Y`.** The embedding model in the config changed. Run `codemem index --full` to rebuild the vectors.
+- **Indexing is slow.** Embedding is the slow stage: about 160 chunks per second with the default model on an Apple M5 laptop, so a 277k-line repo takes about 106 seconds. It runs once; later runs embed only changed chunks.

@@ -1,0 +1,30 @@
+--- src/auth.ts:10-23 function authenticateUser [exact-symbol, keyword]
+/**
+ * Checks a password against the stored hash.
+ * Returns false for unknown users.
+ */
+export async function authenticateUser(id: string, password: string): Promise<boolean> {
+  // Compares in constant time.
+  function verify(expected: string, actual: string): boolean {
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(actual));
+  }
+
+  const user = findUser(id);
+  if (!user) return false;
+  return verify(user.passwordHash, hash(password));
+}
+
+--- src/service.ts:1-2 lines [calls authenticateUser]
+import { authenticateUser, parseToken } from './auth';
+import { findUser, type User } from './db';
+
+--- src/service.ts:27-27 method UserService.create [calls authenticateUser] (signature only)
+static create = (): UserService =>
+
+--- src/service.ts:33-38 method UserService.login [calls authenticateUser] (signature only)
+@Log('login') async login(id: string, password: string): Promise<boolean>
+
+--- src/db.ts:1-1 type UserId [calls authenticateUser] (signature only)
+export type UserId = string;
+
+~258 tokens | 5 results

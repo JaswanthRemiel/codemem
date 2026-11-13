@@ -2,17 +2,10 @@ import { createRequire } from 'node:module';
 import { statSync } from 'node:fs';
 import { Command } from 'commander';
 import { processFile } from '../indexer/index.js';
-import { runIndex, runSearch } from './commands.js';
-import { LANGS, parseSource } from '../parser/index.js';
+import { runDoctor, runIndex, runSearch } from './commands.js';
 import { resolveInRoot, scan } from '../scanner/index.js';
 
 const pkg = createRequire(import.meta.url)('../../package.json') as { version: string };
-
-/** True when a Node.js version string such as "22.13.0" meets the minimum (22.13.0). */
-export function nodeOk(version: string): boolean {
-  const [major = 0, minor = 0] = version.split('.').map(Number);
-  return major > 22 || (major === 22 && minor >= 13);
-}
 
 export function buildProgram(): Command {
   const program = new Command('codemem')
@@ -23,44 +16,44 @@ export function buildProgram(): Command {
     .command('doctor')
     .description('Check that this machine can run codemem')
     .action(async () => {
-      const version = process.versions.node;
-      let ok = nodeOk(version);
-      console.log(`Node.js ${version}: ${ok ? 'ok' : 'too old, install Node.js 22.13.0 or newer'}`);
-      for (const lang of LANGS) {
-        try {
-          await parseSource(lang, '');
-          console.log(`Grammar ${lang}: ok`);
-        } catch (error) {
-          ok = false;
-          const cause =
-            error instanceof Error && error.cause instanceof Error ? error.cause : error;
-          console.log(`Grammar ${lang}: failed (${String(cause)}), reinstall codemem`);
-        }
-      }
-      console.log(
-        'Not checked yet (added in later phases): SQLite extensions, embedding model, index health',
-      );
+      const { lines, ok } = await runDoctor(process.cwd());
+      console.log(lines.join('\n'));
       if (!ok) process.exitCode = 1;
     });
 
   program
     .command('index')
     .description('Index the current directory, skipping files that have not changed')
-    .option('--full', 'reindex every file')
+    .option('--full', 'reindex every file and rebuild vectors')
     .action(async (options: { full?: boolean }) => {
-      console.log(await runIndex(process.cwd(), options));
+      const tty = process.stderr.isTTY;
+      const onEmbedProgress = (done: number, total: number): void => {
+        if (tty) process.stderr.write(`\rEmbedding ${done}/${total}`);
+      };
+      const summary = await runIndex(process.cwd(), { ...options, onEmbedProgress });
+      if (tty) process.stderr.write('\r\x1b[K');
+      console.log(summary);
     });
 
   program
     .command('search <query>')
-    .description('Search the index by keyword')
-    .option('-k, --limit <n>', 'number of results', '10')
-    .option('--debug', 'print scores')
-    .action((query: string, options: { limit: string; debug?: boolean }) => {
-      console.log(
-        runSearch(process.cwd(), query, { k: Number(options.limit), debug: options.debug }),
-      );
-    });
+    .description('Search the index and print the best matching code within a token budget')
+    .option('-k, --limit <n>', 'number of results to consider')
+    .option('--budget <tokens>', 'token budget for the output')
+    .option('--debug', 'print every score before the results')
+    .action(
+      async (query: string, options: { limit?: string; budget?: string; debug?: boolean }) => {
+        const number = (value: string | undefined): number | undefined =>
+          value === undefined || !Number.isFinite(Number(value)) ? undefined : Number(value);
+        console.log(
+          await runSearch(process.cwd(), query, {
+            k: number(options.limit),
+            budget: number(options.budget),
+            debug: options.debug,
+          }),
+        );
+      },
+    );
 
   // Hidden developer commands, not part of the public interface.
   program

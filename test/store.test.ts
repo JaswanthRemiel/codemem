@@ -1,31 +1,21 @@
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { runIndex, runSearch } from '../src/cli/commands.js';
 import { loadConfig, parseConfig } from '../src/config/index.js';
 import { ConfigError, StoreError } from '../src/errors.js';
 import { indexRepo } from '../src/indexer/index.js';
-import { ftsQuery, search, symbolCandidates } from '../src/retriever/index.js';
+import { ftsQuery, fuse, search, symbolCandidates } from '../src/retriever/index.js';
 import { expandTerms, identifierParts } from '../src/store/fts.js';
 import { Store } from '../src/store/index.js';
+import { copyFixture, indexed, names, TEST_CONFIG } from './helpers.js';
 
-/** A private copy of a fixture repo, so tests can edit files and create `.codemem/`. */
-function copyFixture(name: string): string {
-  const root = mkdtempSync(join(tmpdir(), `codemem-${name}-`));
-  cpSync(`test/fixtures/${name}`, root, { recursive: true });
-  return root;
+const EMBEDDINGS_OFF = '"embedding": { "provider": "none" }';
+
+function writeConfig(root: string, json: string): void {
+  mkdirSync(join(root, '.codemem'), { recursive: true });
+  writeFileSync(join(root, '.codemem/config.json'), json);
 }
-
-async function indexed(name: string): Promise<{ root: string; store: Store }> {
-  const root = copyFixture(name);
-  const store = new Store(join(root, 'index.db'));
-  await indexRepo(root, store, parseConfig({ exclude: ['index.db*'] }));
-  return { root, store };
-}
-
-const names = (store: Store, query: string, k = 10): (string | null)[] =>
-  search(store, query, { k }).map((r) => r.chunk.symbol);
 
 test('identifiers are split on camelCase, acronyms, digits, and underscores', () => {
   expect(identifierParts('authenticateUser')).toEqual(['authenticate', 'user']);
@@ -56,44 +46,58 @@ test('queries drop stopwords, prefix-match longer terms, and pick identifier-lik
   ]);
 });
 
+test('reciprocal rank fusion rewards agreement between lists', () => {
+  const scores = fuse(
+    [
+      [1, 2, 3],
+      [3, 4],
+    ],
+    60,
+  );
+  expect(scores.get(3)).toBeCloseTo(1 / 63 + 1 / 61);
+  expect(scores.get(1)).toBeCloseTo(1 / 61);
+  // Third in one list and first in the other beats first in a single list.
+  expect([...scores.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]).toBe(3);
+});
+
 test('an exact function name returns that function first', async () => {
   const { store } = await indexed('ts-app');
   for (const name of ['authenticateUser', 'findUser', 'parseToken', 'hash', 'UserService.login']) {
-    expect(names(store, name)[0], name).toBe(name);
+    expect((await names(store, name))[0], name).toBe(name);
   }
-  const first = search(store, 'authenticateUser')[0];
+  const first = (await search(store, 'authenticateUser', TEST_CONFIG.retrieval, null))[0];
   expect(first?.reasons).toEqual(['exact-symbol', 'keyword']);
+  expect(first?.ranks).toEqual({ keyword: 1 });
   expect(first?.chunk).toMatchObject({ path: 'src/auth.ts', startLine: 10, endLine: 23 });
   store.close();
 
   const py = await indexed('py-pkg');
-  expect(names(py.store, 'validate_sku')[0]).toBe('Order.validate_sku');
+  expect((await names(py.store, 'validate_sku'))[0]).toBe('Order.validate_sku');
   // A nested function has no chunk of its own: the search lands on the function around it.
-  expect(names(py.store, 'wrapper')[0]).toBe('retry');
+  expect((await names(py.store, 'wrapper'))[0]).toBe('retry');
   py.store.close();
 
   const go = await indexed('go-mod');
-  expect(names(go.store, 'Store.Get')[0]).toBe('Store.Get');
-  expect(names(go.store, 'normalize')[0]).toBe('normalize');
+  expect((await names(go.store, 'Store.Get'))[0]).toBe('Store.Get');
+  expect((await names(go.store, 'normalize'))[0]).toBe('normalize');
   go.store.close();
 });
 
 test('"user auth" finds authenticateUser through identifier parts and prefixes', async () => {
   const { store } = await indexed('ts-app');
-  expect(names(store, 'user auth')[0]).toBe('authenticateUser');
-  expect(names(store, 'reset password', 3)).toContain('resetPassword');
-  expect(search(store, 'zzzznothing')).toEqual([]);
-  expect(search(store, '?? !!')).toEqual([]);
+  expect((await names(store, 'user auth'))[0]).toBe('authenticateUser');
+  expect(await names(store, 'reset password', 3)).toContain('resetPassword');
+  expect(await names(store, 'zzzznothing')).toEqual([]);
+  expect(await names(store, '?? !!')).toEqual([]);
   store.close();
 });
 
 test('re-running the index on unchanged files does no work', async () => {
   const { root, store } = await indexed('ts-app');
-  const config = parseConfig({ exclude: ['index.db*'] });
   const before = store.counts();
   expect(before).toEqual({ files: 7, symbols: 32, chunks: 38 });
 
-  const again = await indexRepo(root, store, config);
+  const again = await indexRepo(root, store, TEST_CONFIG);
   expect(again).toMatchObject({ scanned: 7, indexed: 0, unchanged: 7, deleted: 0, chunks: 0 });
   expect(store.counts()).toEqual(before);
 
@@ -102,19 +106,20 @@ test('re-running the index on unchanged files does no work', async () => {
     join(root, 'src/hash.ts'),
     'export function digestPassword(): string {\n  return "";\n}\n',
   );
-  const edited = await indexRepo(root, store, config);
+  const edited = await indexRepo(root, store, TEST_CONFIG);
   expect(edited).toMatchObject({ indexed: 1, unchanged: 6, deleted: 0 });
-  expect(names(store, 'digestPassword')[0]).toBe('digestPassword');
-  expect(names(store, 'SALT')).toEqual([]);
+  expect((await names(store, 'digestPassword'))[0]).toBe('digestPassword');
+  expect(await names(store, 'SALT')).toEqual([]);
 
   // Removing a file removes its chunks and search entries.
   rmSync(join(root, 'src/legacy.js'));
-  const removed = await indexRepo(root, store, config);
+  const removed = await indexRepo(root, store, TEST_CONFIG);
   expect(removed).toMatchObject({ scanned: 6, indexed: 0, deleted: 1 });
-  expect(search(store, 'oldLogin').map((r) => r.chunk.path)).not.toContain('src/legacy.js');
+  const hits = await search(store, 'oldLogin', TEST_CONFIG.retrieval, null);
+  expect(hits.map((r) => r.chunk.path)).not.toContain('src/legacy.js');
   expect(store.counts().files).toBe(6);
 
-  const full = await indexRepo(root, store, config, { full: true });
+  const full = await indexRepo(root, store, TEST_CONFIG, { full: true });
   expect(full).toMatchObject({ indexed: 6, unchanged: 0 });
   expect(store.counts().files).toBe(6);
   store.close();
@@ -123,7 +128,7 @@ test('re-running the index on unchanged files does no work', async () => {
 test('the schema version is recorded, data survives reopening, and newer schemas are refused', async () => {
   const { root, store } = await indexed('go-mod');
   const counts = store.counts();
-  expect(store.getMeta('schema_version')).toBe('1');
+  expect(store.getMeta('schema_version')).toBe('2');
   expect(store.getChunks([1])[0]?.tokenCount).toBeGreaterThan(0);
   store.setMeta('schema_version', '999');
   store.close();
@@ -136,32 +141,60 @@ test('the schema version is recorded, data survives reopening, and newer schemas
   reopened.close();
 });
 
-test('config: defaults, include and exclude globs, and clear errors', async () => {
-  expect(parseConfig({})).toEqual({ include: [], exclude: [], maxFileSizeKb: 512 });
+test('config: every default, nested overrides, and clear errors', () => {
+  expect(parseConfig({})).toEqual({
+    include: [],
+    exclude: [],
+    maxFileSizeKb: 512,
+    embedding: { provider: 'local', model: '', batchSize: 8, maxTokens: 256 },
+    retrieval: {
+      rrfK: 60,
+      keywordLimit: 50,
+      vectorLimit: 50,
+      keywordWeights: { content: 1, symbol: 5, path: 2 },
+      defaultK: 10,
+      defaultBudgetTokens: 4000,
+      graphTopN: 10,
+      graphMaxNeighbors: 20,
+      edgeWeights: { exact: 0.5, import: 0.4, 'name-match': 0.2 },
+    },
+  });
+  const custom = parseConfig({ retrieval: { rrfK: 30, edgeWeights: { exact: 0.9 } } });
+  expect(custom.retrieval).toMatchObject({
+    rrfK: 30,
+    keywordLimit: 50,
+    edgeWeights: { exact: 0.9, import: 0.4, 'name-match': 0.2 },
+  });
   expect(() => parseConfig({ maxFileSizeKb: -1 })).toThrow(ConfigError);
   expect(() => parseConfig({ exclud: [] })).toThrow(/exclud/);
+  expect(() => parseConfig({ retrieval: { rrfk: 30 } })).toThrow(/rrfk/);
+  expect(() => parseConfig({ embedding: { provider: 'azure' } })).toThrow(ConfigError);
+});
 
+test('config file: include and exclude globs change what is indexed', async () => {
   const root = copyFixture('ts-app');
   expect(loadConfig(root)).toEqual(parseConfig({}));
-  expect(await runIndex(root, {})).toMatch(/^Indexed 7 of 7 files/);
-  writeFileSync(
-    join(root, '.codemem/config.json'),
-    '{ "include": ["src/**"], "exclude": ["**/*.js"] }',
-  );
+  writeConfig(root, `{ ${EMBEDDINGS_OFF} }`);
+  expect(await runIndex(root, {})).toMatch(/^Indexed 7 of 7 files .* Embeddings are off\./);
   // The config change drops the SQL file and the JavaScript file from the index.
+  writeConfig(root, `{ "include": ["src/**"], "exclude": ["**/*.js"], ${EMBEDDINGS_OFF} }`);
   expect(await runIndex(root, {})).toMatch(/^Indexed 0 of 5 files \(5 unchanged, 2 removed\)/);
-  writeFileSync(join(root, '.codemem/config.json'), '{ not json');
+  writeConfig(root, '{ not json');
   expect(() => loadConfig(root)).toThrow(ConfigError);
 });
 
-test('CLI search prints ranked results and explains a missing index', async () => {
+test('CLI search prints packed results, scores with --debug, and explains a missing index', async () => {
   const root = copyFixture('py-pkg');
-  expect(() => runSearch(root, 'charge', {})).toThrow(/codemem index/);
+  await expect(runSearch(root, 'charge', {})).rejects.toThrow(/codemem index/);
+  writeConfig(root, `{ ${EMBEDDINGS_OFF} }`);
   await runIndex(root, {});
-  const out = runSearch(root, 'charge', { k: 2, debug: true });
-  expect(out.split('\n')[0]).toMatch(
-    /^1\. shop\/payments\.py:11-16 {2}function charge {2}\[exact-symbol, keyword\] {2}score=\d/,
+  const out = (await runSearch(root, 'charge', { k: 2 })).split('\n');
+  expect(out[0]).toBe('--- shop/payments.py:11-16 function charge [exact-symbol, keyword]');
+  expect(out[1]).toBe('def charge(amount, token):');
+  expect(out.at(-1)).toMatch(/^~\d+ tokens \| 2 results$/);
+  const debug = await runSearch(root, 'charge', { k: 2, debug: true });
+  expect(debug.split('\n')[0]).toMatch(
+    /^1\. score=1\.\d+ keyword=1 vector=- {2}shop\/payments\.py:11-16 charge$/,
   );
-  expect(out.split('\n')[1]).toBe('   def charge(amount, token):');
-  expect(runSearch(root, 'zzzznothing', {})).toBe('No results.');
+  expect(await runSearch(root, 'zzzznothing', {})).toMatch(/^~\d+ tokens \| 0 results$/);
 });

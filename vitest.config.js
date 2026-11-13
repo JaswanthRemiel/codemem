@@ -12,6 +12,7 @@ export default defineConfig({
         'src/parser/**': core,
         'src/chunker/**': core,
         'src/retriever/**': core,
+        'src/packer/**': core,
       },
     },
   },

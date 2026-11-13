@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import * as sqliteVec from 'sqlite-vec';
 import type { Chunk } from '../chunker/index.js';
 import { StoreError } from '../errors.js';
 import type { CodeSymbol } from '../parser/index.js';
@@ -49,6 +50,15 @@ const MIGRATIONS = [
     tokenize="unicode61 tokenchars '_$'"
   );
   `,
+  `
+  -- Vectors by hash of the embedded text, so unchanged chunks are never embedded twice.
+  CREATE TABLE embedding_cache (
+    text_hash TEXT NOT NULL,
+    model_id TEXT NOT NULL,
+    embedding BLOB NOT NULL,
+    PRIMARY KEY (text_hash, model_id)
+  ) WITHOUT ROWID;
+  `,
 ];
 
 export interface FileRecord {
@@ -97,6 +107,14 @@ export class Store {
 
   constructor(path: string) {
     this.db = new Database(path);
+    try {
+      sqliteVec.load(this.db);
+    } catch (cause) {
+      this.db.close();
+      throw new StoreError('The sqlite-vec extension failed to load; run `codemem doctor`', {
+        cause,
+      });
+    }
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('synchronous = NORMAL');
     this.db.pragma('foreign_keys = ON');
@@ -166,6 +184,13 @@ export class Store {
     this.db
       .prepare('DELETE FROM chunks_fts WHERE rowid IN (SELECT id FROM chunks WHERE file_id = ?)')
       .run(file.id);
+    if (this.hasVectors()) {
+      this.db
+        .prepare(
+          'DELETE FROM chunk_vectors WHERE chunk_id IN (SELECT id FROM chunks WHERE file_id = ?)',
+        )
+        .run(file.id);
+    }
     this.db.prepare('DELETE FROM files WHERE id = ?').run(file.id); // cascades
     return true;
   }
@@ -268,5 +293,92 @@ export class Store {
       .all(...ids) as ChunkRow[];
     const byId = new Map(rows.map((row) => [row.id, row]));
     return ids.flatMap((id) => byId.get(id) ?? []);
+  }
+
+  // Vectors. The `chunk_vectors` table is created on demand because its dimension depends
+  // on the embedding model; `meta` records which model filled it.
+
+  private hasVectors(): boolean {
+    return this.getMeta('embedding_dim') !== undefined;
+  }
+
+  /** The model that produced the stored vectors, or undefined when there are none. */
+  embeddingModel(): string | undefined {
+    return this.hasVectors() ? this.getMeta('embedding_model') : undefined;
+  }
+
+  /** Forgets every stored vector, for a rebuild with a different model. */
+  clearVectors(): void {
+    this.transaction(() => {
+      this.db.exec('DROP TABLE IF EXISTS chunk_vectors');
+      this.db.prepare("DELETE FROM meta WHERE key IN ('embedding_model', 'embedding_dim')").run();
+    });
+  }
+
+  /** Drops every stored vector and prepares the table for `modelId` with `dim` dimensions. */
+  resetVectors(modelId: string, dim: number): void {
+    if (!Number.isInteger(dim) || dim <= 0) throw new StoreError(`Invalid embedding size: ${dim}`);
+    this.transaction(() => {
+      this.db.exec('DROP TABLE IF EXISTS chunk_vectors');
+      this.db.exec(
+        `CREATE VIRTUAL TABLE chunk_vectors USING vec0(chunk_id INTEGER PRIMARY KEY, embedding float[${dim}] distance_metric=cosine)`,
+      );
+      this.setMeta('embedding_model', modelId);
+      this.setMeta('embedding_dim', String(dim));
+    });
+  }
+
+  /** Chunks that have no vector yet, shortest first so batches pad less. */
+  chunksWithoutVectors(): { id: number; path: string; content: string }[] {
+    const join = this.hasVectors()
+      ? 'LEFT JOIN chunk_vectors v ON v.chunk_id = c.id WHERE v.chunk_id IS NULL'
+      : '';
+    return this.db
+      .prepare(
+        `SELECT c.id, f.path, c.content FROM chunks c JOIN files f ON f.id = c.file_id ${join} ORDER BY length(c.content)`,
+      )
+      .all() as { id: number; path: string; content: string }[];
+  }
+
+  setVector(chunkId: number, embedding: Float32Array): void {
+    this.db
+      .prepare('INSERT OR REPLACE INTO chunk_vectors (chunk_id, embedding) VALUES (?, ?)')
+      .run(BigInt(chunkId), embedding);
+  }
+
+  cachedEmbedding(textHash: string, modelId: string): Float32Array | undefined {
+    const row = this.db
+      .prepare('SELECT embedding FROM embedding_cache WHERE text_hash = ? AND model_id = ?')
+      .get(textHash, modelId) as { embedding: Buffer } | undefined;
+    if (!row) return undefined;
+    const { buffer, byteOffset, byteLength } = row.embedding;
+    return new Float32Array(buffer.slice(byteOffset, byteOffset + byteLength));
+  }
+
+  cacheEmbedding(textHash: string, modelId: string, embedding: Float32Array): void {
+    this.db
+      .prepare(
+        'INSERT OR REPLACE INTO embedding_cache (text_hash, model_id, embedding) VALUES (?, ?, ?)',
+      )
+      .run(
+        textHash,
+        modelId,
+        Buffer.from(embedding.buffer, embedding.byteOffset, embedding.byteLength),
+      );
+  }
+
+  /** Removes cached vectors of other models. Returns how many rows were removed. */
+  pruneEmbeddingCache(modelId: string): number {
+    return this.db.prepare('DELETE FROM embedding_cache WHERE model_id <> ?').run(modelId).changes;
+  }
+
+  /** Nearest chunks by cosine similarity; higher scores are closer. */
+  vectorSearch(embedding: Float32Array, limit: number): { id: number; score: number }[] {
+    if (!this.hasVectors()) return [];
+    return this.db
+      .prepare(
+        'SELECT chunk_id AS id, 1 - distance AS score FROM chunk_vectors WHERE embedding MATCH ? AND k = ? ORDER BY distance',
+      )
+      .all(embedding, limit) as { id: number; score: number }[];
   }
 }

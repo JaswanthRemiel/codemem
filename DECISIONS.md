@@ -101,3 +101,40 @@ Each entry: context, options, decision, consequences.
 - **Options:** (a) install with `--ignore-scripts` and build by hand, (b) go back to `better-sqlite3` 12, which downloads its binary in an install script, (c) require npm 11 for working on this repo.
 - **Decision:** (c). CI upgrades npm before `npm ci`, and SETUP.md lists npm 11 as a prerequisite.
 - **Consequences:** People who install the published package are not affected, since that path has no lockfile. Contributors on Node 22 must upgrade npm once. A Windows contributor with no Visual Studio at all would still fail on the lockfile install and needs `npm ci --ignore-scripts` followed by `npm run prepare`.
+
+## 016: Default embedding model
+
+- **Context:** The spec asks for a local model that is code-aware and small enough for a laptop, and a full index of a 100k-line repo in under 3 minutes. Measured on an Apple M5 with 8-bit quantized ONNX weights, inputs cut to 256 tokens, and batches sorted by length:
+
+  | Model                                 | Trained on code | Download | Dimensions | Chunks per second |
+  | ------------------------------------- | --------------- | -------- | ---------- | ----------------- |
+  | `Xenova/all-MiniLM-L6-v2`             | no              | 23 MB    | 384        | about 200         |
+  | `jinaai/jina-embeddings-v2-base-code` | yes             | 163 MB   | 768        | about 42          |
+
+  No smaller code-trained model with ONNX weights from an established publisher was found on the model hub. A 100k-line repo is about 6,000 chunks: roughly 30 seconds with the first model and 2.4 minutes with the second on this machine, which leaves no margin on slower laptops.
+
+- **Decision:** Default to `Xenova/all-MiniLM-L6-v2`. The jina model is a documented config option.
+- **Consequences:** The default is not code-aware, which the spec asked for. On the fixtures it still finds functions from descriptions that share no keywords. The Phase 8 benchmark should run both models so the choice rests on measured recall.
+
+## 017: Vector storage and the embedding cache
+
+- **Context:** A `sqlite-vec` table has a fixed dimension, and the spec forbids mixing models.
+- **Decision:** `chunk_vectors` is created when the first vector arrives, with that vector's dimension, and `meta` records the model. A different configured model makes `index` and `search` fail with an instruction to run `codemem index --full`, which drops and rebuilds the table. Embedding runs after chunks are written and only for chunks that lack a vector, so an interrupted run resumes. The cache table is keyed by a hash of the embedded text (path plus content) and the model id.
+- **Consequences:** Keyword search works while embedding is still running or after it fails. Vectors are stored twice. Cached vectors of chunks that were edited away are not pruned yet.
+
+## 018: Packer rules
+
+- **Context:** The spec fixes the outline (score order, signature compression, dedupe, greedy fill, grouped output, footer) and leaves details open.
+- **Decision:**
+  - Block header: `--- path:start-end kind name [reasons]`. Blocks of one file are adjacent and in line order; files are ordered by their best score.
+  - Chunks of a file that overlap or touch are joined into one block without repeated lines. Class headers and signature-only blocks are never joined, because their text is not a plain slice of the file.
+  - An item that does not fit in full is tried as signature-only before it is dropped.
+  - Selection uses per-item token estimates; the final text is then measured, and items are removed until it fits. 24 tokens are reserved for the footer, and the footer's token figure includes the footer itself.
+  - A budget too small even for the footer yields an empty string.
+- **Consequences:** The budget is a hard limit, checked by a seeded property test over 400 random inputs. Estimates are slightly conservative, so a few tokens of budget can go unused.
+
+## 019: No property-testing library
+
+- **Context:** The acceptance criteria ask for a property-based test of the budget limit.
+- **Decision:** A seeded pseudo-random generator inside the test, rather than adding `fast-check`.
+- **Consequences:** No new dependency. There is no automatic shrinking; a failure reports the iteration, budget, and item count for replay.

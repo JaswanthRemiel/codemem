@@ -1,6 +1,8 @@
-import { readFileSync } from 'node:fs';
-import { expect, test } from 'vitest';
-import { buildProgram, nodeOk } from '../src/cli/program.js';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { expect, test, vi } from 'vitest';
+import { nodeOk, runDoctor } from '../src/cli/commands.js';
+import { buildProgram } from '../src/cli/program.js';
+import { copyFixture } from './helpers.js';
 
 test('version matches package.json', () => {
   const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string };
@@ -16,4 +18,36 @@ test('nodeOk enforces the 22.13.0 minimum', () => {
   expect(nodeOk('22.12.9')).toBe(false);
   expect(nodeOk('22.13.0')).toBe(true);
   expect(nodeOk('24.0.0')).toBe(true);
+});
+
+test('doctor checks the runtime, grammars, SQLite, and the embedding setting', async () => {
+  const root = copyFixture('go-mod');
+  mkdirSync(`${root}/.codemem`);
+  writeFileSync(`${root}/.codemem/config.json`, '{ "embedding": { "provider": "none" } }');
+  const { lines, ok } = await runDoctor(root);
+  expect(ok).toBe(true);
+  expect(lines).toEqual([
+    `Node.js: ${process.versions.node} ok`,
+    'Grammar javascript: ok',
+    'Grammar typescript: ok',
+    'Grammar tsx: ok',
+    'Grammar python: ok',
+    'Grammar go: ok',
+    'SQLite with FTS5 and sqlite-vec: ok',
+    'Embedding model: off (keyword search only)',
+    'Not checked yet (added in a later phase): index health',
+  ]);
+});
+
+test('doctor reports a failing check with a fix hint and a failing status', async () => {
+  const root = copyFixture('go-mod');
+  mkdirSync(`${root}/.codemem`);
+  writeFileSync(`${root}/.codemem/config.json`, '{ "embedding": { "provider": "openai" } }');
+  vi.stubEnv('OPENAI_API_KEY', '');
+  const { lines, ok } = await runDoctor(root);
+  vi.unstubAllEnvs();
+  expect(ok).toBe(false);
+  expect(lines.find((line) => line.startsWith('Embedding model'))).toMatch(
+    /failed \(ConfigError: Set OPENAI_API_KEY/,
+  );
 });

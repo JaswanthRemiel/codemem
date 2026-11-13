@@ -1,26 +1,18 @@
-import type { ChunkRow, KeywordWeights, Store } from '../store/index.js';
+import type { Config } from '../config/index.js';
+import { EmbeddingError, modelChanged, type EmbeddingProvider } from '../embedder/index.js';
+import type { ChunkRow, Store } from '../store/index.js';
 import { expandTerms } from '../store/fts.js';
+
+export type RetrievalConfig = Config['retrieval'];
 
 export interface SearchResult {
   chunk: ChunkRow;
   score: number;
-  /** Why the chunk was returned: `exact-symbol`, `keyword`. */
+  /** Why the chunk was returned: `exact-symbol`, `keyword`, `vector`. */
   reasons: string[];
+  /** 1-based rank in each source list, for `--debug`. */
+  ranks: { keyword?: number; vector?: number };
 }
-
-export interface SearchOptions {
-  /** Number of results to return. */
-  k: number;
-  /** Candidates taken from the keyword index before ranking. */
-  keywordLimit: number;
-  keywordWeights: KeywordWeights;
-}
-
-export const DEFAULT_SEARCH_OPTIONS: SearchOptions = {
-  k: 10,
-  keywordLimit: 50,
-  keywordWeights: { content: 1, symbol: 5, path: 2 },
-};
 
 /** Words that say nothing about code and would match almost every chunk. */
 const STOPWORDS = new Set(
@@ -57,33 +49,73 @@ export function symbolCandidates(query: string): string[] {
   return [...new Set([...names, ...lastSegments])];
 }
 
-/** Keyword search with exact symbol-name matches ranked first. */
-export function search(
+/**
+ * Reciprocal rank fusion: each list adds 1 / (k + rank) to the items it contains, so an item
+ * ranked well by several lists beats one ranked first by a single list.
+ */
+export function fuse(lists: number[][], k: number): Map<number, number> {
+  const scores = new Map<number, number>();
+  for (const list of lists) {
+    for (const [index, id] of list.entries()) {
+      scores.set(id, (scores.get(id) ?? 0) + 1 / (k + index + 1));
+    }
+  }
+  return scores;
+}
+
+/**
+ * Hybrid search: keyword (BM25) and vector results fused by rank, with exact symbol-name
+ * matches on top. Without a provider the search is keyword-only.
+ */
+export async function search(
   store: Store,
   query: string,
-  options: Partial<SearchOptions> = {},
-): SearchResult[] {
-  const opts = { ...DEFAULT_SEARCH_OPTIONS, ...options };
-  const scores = new Map<number, { score: number; reasons: string[] }>();
-
+  config: RetrievalConfig,
+  provider: EmbeddingProvider | null,
+  k: number = config.defaultK,
+): Promise<SearchResult[]> {
   const match = ftsQuery(query);
-  const hits = match ? store.keywordSearch(match, opts.keywordLimit, opts.keywordWeights) : [];
-  for (const { id, score } of hits) scores.set(id, { score, reasons: ['keyword'] });
+  const keyword = match
+    ? store.keywordSearch(match, config.keywordLimit, config.keywordWeights).map((hit) => hit.id)
+    : [];
 
-  // An exact symbol name in the query outranks every keyword hit.
-  const top = (hits[0]?.score ?? 0) + 1;
-  for (const id of store.chunkIdsForSymbols(symbolCandidates(query))) {
-    const existing = scores.get(id);
-    scores.set(id, {
-      score: top + (existing?.score ?? 0),
-      reasons: ['exact-symbol', ...(existing?.reasons ?? [])],
-    });
+  let vector: number[] = [];
+  if (provider && query.trim() && store.embeddingModel() !== undefined) {
+    if (modelChanged(store, provider)) {
+      throw new EmbeddingError(
+        `The index holds vectors from ${store.embeddingModel()} but the configured model is ${provider.id}; run \`codemem index --full\` to rebuild them`,
+      );
+    }
+    const [embedding] = await provider.embed([query], 'query');
+    if (embedding) vector = store.vectorSearch(embedding, config.vectorLimit).map((hit) => hit.id);
   }
 
-  const ranked = [...scores.entries()].sort((a, b) => b[1].score - a[1].score).slice(0, opts.k);
+  const scores = fuse([keyword, vector], config.rrfK);
+  // An exact symbol name in the query outranks anything fusion can produce (at most 2 / k).
+  const exact = new Set(store.chunkIdsForSymbols(symbolCandidates(query)));
+  for (const id of exact) scores.set(id, 1 + (scores.get(id) ?? 0));
+
+  const ranked = [...scores.entries()].sort((a, b) => b[1] - a[1]).slice(0, k);
   const chunks = new Map(store.getChunks(ranked.map(([id]) => id)).map((c) => [c.id, c]));
-  return ranked.flatMap(([id, { score, reasons }]) => {
+  return ranked.flatMap(([id, score]) => {
     const chunk = chunks.get(id);
-    return chunk ? [{ chunk, score, reasons }] : [];
+    if (!chunk) return [];
+    const keywordRank = keyword.indexOf(id) + 1;
+    const vectorRank = vector.indexOf(id) + 1;
+    return [
+      {
+        chunk,
+        score,
+        reasons: [
+          ...(exact.has(id) ? ['exact-symbol'] : []),
+          ...(keywordRank ? ['keyword'] : []),
+          ...(vectorRank ? ['vector'] : []),
+        ],
+        ranks: {
+          ...(keywordRank ? { keyword: keywordRank } : {}),
+          ...(vectorRank ? { vector: vectorRank } : {}),
+        },
+      },
+    ];
   });
 }

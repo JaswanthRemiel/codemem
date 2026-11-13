@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { chunkFile, type Chunk, type ChunkOptions } from '../chunker/index.js';
 import type { Config } from '../config/index.js';
+import { embedMissing, modelChanged, type EmbeddingProvider } from '../embedder/index.js';
 import { languageOf, parseSource, type ParsedFile } from '../parser/index.js';
 import { resolveInRoot, scan } from '../scanner/index.js';
 import type { Store } from '../store/index.js';
@@ -30,7 +31,17 @@ export interface IndexStats {
   deleted: number;
   /** Chunks written by this run. */
   chunks: number;
+  /** Chunks that received a vector in this run, and how many of those came from the cache. */
+  embedded: number;
+  embeddingsCached: number;
   seconds: number;
+}
+
+export interface IndexOptions {
+  full?: boolean;
+  /** Null or missing leaves the index keyword-only. */
+  provider?: EmbeddingProvider | null;
+  onEmbedProgress?: (done: number, total: number) => void;
 }
 
 async function readSource(root: string, path: string): Promise<string> {
@@ -69,7 +80,7 @@ export async function indexRepo(
   root: string,
   store: Store,
   config: Config,
-  options: { full?: boolean } = {},
+  options: IndexOptions = {},
 ): Promise<IndexStats> {
   const started = performance.now();
   const full = options.full === true || store.getMeta('index_format') !== INDEX_FORMAT;
@@ -81,6 +92,8 @@ export async function indexRepo(
     unchanged: 0,
     deleted: 0,
     chunks: 0,
+    embedded: 0,
+    embeddingsCached: 0,
     seconds: 0,
   };
 
@@ -119,6 +132,23 @@ export async function indexRepo(
     }
     store.setMeta('index_format', INDEX_FORMAT);
   });
+
+  const provider = options.provider;
+  if (provider) {
+    // A full rebuild is the way to switch models; anything else refuses to mix them.
+    if (options.full && modelChanged(store, provider)) store.clearVectors();
+    const embed = await embedMissing(
+      store,
+      provider,
+      config.embedding.batchSize,
+      options.onEmbedProgress,
+    );
+    stats.embedded = embed.embedded;
+    stats.embeddingsCached = embed.cached;
+    // shortcut: cached vectors of edited-away chunks are kept (about 1.5 KB each).
+    // Prune by hash if the cache ever dominates the index size.
+    store.pruneEmbeddingCache(provider.id);
+  }
 
   stats.seconds = (performance.now() - started) / 1000;
   return stats;

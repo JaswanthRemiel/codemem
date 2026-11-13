@@ -5,14 +5,57 @@ import { ConfigError } from '../errors.js';
 
 export const CONFIG_DIR = '.codemem';
 
-// Fields are added here as the phases that use them arrive. Unknown keys are rejected so
-// a typo does not silently fall back to a default.
+const EmbeddingSchema = z.strictObject({
+  /** `local` runs on this machine. `openai` and `voyage` send code to that service. `none` disables vectors. */
+  provider: z.enum(['local', 'openai', 'voyage', 'none']).default('local'),
+  /** Model name. Empty means the provider's default. */
+  model: z.string().default(''),
+  batchSize: z.number().int().positive().default(8),
+  /** Local models only: inputs are cut to this many model tokens. */
+  maxTokens: z.number().int().positive().default(256),
+});
+
+const RetrievalSchema = z.strictObject({
+  /** Reciprocal rank fusion constant: larger values flatten the difference between ranks. */
+  rrfK: z.number().positive().default(60),
+  /** Candidates taken from keyword search before fusion. */
+  keywordLimit: z.number().int().positive().default(50),
+  /** Candidates taken from vector search before fusion. */
+  vectorLimit: z.number().int().positive().default(50),
+  /** BM25 column weights. */
+  keywordWeights: z
+    .strictObject({
+      content: z.number().nonnegative().default(1),
+      symbol: z.number().nonnegative().default(5),
+      path: z.number().nonnegative().default(2),
+    })
+    .prefault({}),
+  /** Results returned when the caller does not say how many. */
+  defaultK: z.number().int().positive().default(10),
+  defaultBudgetTokens: z.number().int().positive().default(4000),
+  /** Graph expansion (takes effect in Phase 4): how many top results get their neighbors added. */
+  graphTopN: z.number().int().nonnegative().default(10),
+  /** Graph expansion: the most neighbors added in total. */
+  graphMaxNeighbors: z.number().int().nonnegative().default(20),
+  /** Graph expansion: neighbor score = parent score x the weight of the edge's confidence. */
+  edgeWeights: z
+    .strictObject({
+      exact: z.number().nonnegative().default(0.5),
+      import: z.number().nonnegative().default(0.4),
+      'name-match': z.number().nonnegative().default(0.2),
+    })
+    .prefault({}),
+});
+
+// Unknown keys are rejected so a typo does not silently fall back to a default.
 const ConfigSchema = z.strictObject({
   /** Globs a file must match to be indexed. Empty means every file. */
   include: z.array(z.string()).default([]),
   /** Globs that remove files from the index, on top of the built-in excludes. */
   exclude: z.array(z.string()).default([]),
   maxFileSizeKb: z.number().int().positive().default(512),
+  embedding: EmbeddingSchema.prefault({}),
+  retrieval: RetrievalSchema.prefault({}),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

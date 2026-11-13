@@ -1,0 +1,100 @@
+--- shop/orders.py:68-164 function validate_order [keyword]
+def validate_order(data):
+    """Return a list of problems with a raw order payload."""
+    errors = []
+    if not data.get("user"):
+        errors.append("user is required")
+    elif not isinstance(data["user"], (str, list)):
+        errors.append("user has the wrong type")
+    elif len(data["user"]) > 200:
+        errors.append("user is too long")
+    if not data.get("token"):
+        errors.append("token is required")
+    elif not isinstance(data["token"], (str, list)):
+        errors.append("token has the wrong type")
+    elif len(data["token"]) > 200:
+        errors.append("token is too long")
+    if not data.get("items"):
+        errors.append("items is required")
+    elif not isinstance(data["items"], (str, list)):
+        errors.append("items has the wrong type")
+    elif len(data["items"]) > 200:
+        errors.append("items is too long")
+    if not data.get("currency"):
+        errors.append("currency is required")
+    elif not isinstance(data["currency"], (str, list)):
+        errors.append("currency has the wrong type")
+    elif len(data["currency"]) > 200:
+        errors.append("currency is too long")
+    if not data.get("country"):
+        errors.append("country is required")
+    elif not isinstance(data["country"], (str, list)):
+        errors.append("country has the wrong type")
+    elif len(data["country"]) > 200:
+        errors.append("country is too long")
+    if not data.get("postcode"):
+        errors.append("postcode is required")
+    elif not isinstance(data["postcode"], (str, list)):
+        errors.append("postcode has the wrong type")
+    elif len(data["postcode"]) > 200:
+        errors.append("postcode is too long")
+    if not data.get("street"):
+        errors.append("street is required")
+    elif not isinstance(data["street"], (str, list)):
+        errors.append("street has the wrong type")
+    elif len(data["street"]) > 200:
+        errors.append("street is too long")
+    if not data.get("city"):
+        errors.append("city is required")
+    elif not isinstance(data["city"], (str, list)):
+        errors.append("city has the wrong type")
+    elif len(data["city"]) > 200:
+        errors.append("city is too long")
+    if not data.get("email"):
+        errors.append("email is required")
+    elif not isinstance(data["email"], (str, list)):
+        errors.append("email has the wrong type")
+    elif len(data["email"]) > 200:
+        errors.append("email is too long")
+    if not data.get("phone"):
+        errors.append("phone is required")
+    elif not isinstance(data["phone"], (str, list)):
+        errors.append("phone has the wrong type")
+    elif len(data["phone"]) > 200:
+        errors.append("phone is too long")
+    if not data.get("coupon"):
+        errors.append("coupon is required")
+    elif not isinstance(data["coupon"], (str, list)):
+        errors.append("coupon has the wrong type")
+    elif len(data["coupon"]) > 200:
+        errors.append("coupon is too long")
+    if not data.get("channel"):
+        errors.append("channel is required")
+    elif not isinstance(data["channel"], (str, list)):
+        errors.append("channel has the wrong type")
+    elif len(data["channel"]) > 200:
+        errors.append("channel is too long")
+    if not data.get("locale"):
+        errors.append("locale is required")
+    elif not isinstance(data["locale"], (str, list)):
+        errors.append("locale has the wrong type")
+    elif len(data["locale"]) > 200:
+        errors.append("locale is too long")
+    if not data.get("warehouse"):
+        errors.append("warehouse is required")
+    elif not isinstance(data["warehouse"], (str, list)):
+        errors.append("warehouse has the wrong type")
+    elif len(data["warehouse"]) > 200:
+        errors.append("warehouse is too long")
+    if not data.get("carrier"):
+        errors.append("carrier is required")
+    elif not isinstance(data["carrier"], (str, list)):
+        errors.append("carrier has the wrong type")
+    elif len(data["carrier"]) > 200:
+        errors.append("carrier is too long")
+    for item in data.get("items", []):
+        if not Order.validate_sku(item.get("sku", "")):
+            errors.append(f"bad sku {item.get('sku')}")
+    return errors
+
+~971 tokens | 2 results

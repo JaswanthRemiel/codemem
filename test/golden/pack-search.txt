@@ -1,0 +1,49 @@
+--- src/auth.ts:10-23 function authenticateUser [exact-symbol, keyword]
+/**
+ * Checks a password against the stored hash.
+ * Returns false for unknown users.
+ */
+export async function authenticateUser(id: string, password: string): Promise<boolean> {
+  // Compares in constant time.
+  function verify(expected: string, actual: string): boolean {
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(actual));
+  }
+
+  const user = findUser(id);
+  if (!user) return false;
+  return verify(user.passwordHash, hash(password));
+}
+
+--- src/auth.ts:36-39 function resetPassword [keyword]
+export const resetPassword = async (user: User, next: string): Promise<void> => {
+  user.passwordHash = hash(next);
+  saveUser(user);
+};
+
+--- src/service.ts:1-2 lines [keyword]
+import { authenticateUser, parseToken } from './auth';
+import { findUser, type User } from './db';
+
+--- src/service.ts:33-38 method UserService.login [keyword]
+  @Log('login')
+  async login(id: string, password: string): Promise<boolean> {
+    const ok = await authenticateUser(id, password);
+    this.audit(id, ok);
+    return ok;
+  }
+
+--- src/db.ts:8-14 interface User [keyword]
+/** A stored account. */
+export interface User {
+  id: UserId;
+  name: string;
+  passwordHash: string;
+  role: Role;
+}
+
+--- src/legacy.js:6-8 method LegacyLogin.handle [keyword]
+  handle = (req) => {
+    return this.service.login(req.id, req.password);
+  };
+
+~353 tokens | 6 results

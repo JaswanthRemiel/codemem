@@ -32,9 +32,11 @@
     "coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.3.2",
     "better-sqlite3": "^13.1.1",
     "commander": "^15.1.0",
     "js-tiktoken": "^1.0.21",
+    "sqlite-vec": "^0.1.9",
     "web-tree-sitter": "^0.27.2",
     "zod": "^4.6.7"
   },
