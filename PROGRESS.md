@@ -64,11 +64,30 @@
 - Retrieval adds the direct neighbors of the top results as signature-only blocks with a reason (`calls X`, `called by Y`, `extends X`, `type used by X`, `contains X`).
 - `describeSymbol` and `findReferences` (the future `get_symbol` and `find_references` tools), reachable now through hidden `codemem debug symbol` and `codemem debug refs`.
 - Coverage threshold now includes `graph`.
-- Measured on nest (277k lines, Apple M5): 107,851 call sites, of which 19,728 resolve (8,868 exact, 5,483 import, 5,377 name-match); the rest target libraries, test helpers, or values of unknown type. Rebuilding the whole graph takes 0.7s. Warm query p50 19 ms, p95 27 ms.
+- Measured on nest (commit 4410584, 277k lines, Apple M5): 107,851 call sites, of which 19,366 resolve (8,820 exact, 5,483 import, 5,063 name-match); the rest target libraries, test helpers, or values of unknown type. Rebuilding the whole graph takes 0.6s. Warm query p50 19 ms, p95 27 ms.
+- Hand-check of resolved call edges on nest, 2026-11-14: a seeded random sample of 30 (22 name-match, 4 import, 4 exact), each judged by reading the call site and the target.
+
+  | Confidence | Sampled | Correct | Precision |
+  | ---------- | ------- | ------- | --------- |
+  | exact      | 4       | 4       | 100%      |
+  | import     | 4       | 4       | 100%      |
+  | name-match | 22      | 16      | 73%       |
+  | all        | 30      | 24      | 80%       |
+
+  The six wrong edges were all name-matches on methods of things outside the repo: `Object.entries`, `Object.assign` (twice), `Object.keys(...).sort()`, `headers.append` on a web `Headers` object, and a supertest `.field()` call. Each matched the one repo symbol that happens to share the method name.
+
+- Follow-up fix: a call on a capitalized receiver that is neither defined in the file nor imported (`Object`, `Math`, `JSON`) is no longer name-matched. That removes three of the six errors in the sample (16 of 19 name-matches correct, 84%; 24 of 27 overall, 89%) and 314 name-match edges on nest. The other three errors (a chained call, a variable holding a built-in object, a library's fluent method) need type information and remain. The sample is small, so treat these figures as rough.
 
 ## Next
 
 Phase 5: MCP server over stdio with all tools and the overview resource, `codemem serve`, `codemem init`.
+
+## Notes for later phases
+
+- Phase 7: prune unused embedding cache entries on `codemem index --full`.
+- Phase 8: record the machine the benchmark ran on (CPU, memory, OS, Node.js version) in the results file and the README.
+- Phase 8: the quantized embedding model gives slightly different vectors on different CPUs, so ranks can shift by a place. Either compare results with a tolerance or offer a full-precision model option, and say which in the README.
+- Phase 8: before deciding on `tsconfig.json` path alias support, check whether the chosen TypeScript benchmark repo uses `paths`.
 
 ## Known issues
 
@@ -81,7 +100,7 @@ Phase 5: MCP server over stdio with all tools and the overview resource, `codeme
 - `codemem index` creates `.codemem/` but does not add it to `.gitignore`; `codemem init` does that in Phase 5.
 - Only the tables in use exist so far. Edges, memories, and the query log arrive as migrations in the phases that use them.
 - Without git, `.gitignore` is not honored; only the built-in excludes apply.
-- Call resolution has no type inference: `user.save()` resolves only when one symbol in the repo is named `save`. There is no ground truth for real repos yet, so its accuracy is measured on the fixtures only.
+- Call resolution has no type inference: `user.save()` resolves only when one symbol in the repo is named `save`. On real code about one in four name-match edges is wrong (see the hand-check above); they carry the lowest retrieval weight (0.2).
 - The graph is rebuilt in full after every index run that changed a file (0.7s on nest).
 - Go struct embedding and implicit interface satisfaction produce no edges. TypeScript path aliases from `tsconfig.json` are not read; a non-relative import resolves only when exactly one file matches it.
 - Class header chunks are never split, even for very large classes.

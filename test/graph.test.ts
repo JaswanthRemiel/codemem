@@ -146,6 +146,8 @@ test('resolution order and its limits, on a hand-built graph', () => {
       { id: 5, fileId: 1, symbolId: 10, kind: 'call', name: 'onlyHere', receiver: '' },
       // A call at file level has no source symbol but still resolves.
       { id: 6, fileId: 4, symbolId: null, kind: 'call', name: 'py_main', receiver: null },
+      // A global such as `Object` is not in the repo: no name match on its methods.
+      { id: 8, fileId: 1, symbolId: 10, kind: 'call', name: 'onlyHere', receiver: 'Object' },
       // A type reference never resolves to a function.
       { id: 7, fileId: 1, symbolId: 10, kind: 'type', name: 'helper', receiver: null },
     ],

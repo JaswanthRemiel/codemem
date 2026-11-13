@@ -189,6 +189,9 @@ export function resolveReferences(input: GraphInput): Resolution {
       const owner = topIn([fileId], receiver);
       const own = owner && TYPE_KINDS.has(owner.kind) ? member(owner, name) : undefined;
       if (own) return hit(own, 'exact');
+      // A capitalized receiver names a class or namespace. One that is neither in this file
+      // nor imported is a global such as `Object` or `Math`, so the call is not ours.
+      if (/^\p{Lu}[\p{L}\p{N}_$]*$/u.test(receiver)) return null;
     }
 
     if (receiver !== null) {

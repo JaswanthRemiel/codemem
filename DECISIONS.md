@@ -157,6 +157,7 @@ Each entry: context, options, decision, consequences.
   - `this.x()`, `self.x()`, and `cls.x()` look in the enclosing class. `Name.x()` looks in a same-file class or an imported class or module of that name.
   - A reference through an import that leads outside the repo (`fmt.Println`, `crypto.timingSafeEqual`) is left unresolved and never falls back to a name match.
   - A call on any other expression resolves to the only symbol of that name in the file (`exact`), or failing that the only one in the repo within the same language family (`name-match`). Functions nested in other functions and constants are not name-match candidates.
+  - A call on a capitalized receiver that is neither defined in the file nor imported (`Object.assign`, `Math.max`) is left unresolved: it names a global, not a repo symbol. Added after a hand-check on nest found such calls behind half of the wrong name-match edges.
   - Type references and base classes resolve only to classes, interfaces, types, and enums.
 - **Consequences:** Precision is favored over recall: an ambiguous name produces no edge. `name-match` edges are the least certain and carry the lowest weight (0.2) in retrieval.
 
