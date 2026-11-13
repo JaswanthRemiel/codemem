@@ -4,13 +4,15 @@ How to set up, run, and test codemem from a fresh machine. This file is updated 
 
 ## Prerequisites
 
-| Tool    | Version                                                           | Check            |
-| ------- | ----------------------------------------------------------------- | ---------------- |
-| Node.js | 22.13.0 or newer (CI tests 22 and 24)                             | `node --version` |
-| npm     | 11 or newer. Node.js 22 ships npm 10: run `npm install -g npm@11` | `npm --version`  |
-| Git     | 2.30 or newer                                                     | `git --version`  |
+| Tool    | Version                                                                                    | Check            |
+| ------- | ------------------------------------------------------------------------------------------ | ---------------- |
+| Node.js | 22.13.0 or newer (CI tests 22 and 24)                                                      | `node --version` |
+| npm     | 11 or newer for working on this repo. Node.js 22 ships npm 10: run `npm install -g npm@11` | `npm --version`  |
+| Git     | 2.30 or newer                                                                              | `git --version`  |
 
 Normally no compiler or other build tools are needed: the tree-sitter grammars ship in the repo as WebAssembly files under `grammars/`, and `better-sqlite3` downloads a prebuilt binary for common platforms. If no prebuilt binary exists for your platform, `npm install` compiles it and needs Python 3 and a C++ toolchain (see Troubleshooting).
+
+The npm 11 requirement applies only to a checkout of this repo. The packaged tarball installs and runs with the npm 10 that ships with Node.js 22; CI checks that on every push.
 
 OS notes:
 
