@@ -681,12 +681,12 @@ export class Store {
     return true;
   }
 
-  /** Every memory, oldest first, optionally of one kind. */
+  /** Every memory, oldest first (insertion order within a millisecond), optionally of one kind. */
   listMemories(kind?: string): MemoryRow[] {
     const rows = this.db
       .prepare(
         `SELECT id, kind, text, tags, created_at AS createdAt, updated_at AS updatedAt, stale
-         FROM memories ${kind ? 'WHERE kind = ?' : ''} ORDER BY created_at, id`,
+         FROM memories ${kind ? 'WHERE kind = ?' : ''} ORDER BY created_at, rowid`,
       )
       .all(...(kind ? [kind] : [])) as (Omit<MemoryRow, 'tags' | 'stale' | 'links'> & {
       tags: string;
