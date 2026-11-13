@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Config } from '../config/index.js';
 import { CodememError, ConfigError } from '../errors.js';
-import type { Store } from '../store/index.js';
+import type { EmbeddingInput, Store } from '../store/index.js';
 
 export class EmbeddingError extends CodememError {}
 
@@ -131,8 +131,33 @@ export function createProvider(config: EmbeddingConfig): EmbeddingProvider | nul
     : remoteProvider(config.provider, model);
 }
 
-/** The text that is embedded for a chunk: the path gives the model context for the code. */
-export const embeddingText = (path: string, content: string): string => `${path}\n${content}`;
+/**
+ * The text that is embedded for a chunk: path, signature, docstring, then the body. Local
+ * models cut their input after a few hundred tokens, and this order means the cut only ever
+ * removes the end of the body.
+ */
+export function embeddingText(chunk: Omit<EmbeddingInput, 'id'>): string {
+  const { path, content, signature, docstring } = chunk;
+  if (!signature) return `${path}\n${content}`;
+  // Drop the doc comment above the symbol, then the signature the code starts with, so
+  // neither appears twice. A later part of a split function also starts with the signature.
+  let body = content.split('\n').slice(chunk.docLines).join('\n');
+  const wanted = signature.replace(/\s+/g, '');
+  let end = 0;
+  for (let matched = 0; end < body.length && matched < wanted.length; end++) {
+    const ch = body[end] as string;
+    if (/\s/.test(ch)) continue;
+    if (ch !== wanted[matched]) break;
+    matched++;
+    if (matched === wanted.length) {
+      body = body.slice(end + 1);
+      break;
+    }
+  }
+  // shortcut: a Python docstring stays in the body as well, since it is part of the code.
+  // Strip it there if the repeated text turns out to cost recall.
+  return [path, signature, docstring, body.trim()].filter(Boolean).join('\n');
+}
 
 const hashOf = (text: string): string => createHash('sha256').update(text).digest('hex');
 
@@ -168,7 +193,7 @@ export async function embedMissing(
   const pending = store.chunksWithoutVectors();
   for (let start = 0; start < pending.length; start += batchSize) {
     const batch = pending.slice(start, start + batchSize).map((chunk) => {
-      const text = embeddingText(chunk.path, chunk.content);
+      const text = embeddingText(chunk);
       const hash = hashOf(text);
       return { id: chunk.id, text, hash, vector: store.cachedEmbedding(hash, provider.id) };
     });

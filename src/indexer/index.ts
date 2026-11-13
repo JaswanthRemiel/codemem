@@ -12,7 +12,7 @@ import { countTokens } from '../tokens.js';
  * Bump when the parser or chunker changes what gets stored for an unchanged file, so
  * existing indexes are rebuilt instead of silently keeping the old shape.
  */
-const INDEX_FORMAT = '1';
+const INDEX_FORMAT = '2';
 const BATCH_FILES = 100;
 
 export interface ProcessedFile {

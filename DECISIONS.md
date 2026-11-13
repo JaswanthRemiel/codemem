@@ -119,7 +119,7 @@ Each entry: context, options, decision, consequences.
 ## 017: Vector storage and the embedding cache
 
 - **Context:** A `sqlite-vec` table has a fixed dimension, and the spec forbids mixing models.
-- **Decision:** `chunk_vectors` is created when the first vector arrives, with that vector's dimension, and `meta` records the model. A different configured model makes `index` and `search` fail with an instruction to run `codemem index --full`, which drops and rebuilds the table. Embedding runs after chunks are written and only for chunks that lack a vector, so an interrupted run resumes. The cache table is keyed by a hash of the embedded text (path plus content) and the model id.
+- **Decision:** `chunk_vectors` is created when the first vector arrives, with that vector's dimension, and `meta` records the model. A different configured model makes `index` and `search` fail with an instruction to run `codemem index --full`, which drops and rebuilds the table. Embedding runs after chunks are written and only for chunks that lack a vector, so an interrupted run resumes. The embedded text is the path, the signature, the docstring, and then the body, in that order, with the doc comment and signature removed from the body so nothing is repeated; a model that cuts its input therefore only loses the end of the body. The cache table is keyed by a hash of that text and the model id.
 - **Consequences:** Keyword search works while embedding is still running or after it fails. Vectors are stored twice. Cached vectors of chunks that were edited away are not pruned yet.
 
 ## 018: Packer rules

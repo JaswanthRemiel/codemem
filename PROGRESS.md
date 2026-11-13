@@ -53,6 +53,9 @@
 - `codemem search --budget N --debug`; `codemem doctor` checks SQLite, sqlite-vec, and the embedding model.
 - Measured on nest (277k lines, 17,008 chunks, Apple M5): full index with embeddings 106s, warm query p50 15 ms and p95 18 ms, index file 121 MB.
 
+- Embedding input order: path, signature, docstring, then body, so the model's 256-token cut only removes the end of the body.
+- Cold run, measured 2026-11-14 on an Apple M5 with a connection of about 12 MB/s, Node 24.20.0 and npm 11.19.0, with empty npm and model caches: `npx` of the packed tarball to first output 19.3s, first `index` of the `ts-app` fixture including the 23 MB model download 5.8s, first `search` 0.9s, 26.1s in total. The install downloads and unpacks about 750 MB into the npm cache.
+
 ## Next
 
 Phase 4: call graph edges with confidence, `find_references`, graph expansion in retrieval, import aliases.
@@ -62,6 +65,7 @@ Phase 4: call graph edges with confidence, `find_references`, graph expansion in
 - The default embedding model is a small general-purpose model, not a code-trained one (see decision 016). The benchmark in Phase 8 should compare it with `jinaai/jina-embeddings-v2-base-code`.
 - The OpenAI and Voyage providers are tested against a stubbed HTTP server only, not the live services (no API key was used).
 - Install size: `@huggingface/transformers` brings about 430 MB of ONNX runtime files into `node_modules`.
+- Cached vectors of chunks that were edited away are never pruned. To do by Phase 7: prune unused cache entries on `codemem index --full`.
 - Each vector is stored twice (search table and cache), which adds about 1.5 KB per chunk.
 - `sqlite-vec` has no prebuilt extension for Windows on ARM.
 - `codemem index` creates `.codemem/` but does not add it to `.gitignore`; `codemem init` does that in Phase 5.

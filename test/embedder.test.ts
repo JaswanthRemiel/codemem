@@ -6,6 +6,7 @@ import {
   createProvider,
   embedMissing,
   EmbeddingError,
+  embeddingText,
   modelCacheDir,
 } from '../src/embedder/index.js';
 import { ConfigError } from '../src/errors.js';
@@ -188,4 +189,62 @@ test('remote providers: key from the environment, retries on server errors, clea
   // A client error is not retried.
   await expect(voyage.embed(['a'], 'document')).rejects.toThrow(/HTTP 400/);
   expect(requests).toHaveLength(3);
+});
+
+test('embedding input is path, signature, docstring, then body, with nothing repeated', async () => {
+  const { store } = await indexed('ts-app');
+  const texts = new Map(
+    store.chunksWithoutVectors().map((row) => [row.content, embeddingText(row)]),
+  );
+  const find = (needle: string): string =>
+    [...texts.entries()].find(([content]) => content.includes(needle))?.[1] ?? '';
+
+  // The doc comment sits above the signature in the file; here it comes after it.
+  expect(find('export async function authenticateUser').split('\n').slice(0, 5)).toEqual([
+    'src/auth.ts',
+    'export async function authenticateUser(id: string, password: string): Promise<boolean>',
+    'Checks a password against the stored hash.',
+    'Returns false for unknown users.',
+    '{',
+  ]);
+  expect(
+    find('export async function authenticateUser').match(/function authenticateUser/g),
+  ).toHaveLength(1);
+  // Overloads: all three signature lines, then the body.
+  const overloads = find('strict = true').split('\n');
+  expect(overloads.slice(1, 4).every((line) => line.startsWith('export function parseToken'))).toBe(
+    true,
+  );
+  expect(overloads[4]).toBe('{');
+  // A chunk without a symbol is the path and its lines.
+  expect(find("import hash from './hash'").split('\n')[1]).toBe("import hash from './hash';");
+  store.close();
+
+  // A later part of a split function: signature and docstring, then that part's code.
+  const py = await indexed('py-pkg');
+  const part = py.store
+    .chunksWithoutVectors()
+    .map((row) => embeddingText(row))
+    .find((text) => text.includes('return errors'));
+  expect(part?.split('\n').slice(0, 3)).toEqual([
+    'shop/orders.py',
+    'def validate_order(data):',
+    'Return a list of problems with a raw order payload.',
+  ]);
+  expect(part?.match(/def validate_order/g)).toHaveLength(1);
+  py.store.close();
+});
+
+test('a doc comment longer than the model input cannot push the signature out', () => {
+  const docstring = 'Explains the function at length. '.repeat(100).trim();
+  const content = `/** ${docstring} */\nexport function tiny(): number {\n  return 1;\n}`;
+  const text = embeddingText({
+    path: 'src/tiny.ts',
+    content,
+    signature: 'export function tiny(): number',
+    docstring,
+    docLines: 1,
+  });
+  expect(text.split('\n').slice(0, 2)).toEqual(['src/tiny.ts', 'export function tiny(): number']);
+  expect(text.endsWith('{\n  return 1;\n}')).toBe(true);
 });

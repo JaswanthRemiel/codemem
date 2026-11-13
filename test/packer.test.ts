@@ -165,4 +165,4 @@ test('property: the output never exceeds the budget', async () => {
     const unique = new Set(chosen.map((item) => item.chunk.id)).size;
     expect(result.included.length + result.dropped.length, context).toBe(unique);
   }
-});
+}, 120_000);

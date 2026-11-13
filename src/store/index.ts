@@ -86,6 +86,16 @@ export interface ChunkRow {
   docstring: string;
 }
 
+/** What the embedder needs to build the text for one chunk. */
+export interface EmbeddingInput {
+  id: number;
+  path: string;
+  content: string;
+  signature: string;
+  docstring: string;
+  docLines: number;
+}
+
 export interface KeywordWeights {
   content: number;
   symbol: number;
@@ -328,16 +338,23 @@ export class Store {
     });
   }
 
-  /** Chunks that have no vector yet, shortest first so batches pad less. */
-  chunksWithoutVectors(): { id: number; path: string; content: string }[] {
-    const join = this.hasVectors()
+  /**
+   * Chunks that have no vector yet, shortest first so batches pad less. `docLines` is how
+   * many leading lines of `content` are the doc comment above the symbol.
+   */
+  chunksWithoutVectors(): EmbeddingInput[] {
+    const missing = this.hasVectors()
       ? 'LEFT JOIN chunk_vectors v ON v.chunk_id = c.id WHERE v.chunk_id IS NULL'
       : '';
     return this.db
       .prepare(
-        `SELECT c.id, f.path, c.content FROM chunks c JOIN files f ON f.id = c.file_id ${join} ORDER BY length(c.content)`,
+        `SELECT c.id, f.path, c.content, COALESCE(s.signature, '') AS signature,
+                COALESCE(s.docstring, '') AS docstring,
+                MAX(0, COALESCE(s.start_line - c.start_line, 0)) AS docLines
+         FROM chunks c JOIN files f ON f.id = c.file_id LEFT JOIN symbols s ON s.id = c.symbol_id
+         ${missing} ORDER BY length(c.content)`,
       )
-      .all() as { id: number; path: string; content: string }[];
+      .all() as EmbeddingInput[];
   }
 
   setVector(chunkId: number, embedding: Float32Array): void {
