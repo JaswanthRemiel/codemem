@@ -3,12 +3,14 @@ import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Command } from 'commander';
 import { processFile } from '../indexer/index.js';
+import { MEMORY_KINDS, MemoryError } from '../memory/index.js';
 import { serve } from '../mcp/server.js';
 import {
   runContext,
   runDoctor,
   runIndex,
   runInit,
+  runMemory,
   runRefs,
   runSearch,
   runSymbol,
@@ -68,6 +70,51 @@ export function buildProgram(): Command {
     .action(async (task: string, options: { budget?: string }) => {
       const budget = Number(options.budget);
       console.log(await runContext(process.cwd(), task, Number.isFinite(budget) ? { budget } : {}));
+    });
+
+  const memory = program.command('memory').description('Manage project memory by hand');
+  const collect = (value: string, all: string[]): string[] => [...all, value];
+  memory
+    .command('list')
+    .description('List memories, or search them with a query')
+    .argument('[query]', 'what to look for', '')
+    .option('--kind <kind>', 'decision, convention, gotcha, or todo')
+    .action(async (query: string, options: { kind?: string }) => {
+      console.log(await runMemory(process.cwd(), 'list', { query, kind: options.kind }));
+    });
+  memory
+    .command('add <text>')
+    .description('Save a memory')
+    .option('--kind <kind>', 'decision, convention, gotcha, or todo', 'decision')
+    .option('--path <path>', 'file this is about (repeatable)', collect, [])
+    .option('--symbol <name>', 'symbol this is about (repeatable)', collect, [])
+    .option('--tag <tag>', 'tag (repeatable)', collect, [])
+    .action(
+      async (
+        text: string,
+        options: { kind: string; path: string[]; symbol: string[]; tag: string[] },
+      ) => {
+        if (!(MEMORY_KINDS as readonly string[]).includes(options.kind)) {
+          throw new MemoryError(
+            `Unknown kind "${options.kind}". Use one of: ${MEMORY_KINDS.join(', ')}.`,
+          );
+        }
+        console.log(
+          await runMemory(process.cwd(), 'add', {
+            text,
+            kind: options.kind,
+            paths: options.path,
+            symbols: options.symbol,
+            tags: options.tag,
+          }),
+        );
+      },
+    );
+  memory
+    .command('rm <id>')
+    .description('Delete a memory')
+    .action(async (id: string) => {
+      console.log(await runMemory(process.cwd(), 'rm', { id }));
     });
 
   program

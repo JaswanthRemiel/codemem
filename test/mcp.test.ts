@@ -19,6 +19,9 @@ const TOOL_NAMES = [
   'get_symbol',
   'get_file_outline',
   'find_references',
+  'remember',
+  'recall',
+  'forget',
   'index_status',
 ];
 
@@ -43,7 +46,7 @@ function useKeywordOnly(root: string): void {
   writeFileSync(join(root, '.codemem/config.json'), '{ "embedding": { "provider": "none" } }');
 }
 
-test('the server lists every tool with a valid schema and short description', async () => {
+test('the server lists all nine tools with valid schemas and short descriptions', async () => {
   const { client } = await connect('ts-app');
   const { tools } = await client.listTools();
   expect(tools.map((t) => t.name)).toEqual(TOOL_NAMES);
@@ -52,7 +55,9 @@ test('the server lists every tool with a valid schema and short description', as
     expect(tool.description?.length, tool.name).toBeGreaterThan(40);
     // Descriptions are loaded into every agent session, so they stay small.
     expect(countTokens(tool.description ?? ''), tool.name).toBeLessThan(80);
-    expect(tool.annotations?.readOnlyHint, tool.name).toBe(true);
+    expect(tool.annotations?.readOnlyHint, tool.name).toBe(
+      !['remember', 'forget'].includes(tool.name),
+    );
   }
   const getContext = tools.find((t) => t.name === 'get_context');
   expect(getContext?.inputSchema.required).toEqual(['task']);

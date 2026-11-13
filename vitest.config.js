@@ -14,6 +14,7 @@ export default defineConfig({
         'src/retriever/**': core,
         'src/packer/**': core,
         'src/graph/**': core,
+        'src/memory/**': core,
       },
     },
   },

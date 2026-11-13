@@ -127,19 +127,21 @@ function footer(tokens: number, results: number, dropped: number): string {
 
 /**
  * Fits ranked items into `budget` tokens. Items are taken in score order; one that does not
- * fit in full is tried as signature-only before it is dropped. The returned text never
- * exceeds the budget.
+ * fit in full is tried as signature-only before it is dropped. `preamble` (project memory)
+ * goes first and counts toward the budget; it is left out if it cannot fit. The returned
+ * text never exceeds the budget.
  */
-export function pack(candidates: PackItem[], budget: number): PackResult {
+export function pack(candidates: PackItem[], budget: number, preamble = ''): PackResult {
   const seen = new Set<number>();
   const items = [...candidates]
     .sort((a, b) => b.score - a.score)
     .filter((item) => !seen.has(item.chunk.id) && seen.add(item.chunk.id));
 
   const bodyBudget = budget - FOOTER_RESERVE;
+  const head = preamble && countTokens(preamble) + 2 <= bodyBudget ? `${preamble}\n\n` : '';
   const included: PackItem[] = [];
   const dropped: PackItem[] = [];
-  let estimate = 0;
+  let estimate = head ? countTokens(head) : 0;
   for (const item of items) {
     // Per-item cost is an estimate (joining blocks changes it slightly); the loop below
     // measures the real text.
@@ -158,11 +160,11 @@ export function pack(candidates: PackItem[], budget: number): PackResult {
     }
   }
 
-  let body = render(included);
+  let body = `${head}${render(included)}`.trimEnd();
   let tokens = countTokens(body);
   while (included.length > 0 && tokens > bodyBudget) {
     dropped.push(included.pop() as PackItem);
-    body = render(included);
+    body = `${head}${render(included)}`.trimEnd();
     tokens = countTokens(body);
   }
 

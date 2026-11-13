@@ -42,7 +42,7 @@ npm test
 npm run coverage
 ```
 
-Expected: every command exits with code 0. `npm run check:chars` prints `check-chars: N tracked files clean`. `npm test` builds first, then ends with `Test Files  12 passed (12)`. `npm run coverage` runs the same tests, prints a coverage table, and fails if line coverage of `src/parser`, `src/chunker`, `src/retriever`, `src/packer`, or `src/graph` drops below 80%.
+Expected: every command exits with code 0. `npm run check:chars` prints `check-chars: N tracked files clean`. `npm test` builds first, then ends with `Test Files  13 passed (13)`. `npm run coverage` runs the same tests, prints a coverage table, and fails if line coverage of `src/parser`, `src/chunker`, `src/retriever`, `src/packer`, `src/graph`, or `src/memory` drops below 80%.
 
 ## Run the CLI
 
@@ -283,7 +283,7 @@ printf '%s\n' \
   | node "$CODEMEM/dist/cli/index.js" serve
 ```
 
-Expected: two lines of JSON. The second lists six tools: `get_context`, `search_code`, `get_symbol`, `get_file_outline`, `find_references`, `index_status`. The memory tools (`remember`, `recall`, `forget`) arrive in Phase 6.
+Expected: two lines of JSON. The second lists nine tools: `get_context`, `search_code`, `get_symbol`, `get_file_outline`, `find_references`, `remember`, `recall`, `forget`, `index_status`.
 
 With the MCP Inspector (downloads the inspector package on first use):
 
@@ -291,13 +291,13 @@ With the MCP Inspector (downloads the inspector package on first use):
 npx @modelcontextprotocol/inspector --cli node "$CODEMEM/dist/cli/index.js" serve --method tools/list
 ```
 
-Expected: JSON with the same six tools, each with an `inputSchema` of type `object`. Run `npx @modelcontextprotocol/inspector node "$CODEMEM/dist/cli/index.js" serve` instead to open the Inspector's web page and call tools by hand.
+Expected: JSON with the same nine tools, each with an `inputSchema` of type `object`. Run `npx @modelcontextprotocol/inspector node "$CODEMEM/dist/cli/index.js" serve` instead to open the Inspector's web page and call tools by hand.
 
 ### Manual run in Claude Code
 
 1. Run the `init` commands from "Set up a project and get context from the CLI".
 2. In `/tmp/codemem-demo`, run `claude mcp add codemem -- node "$CODEMEM/dist/cli/index.js" serve`.
-3. Start `claude` in that directory and enter `/mcp`. Expected: `codemem` is listed as connected with 6 tools.
+3. Start `claude` in that directory and enter `/mcp`. Expected: `codemem` is listed as connected with 9 tools.
 4. Ask: `Call the codemem get_context tool with the task "check a password at login" and show me the raw result.`
 5. Approve the tool call when asked. Expected: the tool result contains a block headed `--- src/auth.ts:10-23 function authenticateUser [...]` and ends with a `~N tokens | N results` footer.
 6. Clean up with `claude mcp remove codemem`.
@@ -305,6 +305,58 @@ Expected: JSON with the same six tools, each with an `inputSchema` of type `obje
 In Cursor the tools appear under Settings, MCP; in VS Code under Chat: Open Customizations, MCP Servers.
 
 Logs go to stderr, never stdout. Set `CODEMEM_LOG_LEVEL` to `error`, `warn` (default), `info`, or `debug`.
+
+## Project memory
+
+Memories are short notes about the codebase (kinds: `decision`, `convention`, `gotcha`, `todo`) that agents save with the `remember` tool and see again at the top of `get_context` results. They can be linked to files and symbols. The same operations are available by hand. Run in `/tmp/codemem-demo` after `init`:
+
+```sh
+node "$CODEMEM/dist/cli/index.js" memory add "Passwords are hashed with the fixture salt; never store them in plain text." --kind decision --symbol hash --tag security
+node "$CODEMEM/dist/cli/index.js" memory list
+node "$CODEMEM/dist/cli/index.js" context "hash a password" --budget 400
+```
+
+Expected (the id is random):
+
+```text
+Stored memory m_20283783 (decision), linked to src/hash.ts hash.
+[decision] m_20283783
+  Passwords are hashed with the fixture salt; never store them in plain text.
+  (linked: src/hash.ts hash; tags: security)
+
+~39 tokens
+```
+
+and the `context` output now starts with:
+
+```text
+=== Project memory (decisions and conventions recorded for this repo) ===
+[decision] m_20283783
+  Passwords are hashed with the fixture salt; never store them in plain text.
+  (linked: src/hash.ts hash; tags: security)
+```
+
+Memories are mirrored to `.codemem/memory.json`. Commit that file to share them with a team; `.codemem/index.db` stays local. The file is the source of truth: a changed file (after `git pull`, or a hand edit) is loaded on the next command.
+
+A memory is marked stale when code it is linked to changes. Edit the linked function, re-index, and list again:
+
+```sh
+sed -i.bak 's/total \* 31/total * 37/' src/hash.ts
+node "$CODEMEM/dist/cli/index.js" index
+node "$CODEMEM/dist/cli/index.js" memory list
+```
+
+Expected: the first line of the list is now `[decision] m_20283783 STALE: linked code has changed since this was written`.
+
+Deleting the index does not lose memories:
+
+```sh
+rm .codemem/index.db*
+node "$CODEMEM/dist/cli/index.js" index
+node "$CODEMEM/dist/cli/index.js" memory list
+```
+
+Expected: the same memory is listed again. Other commands: `memory list "<query>"` searches, `memory list --kind todo` filters, `memory rm <id>` deletes, and `memory add` takes `--path <file>` as well as `--symbol` (both repeatable).
 
 ## Run the benchmark
 
@@ -409,6 +461,17 @@ Run from a fresh clone, after `npm install`:
 | 5    | The MCP Inspector command in the same section                   | The same six tools with valid schemas                                                                                                                       |
 | 6    | "Manual run in Claude Code"                                     | `get_context` returns a block for `authenticateUser`                                                                                                        |
 
+### Phase 6
+
+Run from a fresh clone, after `npm install`:
+
+| Step | Command                                                 | Correct result                                                                                                                                                                  |
+| ---- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `npm run coverage`                                      | `Test Files  13 passed (13)` and no threshold error                                                                                                                             |
+| 2    | `npx vitest run test/memory.test.ts`                    | 12 tests pass, including `deleting index.db and re-indexing restores memories from memory.json` and `editing a linked function marks its memory stale, and reverting clears it` |
+| 3    | The commands in "Project memory"                        | The memory is stored and listed, appears first in `context`, turns `STALE` after the edit, and survives deleting the index                                                      |
+| 4    | The MCP Inspector command in "Confirm the tools appear" | All nine tools are listed with valid schemas                                                                                                                                    |
+
 ## Troubleshooting
 
 - **`npx .` says "Permission denied" or "command not found".** `dist/` is missing or stale. Run `npm run build`.
@@ -426,6 +489,8 @@ Run from a fresh clone, after `npm install`:
 - **`Embedding model ... failed to load`.** The first use downloads the model from huggingface.co. Check the network connection or proxy, then run `npx . doctor`. A partial download can be cleared by deleting `~/.cache/codemem/models`. To work offline or without the model, set `"embedding": { "provider": "none" }` in `.codemem/config.json`; search then uses keywords only.
 - **`The index holds vectors from X but the configured model is Y`.** The embedding model in the config changed. Run `codemem index --full` to rebuild the vectors.
 - **The MCP client shows codemem as failed or with no tools.** Run the server command from the client configuration in a terminal: it should start and wait silently. If it exits, the message on stderr says why. Check that the command's working directory is the project (or pass `--root`), and that `codemem index` has been run there; tools answer `The index is empty` until it has.
+- **`.codemem/memory.json is not valid`.** The file was damaged, usually by a merge conflict. Fix the JSON or restore it with `git checkout -- .codemem/memory.json`. Until then the memories already in the index stay as they are, and nothing is overwritten.
+- **A memory is marked STALE.** Code it is linked to changed after it was written. If it is still true, delete it and add it again to link it to the current code; if not, `codemem memory rm <id>`. A memory that arrived through git can also show as stale when your checkout differs from the author's.
 - **A tool answers with stale code.** The server does not re-index on its own yet (that arrives in Phase 7). Run `codemem index` after changing files; `index_status` shows how many files are pending.
 - **A caller or callee is missing from `debug symbol`.** Resolution is best effort and never guesses across an import that leads outside the repo. A call on a value whose type is unknown (`user.save()`) resolves only when one symbol in the repo has that name. Calls to library functions have no edge.
 - **Indexing is slow.** Embedding is the slow stage: about 160 chunks per second with the default model on an Apple M5 laptop, so a 277k-line repo takes about 106 seconds. It runs once; later runs embed only changed chunks.

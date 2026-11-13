@@ -6,6 +6,7 @@ import { embedMissing, modelChanged, type EmbeddingProvider } from '../embedder/
 import { execFileSync } from 'node:child_process';
 import { updateGraph } from '../graph/index.js';
 import { log } from '../log.js';
+import { refreshStaleness, syncMemories } from '../memory/index.js';
 import { buildOverview } from './overview.js';
 import { languageOf, parseSource, type ParsedFile } from '../parser/index.js';
 import { resolveInRoot, scan } from '../scanner/index.js';
@@ -174,6 +175,9 @@ export async function indexRepo(
     updateGraph(store);
     store.setMeta('overview', buildOverview(store));
   }
+  // Memories follow the code: pick up a changed memory.json, then re-check every link.
+  syncMemories(root, store);
+  refreshStaleness(store);
   store.setMeta('last_indexed_at', new Date().toISOString());
   store.setMeta('last_indexed_commit', headCommit(root));
   log.debug(

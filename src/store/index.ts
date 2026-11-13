@@ -96,6 +96,33 @@ const MIGRATIONS = [
   ) WITHOUT ROWID;
   CREATE INDEX edges_dst ON edges(dst_symbol_id);
   `,
+  `
+  -- Project memory. Text ids, so memories shared through git do not collide.
+  CREATE TABLE memories (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    text TEXT NOT NULL,
+    tags TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    stale INTEGER NOT NULL DEFAULT 0,
+    embedding BLOB,
+    embedding_model TEXT
+  );
+  CREATE TABLE memory_links (
+    memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+    file_path TEXT NOT NULL,
+    symbol_qualified_name TEXT,
+    content_hash_at_link TEXT NOT NULL
+  );
+  CREATE INDEX memory_links_memory ON memory_links(memory_id);
+  CREATE INDEX memory_links_path ON memory_links(file_path);
+  CREATE VIRTUAL TABLE memories_fts USING fts5(
+    text, tags,
+    content='', contentless_delete=1,
+    tokenize="unicode61 tokenchars '_$'"
+  );
+  `,
 ];
 
 export interface FileRecord {
@@ -182,6 +209,26 @@ const SYMBOL_ROW = `
   SELECT s.id, f.path, s.name, s.qualified_name AS qualifiedName, s.kind, s.signature,
          s.docstring, s.start_line AS startLine, s.end_line AS endLine
   FROM symbols s JOIN files f ON f.id = s.file_id`;
+
+export interface MemoryLink {
+  path: string;
+  /** Qualified symbol name, or null when the memory is about the whole file. */
+  symbol: string | null;
+  /** Hash of the linked code when the link was made. */
+  contentHash: string;
+}
+
+export interface MemoryRow {
+  id: string;
+  kind: string;
+  text: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+  /** True when linked code has changed since the memory was written. */
+  stale: boolean;
+  links: MemoryLink[];
+}
 
 /** What the embedder needs to build the text for one chunk. */
 export interface EmbeddingInput {
@@ -597,6 +644,130 @@ export class Store {
          ORDER BY 1, 2`,
       )
       .all(...symbolIds, ...symbolIds) as Reference[];
+  }
+
+  // Memory. The memory module owns the rules; these are its storage operations.
+
+  /** Replaces one memory, or adds it. Call inside `transaction`. */
+  putMemory(memory: Omit<MemoryRow, 'stale'>): void {
+    this.deleteMemory(memory.id);
+    const { lastInsertRowid } = this.db
+      .prepare(
+        'INSERT INTO memories (id, kind, text, tags, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+      .run(
+        memory.id,
+        memory.kind,
+        memory.text,
+        JSON.stringify(memory.tags),
+        memory.createdAt,
+        memory.updatedAt,
+      );
+    this.db
+      .prepare('INSERT INTO memories_fts (rowid, text, tags) VALUES (?, ?, ?)')
+      .run(lastInsertRowid, expandForIndex(memory.text), expandForIndex(memory.tags.join(' ')));
+    const link = this.db.prepare(
+      'INSERT INTO memory_links (memory_id, file_path, symbol_qualified_name, content_hash_at_link) VALUES (?, ?, ?, ?)',
+    );
+    for (const l of memory.links) link.run(memory.id, l.path, l.symbol, l.contentHash);
+  }
+
+  deleteMemory(id: string): boolean {
+    const row = this.db.prepare('SELECT rowid FROM memories WHERE id = ?').get(id) as
+      { rowid: number } | undefined;
+    if (!row) return false;
+    this.db.prepare('DELETE FROM memories_fts WHERE rowid = ?').run(row.rowid);
+    this.db.prepare('DELETE FROM memories WHERE id = ?').run(id); // links cascade
+    return true;
+  }
+
+  /** Every memory, oldest first, optionally of one kind. */
+  listMemories(kind?: string): MemoryRow[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, kind, text, tags, created_at AS createdAt, updated_at AS updatedAt, stale
+         FROM memories ${kind ? 'WHERE kind = ?' : ''} ORDER BY created_at, id`,
+      )
+      .all(...(kind ? [kind] : [])) as (Omit<MemoryRow, 'tags' | 'stale' | 'links'> & {
+      tags: string;
+      stale: number;
+    })[];
+    const links = this.db
+      .prepare(
+        'SELECT memory_id AS id, file_path AS path, symbol_qualified_name AS symbol, content_hash_at_link AS contentHash FROM memory_links ORDER BY rowid',
+      )
+      .all() as (MemoryLink & { id: string })[];
+    return rows.map((row) => ({
+      ...row,
+      tags: JSON.parse(row.tags) as string[],
+      stale: row.stale === 1,
+      links: links
+        .filter((l) => l.id === row.id)
+        .map(({ path, symbol, contentHash }) => ({ path, symbol, contentHash })),
+    }));
+  }
+
+  setMemoryStale(id: string, stale: boolean): void {
+    this.db.prepare('UPDATE memories SET stale = ? WHERE id = ?').run(stale ? 1 : 0, id);
+  }
+
+  /** Memory ids by BM25 keyword match, best first. */
+  memoryKeywordSearch(match: string, limit: number): string[] {
+    const rows = this.db
+      .prepare(
+        `SELECT m.id FROM memories_fts JOIN memories m ON m.rowid = memories_fts.rowid
+         WHERE memories_fts MATCH ? ORDER BY bm25(memories_fts) LIMIT ?`,
+      )
+      .all(match, limit) as { id: string }[];
+    return rows.map((row) => row.id);
+  }
+
+  /** The stored vector of every memory; null when it has none from `modelId`. */
+  memoryEmbeddings(
+    modelId: string,
+  ): { id: string; text: string; embedding: Float32Array | null }[] {
+    const rows = this.db
+      .prepare('SELECT id, text, embedding, embedding_model AS model FROM memories')
+      .all() as { id: string; text: string; embedding: Buffer | null; model: string | null }[];
+    return rows.map(({ id, text, embedding, model }) => ({
+      id,
+      text,
+      embedding:
+        embedding && model === modelId
+          ? new Float32Array(
+              embedding.buffer.slice(
+                embedding.byteOffset,
+                embedding.byteOffset + embedding.byteLength,
+              ),
+            )
+          : null,
+    }));
+  }
+
+  setMemoryEmbedding(id: string, modelId: string, embedding: Float32Array): void {
+    this.db
+      .prepare('UPDATE memories SET embedding = ?, embedding_model = ? WHERE id = ?')
+      .run(Buffer.from(embedding.buffer, embedding.byteOffset, embedding.byteLength), modelId, id);
+  }
+
+  /** Ids of memories linked to any of the given files. */
+  memoryIdsForPaths(paths: string[]): string[] {
+    if (paths.length === 0) return [];
+    const rows = this.db
+      .prepare(
+        `SELECT DISTINCT memory_id AS id FROM memory_links WHERE file_path IN (${paths.map(() => '?').join(', ')})`,
+      )
+      .all(...paths) as { id: string }[];
+    return rows.map((row) => row.id);
+  }
+
+  /** The symbol with this qualified name in this file. */
+  symbolAt(path: string, qualifiedName: string): SymbolRow | undefined {
+    return this.db
+      .prepare(
+        `${SYMBOL_ROW} WHERE f.path = ? AND s.qualified_name = ? ORDER BY s.start_line LIMIT 1`,
+      )
+      .get(path, qualifiedName) as SymbolRow | undefined;
   }
 
   // Vectors. The `chunk_vectors` table is created on demand because its dimension depends

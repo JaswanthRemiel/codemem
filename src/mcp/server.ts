@@ -17,7 +17,8 @@ export const OVERVIEW_URI = 'codemem://overview';
 const INSTRUCTIONS =
   'codemem serves code from a local index of this repository. Start a task with get_context; ' +
   'use search_code for a specific lookup, get_symbol to read a body or see callers and callees, ' +
-  'and find_references before changing a symbol. Results cite path:start-end.';
+  'and find_references before changing a symbol. Results cite path:start-end. Save lasting ' +
+  'decisions and conventions with remember; get_context shows them again in later sessions.';
 
 /** An MCP server with every codemem tool and the overview resource. */
 export function createServer(ctx: ToolContext): McpServer {
@@ -32,7 +33,7 @@ export function createServer(ctx: ToolContext): McpServer {
       {
         description: tool.description,
         inputSchema: tool.shape,
-        annotations: { readOnlyHint: true, openWorldHint: false },
+        annotations: { readOnlyHint: tool.readOnly, openWorldHint: false },
       },
       async (args: unknown) => {
         const started = performance.now();

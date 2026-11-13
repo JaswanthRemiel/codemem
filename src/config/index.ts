@@ -35,7 +35,11 @@ const RetrievalSchema = z.strictObject({
   defaultBudgetTokens: z.number().int().positive().default(4000),
   /** Results `get_context` considers before packing; the budget decides how many are shown. */
   contextK: z.number().int().positive().default(20),
-  /** Graph expansion (takes effect in Phase 4): how many top results get their neighbors added. */
+  /** The most project memories `get_context` adds from a search of the task text. */
+  memoryLimit: z.number().int().nonnegative().default(5),
+  /** A memory found only by vector search needs at least this cosine similarity to the task. */
+  memoryMinSimilarity: z.number().min(0).max(1).default(0.3),
+  /** Graph expansion: how many top results get their neighbors added. */
   graphTopN: z.number().int().nonnegative().default(10),
   /** Graph expansion: the most neighbors added in total. */
   graphMaxNeighbors: z.number().int().nonnegative().default(20),

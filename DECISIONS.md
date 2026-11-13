@@ -190,3 +190,15 @@ Each entry: context, options, decision, consequences.
   - Tools other than the two search tools end with a `~N tokens` line.
   - The overview lists only top-level symbols that something refers to, and reduces depth and symbols per directory until it fits 1,500 tokens.
 - **Consequences:** A config change needs a server restart. Filters can return fewer than `k` results when matches are rare.
+
+## 026: Memory design
+
+- **Context:** The spec gives the tables, the tools, the JSON mirror, and staleness by content hash. Open points: ids, which side wins when file and database differ, what a link hashes, and how memories enter `get_context`.
+- **Decision:**
+  - Ids are random text (`m_` plus eight hex digits), not integers, so memories written on two machines do not collide when the file is merged.
+  - `.codemem/memory.json` is the source of truth. Every command that touches memory first compares the file's hash with the one recorded in `meta` and reloads the file when it differs. A file that does not parse or validate is refused and the database is left alone.
+  - A symbol link stores a hash of the symbol's chunk text; a file link stores the file's content hash. Staleness is recomputed after every index run and is not written to the file, since it depends on the checkout.
+  - Memory vectors live in a column of `memories` and are compared in JavaScript: there are few memories, so no vector table is needed.
+  - `get_context` shows memories linked to the files of its results first, then memories matching the task (at most `retrieval.memoryLimit`, vector-only matches needing `retrieval.memoryMinSimilarity`), stopping at a quarter of the budget. `search_code` does not add memories.
+  - `symbols` passed to `remember` must resolve to exactly one symbol; anything else is stored unlinked and reported back.
+- **Consequences:** Deleting the index or pulling a teammate's file needs no extra step. The table has two extra columns (`embedding`, `embedding_model`) beyond the spec. A memory linked by file is attached whenever that file appears in results, relevant or not.

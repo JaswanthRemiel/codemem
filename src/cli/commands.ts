@@ -85,6 +85,25 @@ export async function runContext(
   });
 }
 
+/** `codemem memory list`, `add`, and `rm`: the memory tools from the command line. */
+export async function runMemory(
+  root: string,
+  action: 'list' | 'add' | 'rm',
+  args: Record<string, unknown>,
+): Promise<string> {
+  const config = loadConfig(root);
+  const name = { list: 'recall', add: 'remember', rm: 'forget' }[action];
+  const memoryTool = TOOLS.find((tool) => tool.name === name);
+  mkdirSync(join(root, CONFIG_DIR), { recursive: true });
+  const store = new Store(dbPath(root));
+  try {
+    const ctx = { root, config, store, provider: createProvider(config.embedding) };
+    return (await memoryTool?.run(ctx, args as never)) ?? '';
+  } finally {
+    store.close();
+  }
+}
+
 /** How an MCP client should start this copy of codemem. */
 function serverCommand(): { command: string; args: string[] } {
   const cli = fileURLToPath(new URL('./index.js', import.meta.url));

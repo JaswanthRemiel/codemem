@@ -5,6 +5,15 @@ import type { EmbeddingProvider } from '../embedder/index.js';
 import { CodememError } from '../errors.js';
 import { describeSymbol, findReferences } from '../graph/describe.js';
 import { pendingChanges } from '../indexer/index.js';
+import {
+  forget,
+  formatMemory,
+  linkedMemories,
+  MEMORY_KINDS,
+  recall,
+  remember,
+  type Memory,
+} from '../memory/index.js';
 import { pack } from '../packer/index.js';
 import { LANGS, languageOf } from '../parser/index.js';
 import { search } from '../retriever/index.js';
@@ -35,6 +44,8 @@ function requireIndex(ctx: ToolContext): void {
 interface QueryOptions {
   k: number;
   budget: number;
+  /** `get_context` puts project memory first. */
+  memories?: boolean;
   language?: string | undefined;
   paths?: string[] | undefined;
 }
@@ -57,7 +68,35 @@ async function query(ctx: ToolContext, text: string, options: QueryOptions): Pro
       return ok && (r.detail === 'signature' || ++kept <= options.k);
     });
   }
-  return pack(results, options.budget).text;
+  const preamble = options.memories ? await memoryBlock(ctx, text, results, options.budget) : '';
+  return pack(results, options.budget, preamble).text;
+}
+
+/**
+ * Project memory for a task: memories linked to the files of the results, then memories
+ * that match the task text. At most a quarter of the budget, so code keeps most of it.
+ */
+async function memoryBlock(
+  ctx: ToolContext,
+  task: string,
+  results: { chunk: { path: string } }[],
+  budget: number,
+): Promise<string> {
+  const { memoryLimit, memoryMinSimilarity } = ctx.config.retrieval;
+  const matched = await recall(ctx.root, ctx.store, ctx.provider, task, {
+    limit: memoryLimit,
+    minSimilarity: memoryMinSimilarity,
+  });
+  const linked = linkedMemories(ctx.store, [...new Set(results.map((r) => r.chunk.path))]);
+  const seen = new Set<string>();
+  const memories = [...linked, ...matched].filter((m: Memory) => !seen.has(m.id) && seen.add(m.id));
+  const lines = ['=== Project memory (decisions and conventions recorded for this repo) ==='];
+  for (const memory of memories) {
+    const next = [...lines, formatMemory(memory)];
+    if (countTokens(next.join('\n')) > budget / 4) break;
+    lines.push(formatMemory(memory));
+  }
+  return lines.length > 1 ? lines.join('\n') : '';
 }
 
 const budgetSchema = z
@@ -76,6 +115,8 @@ export interface ToolDefinition {
   name: string;
   description: string;
   shape: z.ZodRawShape;
+  /** False for tools that change project memory. */
+  readOnly: boolean;
   run: (ctx: ToolContext, args: never) => Promise<string> | string;
 }
 
@@ -84,8 +125,9 @@ function tool<Shape extends z.ZodRawShape>(
   description: string,
   shape: Shape,
   run: (ctx: ToolContext, args: z.infer<z.ZodObject<Shape>>) => Promise<string> | string,
+  readOnly = true,
 ): ToolDefinition {
-  return { name, description, shape, run: run as ToolDefinition['run'] };
+  return { name, description, shape, readOnly, run: run as ToolDefinition['run'] };
 }
 
 // Descriptions are loaded into the agent's context on every session: keep them short.
@@ -103,6 +145,7 @@ export const TOOLS: ToolDefinition[] = [
         k: ctx.config.retrieval.contextK,
         budget: args.budget_tokens ?? ctx.config.retrieval.defaultBudgetTokens,
         paths: args.paths,
+        memories: true,
       }),
   ),
   tool(
@@ -162,6 +205,53 @@ export const TOOLS: ToolDefinition[] = [
       requireIndex(ctx);
       return withTokens(findReferences(ctx.store, args.name));
     },
+  ),
+  tool(
+    'remember',
+    'Save a decision, convention, gotcha, or todo about this codebase so future sessions see it. Link it to files or symbols so it is shown with them and flagged when they change. Example: remember({ text: "Passwords are hashed with argon2, never bcrypt", kind: "decision", symbols: ["hash"] }).',
+    {
+      text: z.string().min(1).describe('The fact to keep, in one or two sentences.'),
+      kind: z.enum(MEMORY_KINDS),
+      paths: z.array(z.string()).optional().describe('Files this is about.'),
+      symbols: z.array(z.string()).optional().describe('Symbols this is about.'),
+      tags: z.array(z.string()).optional(),
+    },
+    (ctx, args) => {
+      const { memory, unlinked } = remember(ctx.root, ctx.store, args);
+      const links = memory.links.map((l) => (l.symbol ? `${l.path} ${l.symbol}` : l.path));
+      return [
+        `Stored memory ${memory.id} (${memory.kind})${links.length > 0 ? `, linked to ${links.join(', ')}` : ''}.`,
+        ...unlinked.map((name) => `Not linked: ${name}.`),
+      ].join('\n');
+    },
+    false,
+  ),
+  tool(
+    'recall',
+    'Search saved project memory: decisions, conventions, gotchas, todos. Stale ones (their linked code changed) are marked. Example: recall({ query: "password hashing" }).',
+    {
+      query: z.string().describe('What to look for. Empty lists everything.'),
+      kind: z.enum(MEMORY_KINDS).optional(),
+    },
+    async (ctx, args) => {
+      const memories = await recall(ctx.root, ctx.store, ctx.provider, args.query, {
+        kind: args.kind,
+      });
+      if (memories.length === 0) return 'No memories match.';
+      return withTokens(memories.map(formatMemory).join('\n'));
+    },
+  ),
+  tool(
+    'forget',
+    'Delete a saved memory by id, e.g. one that recall marked stale and is no longer true. Example: forget({ id: "m_3f9a2c1b" }).',
+    { id: z.string().min(1).describe('The memory id, as shown by recall.') },
+    (ctx, args) => {
+      if (!forget(ctx.root, ctx.store, args.id)) {
+        throw new CodememError(`No memory with id ${args.id}. Use recall to list ids.`);
+      }
+      return `Forgot memory ${args.id}.`;
+    },
+    false,
   ),
   tool(
     'index_status',

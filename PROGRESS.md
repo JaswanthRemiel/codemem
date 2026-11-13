@@ -8,7 +8,7 @@
 - [x] Phase 3: Embeddings, hybrid retrieval, packer
 - [x] Phase 4: Call graph
 - [x] Phase 5: MCP server and init
-- [ ] Phase 6: Memory
+- [x] Phase 6: Memory
 - [ ] Phase 7: Incremental indexing, watch, stats
 - [ ] Phase 8: Benchmark
 - [ ] Phase 9: Release prep
@@ -86,9 +86,20 @@
 - All logging goes to stderr at the level set by `CODEMEM_LOG_LEVEL`; a test fails if `serve` writes anything but protocol messages to stdout.
 - Tool descriptions are under 80 tokens each.
 
+### Phase 6
+
+- Memory module: `remember`, `recall`, `forget` for decisions, conventions, gotchas, and todos, linked to files and symbols.
+- Mirror at `.codemem/memory.json`, written on every change and treated as the source of truth: a changed file is loaded on the next command, and a deleted index is rebuilt from it.
+- Staleness: each link stores a hash of the linked code; after every index run a memory whose linked file or symbol changed or disappeared is marked stale, and unmarked if the code returns to what it was.
+- Recall fuses keyword and vector ranks like code search. Memories that arrive through the file are embedded on first recall.
+- `get_context` starts with a project memory section: memories linked to the files of its results, then memories matching the task, within a quarter of the budget, stale ones marked.
+- The three memory tools are registered, so the server offers nine tools. `codemem memory list/add/rm` do the same from the command line.
+- Acceptance added by the owner on 2026-11-14: the MCP Inspector lists all nine tools. An automated test asserts the same list through the protocol; the Inspector itself is run by the owner.
+- Coverage threshold now includes `memory`.
+
 ## Next
 
-Phase 6: memory (`remember`, `recall`, `forget`, JSON mirror, staleness, memories in `get_context`).
+Phase 7: incremental indexing with a git fast path, `codemem watch`, auto-refresh before tool calls, the query log, and `codemem stats`.
 
 ## Notes for later phases
 
@@ -106,7 +117,9 @@ Phase 6: memory (`remember`, `recall`, `forget`, JSON mirror, staleness, memorie
 - Cached vectors of chunks that were edited away are never pruned. To do by Phase 7: prune unused cache entries on `codemem index --full`.
 - Each vector is stored twice (search table and cache), which adds about 1.5 KB per chunk.
 - `sqlite-vec` has no prebuilt extension for Windows on ARM.
-- The three memory tools are not registered yet; they arrive with the memory module in Phase 6.
+- Memory staleness reflects the last index run; with no auto-refresh until Phase 7, run `codemem index` after editing.
+- Keyword recall for `get_context` matches on any task word, so a loosely related memory can be included (at most five, within a quarter of the budget).
+- Two people adding memories at once can produce a git merge conflict in `memory.json`; it is plain JSON with one memory per array entry, and a broken file is refused rather than loaded.
 - The server answers from the index as it is: it does not re-index before a tool call until Phase 7.
 - The MCP Inspector check and the manual run in Claude Code are documented in SETUP.md but were not run by the build agent; the same protocol paths are covered by automated tests.
 - `codemem index` creates `.codemem/` but only `codemem init` adds the index to `.gitignore`.
