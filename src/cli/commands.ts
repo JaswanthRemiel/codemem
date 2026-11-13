@@ -2,6 +2,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONFIG_DIR, loadConfig } from '../config/index.js';
 import { StoreError } from '../errors.js';
+import { describeSymbol, findReferences } from '../graph/describe.js';
 import { indexRepo } from '../indexer/index.js';
 import { LANGS, parseSource } from '../parser/index.js';
 import { createProvider } from '../embedder/index.js';
@@ -55,10 +56,7 @@ export async function runSearch(
       createProvider(config.embedding),
       options.k,
     );
-    const packed = pack(
-      results.map((result) => ({ ...result, detail: 'full' as const })),
-      options.budget ?? config.retrieval.defaultBudgetTokens,
-    );
+    const packed = pack(results, options.budget ?? config.retrieval.defaultBudgetTokens);
     if (!options.debug) return packed.text;
     const scores = results.map(({ chunk, score, ranks }, i) => {
       const fit = packed.included.some((item) => item.chunk.id === chunk.id) ? '' : '  (dropped)';
@@ -69,6 +67,32 @@ export async function runSearch(
   } finally {
     store.close();
   }
+}
+
+function withStore<T>(root: string, run: (store: Store) => T): T {
+  if (!existsSync(dbPath(root))) {
+    throw new StoreError('No index found in this directory; run `codemem index` first');
+  }
+  const store = new Store(dbPath(root));
+  try {
+    return run(store);
+  } finally {
+    store.close();
+  }
+}
+
+/** `codemem debug symbol`: a symbol with its neighbors. */
+export function runSymbol(
+  root: string,
+  name: string,
+  options: { depth?: number; include?: 'signature' | 'body' },
+): string {
+  return withStore(root, (store) => describeSymbol(store, name, options));
+}
+
+/** `codemem debug refs`: where a symbol is called, extended, used as a type, or imported. */
+export function runRefs(root: string, name: string): string {
+  return withStore(root, (store) => findReferences(store, name));
 }
 
 /** True when a Node.js version string such as "22.13.0" meets the minimum (22.13.0). */

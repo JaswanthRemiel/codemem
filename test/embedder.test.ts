@@ -122,7 +122,8 @@ test('hybrid search fuses keyword and vector ranks and reports both reasons', as
     provider,
     3,
   );
-  expect(fallback[0]?.reasons).toEqual(['exact-symbol', 'keyword']);
+  expect(fallback[0]?.reasons.slice(0, 2)).toEqual(['exact-symbol', 'keyword']);
+  expect(fallback[0]?.ranks.vector).toBeUndefined();
   plain.store.close();
   store.close();
 });

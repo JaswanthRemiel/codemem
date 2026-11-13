@@ -8,11 +8,24 @@ export type RetrievalConfig = Config['retrieval'];
 export interface SearchResult {
   chunk: ChunkRow;
   score: number;
-  /** Why the chunk was returned: `exact-symbol`, `keyword`, `vector`. */
+  /** Why it was returned: `exact-symbol`, `keyword`, `vector`, `calls X`, `called by Y`, ... */
   reasons: string[];
   /** 1-based rank in each source list, for `--debug`. */
   ranks: { keyword?: number; vector?: number };
+  /** Graph neighbors are shown as signature only. */
+  detail: 'full' | 'signature';
 }
+
+/** How a neighbor relates to the result it was reached from, as a reason for the agent. */
+const NEIGHBOR_REASONS: Record<string, string> = {
+  calls: 'called by',
+  'calls by': 'calls',
+  extends: 'extended by',
+  'extends by': 'extends',
+  implements: 'implemented by',
+  'implements by': 'implements',
+  'uses-type': 'type used by',
+};
 
 /** Words that say nothing about code and would match almost every chunk. */
 const STOPWORDS = new Set(
@@ -97,7 +110,7 @@ export async function search(
 
   const ranked = [...scores.entries()].sort((a, b) => b[1] - a[1]).slice(0, k);
   const chunks = new Map(store.getChunks(ranked.map(([id]) => id)).map((c) => [c.id, c]));
-  return ranked.flatMap(([id, score]) => {
+  const results = ranked.flatMap(([id, score]): SearchResult[] => {
     const chunk = chunks.get(id);
     if (!chunk) return [];
     const keywordRank = keyword.indexOf(id) + 1;
@@ -115,7 +128,68 @@ export async function search(
           ...(keywordRank ? { keyword: keywordRank } : {}),
           ...(vectorRank ? { vector: vectorRank } : {}),
         },
+        detail: 'full',
       },
     ];
   });
+  return [...results, ...expand(store, results, config)];
+}
+
+/**
+ * Graph expansion: the direct neighbors of the top results (callers, callees, base and
+ * derived classes, referenced types, the enclosing class), scored as the result's score
+ * times the weight of the edge's confidence. A neighbor that is already a result only
+ * gains a reason.
+ */
+function expand(store: Store, results: SearchResult[], config: RetrievalConfig): SearchResult[] {
+  const bySymbol = new Map<number, SearchResult>();
+  for (const result of results) {
+    const id = result.chunk.symbolId;
+    if (id !== null && !bySymbol.has(id)) bySymbol.set(id, result);
+  }
+  const seeds = [...bySymbol.keys()].slice(0, config.graphTopN);
+  const added = new Map<number, SearchResult>();
+  for (const n of store.neighbors(seeds)) {
+    const parent = bySymbol.get(n.of) as SearchResult;
+    const relation =
+      n.relation === 'inside' && n.kind === 'class' ? 'contains' : NEIGHBOR_REASONS[n.relation];
+    if (!relation) continue;
+    // A function nested in the result is already part of the result's text.
+    const inside =
+      n.path === parent.chunk.path &&
+      n.startLine >= parent.chunk.startLine &&
+      n.endLine <= parent.chunk.endLine;
+    if (inside && n.relation !== 'inside') continue;
+    const reason = `${relation} ${parent.chunk.symbol}`;
+    const existing = bySymbol.get(n.id) ?? added.get(n.id);
+    const weight = config.edgeWeights[n.confidence as keyof RetrievalConfig['edgeWeights']] ?? 0;
+    const score = parent.score * weight;
+    if (existing) {
+      if (!existing.reasons.includes(reason)) existing.reasons.push(reason);
+      if (added.has(n.id)) existing.score = Math.max(existing.score, score);
+      continue;
+    }
+    added.set(n.id, {
+      // Not a stored chunk: the neighbor's own signature, under a negative id.
+      chunk: {
+        id: -n.id,
+        symbolId: n.id,
+        path: n.path,
+        language: null,
+        startLine: n.startLine,
+        endLine: n.endLine,
+        content: n.signature,
+        tokenCount: 0,
+        symbol: n.qualifiedName,
+        kind: n.kind,
+        signature: n.signature,
+        docstring: n.docstring,
+      },
+      score,
+      reasons: [reason],
+      ranks: {},
+      detail: 'signature',
+    });
+  }
+  return [...added.values()].sort((a, b) => b.score - a.score).slice(0, config.graphMaxNeighbors);
 }

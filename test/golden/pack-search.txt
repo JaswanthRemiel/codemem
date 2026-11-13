@@ -1,4 +1,4 @@
---- src/auth.ts:10-23 function authenticateUser [exact-symbol, keyword]
+--- src/auth.ts:10-23 function authenticateUser [exact-symbol, keyword, called by UserService.login]
 /**
  * Checks a password against the stored hash.
  * Returns false for unknown users.
@@ -20,19 +20,10 @@ export const resetPassword = async (user: User, next: string): Promise<void> => 
   saveUser(user);
 };
 
---- src/service.ts:1-2 lines [keyword]
-import { authenticateUser, parseToken } from './auth';
-import { findUser, type User } from './db';
+--- src/db.ts:1-1 type UserId [type used by User] (signature only)
+export type UserId = string;
 
---- src/service.ts:33-38 method UserService.login [keyword]
-  @Log('login')
-  async login(id: string, password: string): Promise<boolean> {
-    const ok = await authenticateUser(id, password);
-    this.audit(id, ok);
-    return ok;
-  }
-
---- src/db.ts:8-14 interface User [keyword]
+--- src/db.ts:8-14 interface User [keyword, type used by resetPassword]
 /** A stored account. */
 export interface User {
   id: UserId;
@@ -41,9 +32,35 @@ export interface User {
   role: Role;
 }
 
---- src/legacy.js:6-8 method LegacyLogin.handle [keyword]
+--- src/db.ts:19-21 function findUser [called by authenticateUser] (signature only)
+export const findUser = (id: UserId): User | undefined =>
+  Looks up a user by id.
+
+--- src/hash.ts:4-10 function hash [called by authenticateUser, called by resetPassword] (signature only)
+export default function hash(input: string): string
+  Hashes a password with the fixture salt.
+
+--- src/service.ts:1-2 lines [keyword]
+import { authenticateUser, parseToken } from './auth';
+import { findUser, type User } from './db';
+
+--- src/service.ts:8-12 function Log [called by UserService.login] (signature only)
+function Log(label: string): MethodDecorator
+
+--- src/service.ts:33-38 method UserService.login [keyword, calls authenticateUser, called by LegacyLogin.handle]
+  @Log('login')
+  async login(id: string, password: string): Promise<boolean> {
+    const ok = await authenticateUser(id, password);
+    this.audit(id, ok);
+    return ok;
+  }
+
+--- src/service.ts:52-54 method UserService.audit [called by UserService.login] (signature only)
+private audit(id: string, ok: boolean): void
+
+--- src/legacy.js:6-8 method LegacyLogin.handle [keyword, calls UserService.login]
   handle = (req) => {
     return this.service.login(req.id, req.password);
   };
 
-~353 tokens | 6 results
+~568 tokens | 11 results | 5 dropped for budget

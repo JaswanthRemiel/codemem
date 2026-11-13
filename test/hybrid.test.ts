@@ -23,7 +23,8 @@ test.each(CASES)(
     const hit = results.find((r) => r.chunk.symbol === target);
     expect(hit, `${target} in top 3`).toBeDefined();
     // Keyword search alone does not find it: the match comes from the vector only.
-    expect(hit?.reasons).toEqual(['vector']);
+    expect(hit?.reasons).toContain('vector');
+    expect(hit?.ranks.keyword).toBeUndefined();
     // The exact rank varies between CPU types, because the quantized model rounds differently.
     expect(hit?.ranks.vector).toBeLessThanOrEqual(3);
     const keywordOnly = await search(store, query, TEST_CONFIG.retrieval, null, 50);

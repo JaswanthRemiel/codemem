@@ -14,17 +14,15 @@ export async function authenticateUser(id: string, password: string): Promise<bo
   return verify(user.passwordHash, hash(password));
 }
 
---- src/service.ts:1-2 lines [calls authenticateUser]
-import { authenticateUser, parseToken } from './auth';
-import { findUser, type User } from './db';
+--- src/db.ts:19-21 function findUser [called by authenticateUser] (signature only)
+export const findUser = (id: UserId): User | undefined =>
+  Looks up a user by id.
 
---- src/service.ts:27-27 method UserService.create [calls authenticateUser] (signature only)
-static create = (): UserService =>
+--- src/hash.ts:4-10 function hash [called by authenticateUser] (signature only)
+export default function hash(input: string): string
+  Hashes a password with the fixture salt.
 
 --- src/service.ts:33-38 method UserService.login [calls authenticateUser] (signature only)
 @Log('login') async login(id: string, password: string): Promise<boolean>
 
---- src/db.ts:1-1 type UserId [calls authenticateUser] (signature only)
-export type UserId = string;
-
-~258 tokens | 5 results
+~248 tokens | 4 results

@@ -116,7 +116,9 @@ function renderBlock(block: Block): string {
   return `--- ${block.path}:${block.startLine}-${block.endLine} ${block.labels.join(', ')} [${block.reasons.join(', ')}]${note}\n${block.body}`;
 }
 
-const render = (items: PackItem[]): string => buildBlocks(items).map(renderBlock).join('\n\n');
+/** The items as blocks of text, without a budget or footer. */
+export const render = (items: PackItem[]): string =>
+  buildBlocks(items).map(renderBlock).join('\n\n');
 
 function footer(tokens: number, results: number, dropped: number): string {
   const drop = dropped > 0 ? ` | ${dropped} dropped for budget` : '';

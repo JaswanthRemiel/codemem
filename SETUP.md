@@ -42,7 +42,7 @@ npm test
 npm run coverage
 ```
 
-Expected: every command exits with code 0. `npm run check:chars` prints `check-chars: N tracked files clean`. `npm test` ends with `Test Files  10 passed (10)`. `npm run coverage` runs the same tests, prints a coverage table, and fails if line coverage of `src/parser`, `src/chunker`, `src/retriever`, or `src/packer` drops below 80%.
+Expected: every command exits with code 0. `npm run check:chars` prints `check-chars: N tracked files clean`. `npm test` ends with `Test Files  11 passed (11)`. `npm run coverage` runs the same tests, prints a coverage table, and fails if line coverage of `src/parser`, `src/chunker`, `src/retriever`, `src/packer`, or `src/graph` drops below 80%.
 
 ## Run the CLI
 
@@ -105,7 +105,7 @@ rm -rf /tmp/codemem-demo && cp -R test/fixtures/ts-app /tmp/codemem-demo
 cd /tmp/codemem-demo
 node "$CODEMEM/dist/cli/index.js" index
 node "$CODEMEM/dist/cli/index.js" index
-node "$CODEMEM/dist/cli/index.js" search authenticateUser -k 2
+node "$CODEMEM/dist/cli/index.js" search authenticateUser -k 1
 node "$CODEMEM/dist/cli/index.js" search "confirm sign-in credentials" -k 3 --budget 150 --debug
 ```
 
@@ -126,7 +126,7 @@ Indexed 7 of 7 files (0 unchanged, 0 removed) in 0.49s. Embedded 38 chunks (0 fr
 Indexed 0 of 7 files (7 unchanged, 0 removed) in 0.01s. Embedded 0 chunks (0 from cache) with local:Xenova/all-MiniLM-L6-v2. Index: 7 files, 32 symbols, 38 chunks.
 ```
 
-The first search prints two blocks and a footer. Each block starts with `--- path:start-end kind name [reasons]`:
+The first search prints the function in full, then its neighbors in the call graph as signatures, each with the reason it is there:
 
 ```text
 --- src/auth.ts:10-23 function authenticateUser [exact-symbol, keyword, vector]
@@ -134,11 +134,18 @@ The first search prints two blocks and a footer. Each block starts with `--- pat
  * Checks a password against the stored hash.
 (the rest of the function)
 
---- src/service.ts:1-2 lines [keyword, vector]
-import { authenticateUser, parseToken } from './auth';
-import { findUser, type User } from './db';
+--- src/db.ts:19-21 function findUser [called by authenticateUser] (signature only)
+export const findUser = (id: UserId): User | undefined =>
+  Looks up a user by id.
 
-~165 tokens | 2 results
+--- src/hash.ts:4-10 function hash [called by authenticateUser] (signature only)
+export default function hash(input: string): string
+  Hashes a password with the fixture salt.
+
+--- src/service.ts:33-38 method UserService.login [calls authenticateUser] (signature only)
+@Log('login') async login(id: string, password: string): Promise<boolean>
+
+~250 tokens | 4 results
 ```
 
 The second search shares no word with the function it should find. `--debug` prints the ranking first, and the 150-token budget leaves room for one result:
@@ -170,7 +177,48 @@ Optional settings go in `.codemem/config.json`. Every field has a default; this 
 
 - `embedding.provider`: `local` (default, nothing leaves the machine), `none` (keyword search only), or `openai` and `voyage`, which send your code to that service and read the key from `OPENAI_API_KEY` or `VOYAGE_API_KEY`.
 - `embedding.model`: for a slower, code-trained local model use `jinaai/jina-embeddings-v2-base-code` (163 MB download), then run `codemem index --full`.
-- `retrieval`: also `keywordWeights`, `defaultK`, `graphTopN`, `graphMaxNeighbors`, and `edgeWeights`. The three graph settings take effect in Phase 4.
+- `retrieval`: also `keywordWeights`, `defaultK`, and the graph settings `graphTopN` (how many top results get neighbors, 0 turns expansion off), `graphMaxNeighbors`, and `edgeWeights`.
+
+## Inspect the call graph
+
+Two hidden developer commands show what the MCP tools `get_symbol` and `find_references` will return in Phase 5. Run them in the demo copy from the previous section:
+
+```sh
+node "$CODEMEM/dist/cli/index.js" debug symbol authenticateUser --depth 2
+node "$CODEMEM/dist/cli/index.js" debug refs findUser
+```
+
+Expected: the first prints the function body, then these sections:
+
+```text
+Calls:
+  authenticateUser.verify  src/auth.ts:16-18  [exact]
+  findUser  src/db.ts:19-21  [import]
+  hash  src/hash.ts:4-10  [import]
+
+Called by:
+  UserService.login  src/service.ts:33-38  [import]
+    LegacyLogin.handle  src/legacy.js:6-8  [name-match]
+
+Contains:
+  authenticateUser.verify  src/auth.ts:16-18  [exact]
+```
+
+The tag is the confidence of the link: `exact` (same file or package), `import` (through an import), or `name-match` (the only symbol of that name in the repo). The second command prints:
+
+```text
+4 references in 2 files to function findUser at src/db.ts:19-21
+
+src/auth.ts
+  src/auth.ts:2  import
+  src/auth.ts:20  call in authenticateUser [import]
+
+src/service.ts
+  src/service.ts:2  import
+  src/service.ts:43  call in UserService.find [import]
+```
+
+`debug symbol` also takes `--signature` to print the signature instead of the body, and `--depth 0` to 2.
 
 `codemem context` arrives in Phase 5 and `codemem stats` in Phase 7.
 
@@ -256,6 +304,18 @@ Run from a fresh clone, after `npm install`:
 
 To regenerate the packer golden files after an intended change, run `npx vitest run test/packer.test.ts -u` and review the diff of `test/golden/`.
 
+### Phase 4
+
+Run from a fresh clone, after `npm install`:
+
+| Step | Command                                                    | Correct result                                                                                                                           |
+| ---- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `npm run coverage`                                         | `Test Files  11 passed (11)` and no threshold error                                                                                      |
+| 2    | `npx vitest run test/graph.test.ts`                        | 10 tests pass, including three named `at least 90% of the known call edges resolve` (the expected edges are listed by hand in that file) |
+| 3    | `debug symbol authenticateUser --depth 1` in the demo copy | `Calls:` lists `findUser` and `hash`; `Called by:` lists `UserService.login`                                                             |
+| 4    | `debug refs findUser` in the demo copy                     | `4 references in 2 files`, as shown in "Inspect the call graph"                                                                          |
+| 5    | `search authenticateUser -k 1` in the demo copy            | One full result followed by `(signature only)` blocks tagged `called by authenticateUser` and `calls authenticateUser`                   |
+
 ## Troubleshooting
 
 - **`npx .` says "Permission denied" or "command not found".** `dist/` is missing or stale. Run `npm run build`.
@@ -272,4 +332,5 @@ To regenerate the packer golden files after an intended change, run `npx vitest 
 - **`The sqlite-vec extension failed to load`.** The platform package for `sqlite-vec` is missing. Prebuilt extensions exist for macOS (x64, arm64), Linux (x64, arm64), and Windows (x64). Run `npm ls sqlite-vec` and reinstall with `npm install`. Other platforms are not supported yet.
 - **`Embedding model ... failed to load`.** The first use downloads the model from huggingface.co. Check the network connection or proxy, then run `npx . doctor`. A partial download can be cleared by deleting `~/.cache/codemem/models`. To work offline or without the model, set `"embedding": { "provider": "none" }` in `.codemem/config.json`; search then uses keywords only.
 - **`The index holds vectors from X but the configured model is Y`.** The embedding model in the config changed. Run `codemem index --full` to rebuild the vectors.
+- **A caller or callee is missing from `debug symbol`.** Resolution is best effort and never guesses across an import that leads outside the repo. A call on a value whose type is unknown (`user.save()`) resolves only when one symbol in the repo has that name. Calls to library functions have no edge.
 - **Indexing is slow.** Embedding is the slow stage: about 160 chunks per second with the default model on an Apple M5 laptop, so a 277k-line repo takes about 106 seconds. It runs once; later runs embed only changed chunks.

@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { statSync } from 'node:fs';
 import { Command } from 'commander';
 import { processFile } from '../indexer/index.js';
-import { runDoctor, runIndex, runSearch } from './commands.js';
+import { runDoctor, runIndex, runRefs, runSearch, runSymbol } from './commands.js';
 import { resolveInRoot, scan } from '../scanner/index.js';
 
 const pkg = createRequire(import.meta.url)('../../package.json') as { version: string };
@@ -56,8 +56,30 @@ export function buildProgram(): Command {
     );
 
   // Hidden developer commands, not part of the public interface.
-  program
-    .command('debug', { hidden: true })
+  const debug = program.command('debug', { hidden: true });
+
+  debug
+    .command('symbol <name>')
+    .description('Print a symbol with its callers, callees, and other neighbors')
+    .option('--depth <n>', 'hops of callers and callees to show, 0 to 2', '1')
+    .option('--signature', 'print the signature instead of the body')
+    .action((name: string, options: { depth: string; signature?: boolean }) => {
+      console.log(
+        runSymbol(process.cwd(), name, {
+          depth: Number(options.depth),
+          include: options.signature ? 'signature' : 'body',
+        }),
+      );
+    });
+
+  debug
+    .command('refs <name>')
+    .description('Print every reference to a symbol, grouped by file')
+    .action((name: string) => {
+      console.log(runRefs(process.cwd(), name));
+    });
+
+  debug
     .command('chunks <path>')
     .description('Print the chunks of a file, or scan and chunk a directory and print totals')
     .option('--content', 'print chunk bodies')

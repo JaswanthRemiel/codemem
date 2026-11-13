@@ -17,22 +17,28 @@ symbols:
     | export function parseToken(token: string, strict = true): Claims | null
   function resetPassword 36-39 parent=<file>
     | export const resetPassword = async (user: User, next: string): Promise<void> =>
-calls:
-  authenticateUser.verify -> crypto.timingSafeEqual (line 17)
-  authenticateUser.verify -> Buffer.from (line 17)
-  authenticateUser.verify -> Buffer.from (line 17)
-  authenticateUser -> findUser (line 20)
-  authenticateUser -> verify (line 22)
-  authenticateUser -> hash (line 22)
-  parseToken -> token.split (line 28)
-  parseToken -> Error (line 30)
-  parseToken -> Number (line 33)
-  resetPassword -> hash (line 37)
-  resetPassword -> saveUser (line 38)
+refs:
+  authenticateUser type Promise (line 14)
+  authenticateUser.verify call crypto.timingSafeEqual (line 17)
+  authenticateUser.verify call Buffer.from (line 17)
+  authenticateUser.verify call Buffer.from (line 17)
+  authenticateUser call findUser (line 20)
+  authenticateUser call verify (line 22)
+  authenticateUser call hash (line 22)
+  parseToken type Claims (line 25)
+  parseToken call token.split (line 28)
+  parseToken call Error (line 30)
+  parseToken call Number (line 33)
+  resetPassword type User (line 36)
+  resetPassword type Promise (line 36)
+  resetPassword call hash (line 37)
+  resetPassword call saveUser (line 38)
 imports:
-  ./hash [hash] (line 1)
-  ./db [findUser, saveUser, User] (line 2)
-  node:crypto [crypto] (line 3)
+  ./hash: default as hash (line 1)
+  ./db: findUser (line 2)
+  ./db: saveUser (line 2)
+  ./db: User (line 2)
+  node:crypto: * as crypto (line 3)
 chunks:
   1-3 window - sha=28b8d574
   5-8 interface Claims sha=843577ed
@@ -54,10 +60,17 @@ symbols:
     | export const findUser = (id: UserId): User | undefined =>
   function saveUser 23-25 parent=<file>
     | export function saveUser(user: User): void
-calls:
-  USERS -> Map (line 16)
-  findUser -> USERS.get (line 20)
-  saveUser -> USERS.set (line 24)
+refs:
+  User type UserId (line 10)
+  User type Role (line 13)
+  USERS call Map (line 16)
+  USERS type UserId (line 16)
+  USERS type User (line 16)
+  findUser type UserId (line 19)
+  findUser type User (line 19)
+  findUser call USERS.get (line 20)
+  saveUser type User (line 23)
+  saveUser call USERS.set (line 24)
 imports:
 chunks:
   1-1 type UserId sha=a54136f1
@@ -73,9 +86,9 @@ symbols:
     | export const SALT = 'fixture-salt';
   function hash 4-10 parent=<file> doc="Hashes a password with the fixture salt."
     | export default function hash(input: string): string
-calls:
-  hash -> char.charCodeAt (line 7)
-  hash -> total.toString (line 9)
+refs:
+  hash call char.charCodeAt (line 7)
+  hash call total.toString (line 9)
 imports:
 chunks:
   1-1 window - sha=5bf93e94
@@ -91,14 +104,14 @@ symbols:
     | function oldLogin(req)
   function health 16-18 parent=<file>
     | module.exports.health = function ()
-calls:
-  <file> -> require (line 1)
-  LegacyLogin -> UserService.create (line 4)
-  LegacyLogin.handle -> this.service.login (line 7)
-  oldLogin -> LegacyLogin (line 12)
-  oldLogin -> handle (line 12)
+refs:
+  <file> call require (line 1)
+  LegacyLogin call UserService.create (line 4)
+  LegacyLogin.handle call this.service.login (line 7)
+  oldLogin call LegacyLogin (line 12)
+  oldLogin call <expr>.handle (line 12)
 imports:
-  ./service [] (line 1)
+  ./service: UserService (line 1)
 chunks:
   1-1 window - sha=cae36fa2
   3-9 class LegacyLogin sha=e1ba7f4e
@@ -135,25 +148,34 @@ symbols:
     | private audit(id: string, ok: boolean): void
   method UserService.dispose 56-58 parent=UserService
     | dispose(): void
-calls:
-  Log -> console.log (line 10)
-  BaseService.now -> Date.now (line 18)
-  UserService -> Injectable (line 23)
-  UserService -> Map (line 25)
-  UserService.create -> UserService (line 27)
-  UserService.login -> Log (line 33)
-  UserService.login -> authenticateUser (line 35)
-  UserService.login -> this.audit (line 36)
-  UserService.find -> findUser (line 43)
-  UserService.find -> Error (line 44)
-  UserService.fromToken -> this.find (line 49)
-  UserService.fromToken -> parseToken (line 49)
-  UserService.audit -> this.attempts.set (line 53)
-  UserService.audit -> this.attempts.get (line 53)
-  UserService.dispose -> this.attempts.clear (line 57)
+refs:
+  Injectable type ClassDecorator (line 4)
+  Log type MethodDecorator (line 8)
+  Log call console.log (line 10)
+  BaseService.now call Date.now (line 18)
+  UserService call Injectable (line 23)
+  UserService extends BaseService (line 24)
+  UserService call Map (line 25)
+  UserService.create type UserService (line 27)
+  UserService.create call UserService (line 27)
+  UserService.login call Log (line 33)
+  UserService.login type Promise (line 34)
+  UserService.login call authenticateUser (line 35)
+  UserService.login call this.audit (line 36)
+  UserService.find type User (line 40)
+  UserService.find call findUser (line 43)
+  UserService.find call Error (line 44)
+  UserService.fromToken type User (line 48)
+  UserService.fromToken call this.find (line 49)
+  UserService.fromToken call parseToken (line 49)
+  UserService.audit call this.attempts.set (line 53)
+  UserService.audit call this.attempts.get (line 53)
+  UserService.dispose call this.attempts.clear (line 57)
 imports:
-  ./auth [authenticateUser, parseToken] (line 1)
-  ./db [findUser, User] (line 2)
+  ./auth: authenticateUser (line 1)
+  ./auth: parseToken (line 1)
+  ./db: findUser (line 2)
+  ./db: User (line 2)
 chunks:
   1-2 window - sha=7cc66659
   4-6 function Injectable sha=6b2ab367
@@ -177,10 +199,13 @@ symbols:
     | function formatName(user: User): string
   function UserBadge 11-11 parent=<file>
     | export const UserBadge = ({ user }: Props) =>
-calls:
-  UserBadge -> formatName (line 11)
+refs:
+  Props type User (line 4)
+  formatName type User (line 7)
+  UserBadge type Props (line 11)
+  UserBadge call formatName (line 11)
 imports:
-  ./db [User] (line 1)
+  ./db: User (line 1)
 chunks:
   1-1 window - sha=f830f136
   3-5 interface Props sha=515ae532

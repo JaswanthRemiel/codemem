@@ -1,8 +1,8 @@
---- src/service.ts:22-59 class UserService [keyword] (signature only)
+--- src/service.ts:22-59 class UserService [keyword, contains UserService.login, contains UserService.fromToken] (signature only)
 @Injectable() export class UserService extends BaseService
   Login and lookup operations for users.
 
---- src/service.ts:33-38 method UserService.login [keyword]
+--- src/service.ts:33-38 method UserService.login [keyword, calls authenticateUser, called by LegacyLogin.handle]
   @Log('login')
   async login(id: string, password: string): Promise<boolean> {
     const ok = await authenticateUser(id, password);
@@ -10,14 +10,12 @@
     return ok;
   }
 
---- src/service.ts:48-50 method UserService.fromToken [keyword]
-  fromToken(token: string): User | undefined {
-    return this.find(parseToken(token).sub);
-  }
-
---- src/legacy.js:6-8 method LegacyLogin.handle [keyword]
+--- src/legacy.js:6-8 method LegacyLogin.handle [keyword, called by oldLogin, calls UserService.login]
   handle = (req) => {
     return this.service.login(req.id, req.password);
   };
 
-~185 tokens | 4 results | 6 dropped for budget
+--- src/legacy.js:15-15 lines [keyword]
+module.exports.oldLogin = oldLogin;
+
+~198 tokens | 4 results | 17 dropped for budget

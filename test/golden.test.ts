@@ -19,15 +19,16 @@ async function render(root: string): Promise<string> {
         );
         for (const line of s.signature.split('\n')) out.push(`    | ${line}`);
       }
-      out.push('calls:');
-      for (const c of parsed.calls) {
-        out.push(
-          `  ${name(c.caller)} -> ${c.receiver ? `${c.receiver}.` : ''}${c.callee} (line ${c.line})`,
-        );
+      out.push('refs:');
+      for (const r of parsed.refs) {
+        const receiver = r.receiver === null ? '' : `${r.receiver || '<expr>'}.`;
+        out.push(`  ${name(r.from)} ${r.kind} ${receiver}${r.name} (line ${r.line})`);
       }
       out.push('imports:');
-      for (const i of parsed.imports)
-        out.push(`  ${i.source} [${i.names.join(', ')}] (line ${i.line})`);
+      for (const i of parsed.imports) {
+        const local = i.local && i.local !== i.name ? ` as ${i.local}` : '';
+        out.push(`  ${i.source}: ${i.name || '<none>'}${local} (line ${i.line})`);
+      }
     }
     out.push('chunks:');
     for (const c of chunks) {

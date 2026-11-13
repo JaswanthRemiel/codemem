@@ -13,11 +13,19 @@ async function parse(path: string): Promise<ParsedFile> {
 const kinds = (p: ParsedFile): Record<string, string> =>
   Object.fromEntries(p.symbols.map((s) => [s.qualifiedName, s.kind]));
 
-/** Call edges as "caller -> callee", the known call graph of a fixture file. */
+/** Calls as "caller -> callee", the known call graph of a fixture file. */
 const edges = (p: ParsedFile): string[] =>
-  p.calls.map(
-    (c) => `${c.caller === null ? '<file>' : p.symbols[c.caller]?.qualifiedName} -> ${c.callee}`,
-  );
+  p.refs
+    .filter((r) => r.kind === 'call')
+    .map((r) => `${r.from === null ? '<file>' : p.symbols[r.from]?.qualifiedName} -> ${r.name}`);
+
+/** References of another kind as "from kind name". */
+const others = (p: ParsedFile, kind: string): string[] =>
+  p.refs
+    .filter((r) => r.kind === kind)
+    .map(
+      (r) => `${r.from === null ? '<file>' : p.symbols[r.from]?.qualifiedName} ${kind} ${r.name}`,
+    );
 
 const symbol = (p: ParsedFile, name: string) => {
   const found = p.symbols.find((s) => s.qualifiedName === name);
@@ -60,10 +68,13 @@ test('TypeScript: arrow consts, overloads, nested functions, exports', async () 
     ]),
   );
   expect(auth.imports).toEqual([
-    { source: './hash', names: ['hash'], line: 1 },
-    { source: './db', names: ['findUser', 'saveUser', 'User'], line: 2 },
-    { source: 'node:crypto', names: ['crypto'], line: 3 },
+    { source: './hash', name: 'default', local: 'hash', line: 1 },
+    { source: './db', name: 'findUser', local: 'findUser', line: 2 },
+    { source: './db', name: 'saveUser', local: 'saveUser', line: 2 },
+    { source: './db', name: 'User', local: 'User', line: 2 },
+    { source: 'node:crypto', name: '*', local: 'crypto', line: 3 },
   ]);
+  expect(others(auth, 'type')).toContain('parseToken type Claims');
 
   const db = await parse('ts-app/src/db.ts');
   expect(kinds(db)).toEqual({
@@ -108,8 +119,11 @@ test('TypeScript: classes, decorators, method overloads, arrow fields', async ()
       'UserService.create -> UserService',
     ]),
   );
-  const audit = service.calls.find((c) => c.callee === 'audit');
+  const audit = service.refs.find((r) => r.name === 'audit');
   expect(audit?.receiver).toBe('this');
+  expect(others(service, 'extends')).toEqual(['UserService extends BaseService']);
+  // A class name is not a reference to itself.
+  expect(others(service, 'type')).not.toContain('UserService type UserService');
 });
 
 test('JavaScript and TSX: CommonJS, class fields, components', async () => {
@@ -120,7 +134,14 @@ test('JavaScript and TSX: CommonJS, class fields, components', async () => {
     oldLogin: 'function',
     health: 'function',
   });
-  expect(legacy.imports).toEqual([{ source: './service', names: [], line: 1 }]);
+  expect(legacy.imports).toEqual([
+    { source: './service', name: 'UserService', local: 'UserService', line: 1 },
+  ]);
+  // `new LegacyLogin().handle(req)`: there is a receiver, but it is not a plain name.
+  expect(legacy.refs.find((r) => r.name === 'handle')?.receiver).toBe('');
+  expect(
+    legacy.refs.find((r) => r.name === 'oldLogin' || r.name === 'LegacyLogin')?.receiver,
+  ).toBeNull();
 
   const view = await parse('ts-app/src/view.tsx');
   expect(kinds(view)).toEqual({
@@ -166,11 +187,12 @@ test('Python: decorators, class and static methods, nested and async functions',
       'retry.decorator.wrapper -> fn',
     ]),
   );
-  expect(orders.imports.at(-1)).toEqual({
-    source: '.payments',
-    names: ['MAX_RETRIES', 'PaymentError', 'charge', 'notify'],
-    line: 4,
-  });
+  expect(orders.imports.filter((i) => i.source === '.payments').map((i) => i.name)).toEqual([
+    'MAX_RETRIES',
+    'PaymentError',
+    'charge',
+    'notify',
+  ]);
 
   const payments = await parse('py-pkg/shop/payments.py');
   expect(kinds(payments)).toEqual({
@@ -179,7 +201,11 @@ test('Python: decorators, class and static methods, nested and async functions',
     charge: 'function',
     notify: 'function',
   });
-  expect(payments.imports.map((i) => i.source)).toEqual(['asyncio', 'logging']);
+  expect(payments.imports).toEqual([
+    { source: 'asyncio', name: '*', local: 'asyncio', line: 1 },
+    { source: 'logging', name: '*', local: 'log', line: 2 },
+  ]);
+  expect(others(payments, 'extends')).toEqual(['PaymentError extends Exception']);
 });
 
 test('Go: pointer and value receivers, interfaces, grouped declarations', async () => {
@@ -216,9 +242,16 @@ test('Go: pointer and value receivers, interfaces, grouped declarations', async 
       'normalize -> ToLower',
     ]),
   );
-  expect(store.imports.map((i) => i.source)).toEqual(['errors', 'fmt', 'strings']);
+  // The local name is the alias when there is one, otherwise the last path segment.
+  expect(store.imports.map((i) => `${i.source} as ${i.local}`)).toEqual([
+    'errors as errors',
+    'fmt as fmt',
+    'strings as str',
+  ]);
+  expect(others(store, 'type')).toContain('Store.Get type Store');
 
   const main = await parse('go-mod/cmd/kv/main.go');
+  expect(main.imports.at(-1)).toMatchObject({ source: 'example.com/kv', name: '*', local: 'kv' });
   expect(edges(main)).toEqual(
     expect.arrayContaining([
       'main -> New',

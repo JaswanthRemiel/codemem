@@ -13,6 +13,7 @@ export default defineConfig({
         'src/chunker/**': core,
         'src/retriever/**': core,
         'src/packer/**': core,
+        'src/graph/**': core,
       },
     },
   },

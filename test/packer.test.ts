@@ -6,8 +6,7 @@ import { countTokens } from '../src/tokens.js';
 import { indexed, TEST_CONFIG } from './helpers.js';
 
 async function items(store: Store, query: string, k = 10): Promise<PackItem[]> {
-  const results = await search(store, query, TEST_CONFIG.retrieval, null, k);
-  return results.map((r) => ({ ...r, detail: 'full' as const }));
+  return search(store, query, TEST_CONFIG.retrieval, null, k);
 }
 
 /** Every chunk in a store, as low-scored pack items. */
@@ -30,18 +29,14 @@ test('golden: results grouped by file in line order, with reasons and a footer',
   store.close();
 });
 
-test('golden: neighbors are compressed to signature and docstring', async () => {
+test('golden: graph neighbors are compressed to signature and docstring', async () => {
   const { store } = await indexed('ts-app');
-  const [top, ...rest] = await items(store, 'authenticateUser', 5);
-  const neighbors = rest.map((item) => ({
-    ...item,
-    detail: 'signature' as const,
-    reasons: ['calls authenticateUser'],
-  }));
-  const packed = pack([top as PackItem, ...neighbors], 600);
+  // One search result; everything else in the output is a neighbor from the call graph.
+  const packed = pack(await items(store, 'authenticateUser', 1), 600);
   await expect(packed.text).toMatchFileSnapshot('golden/pack-signatures.txt');
-  // A signature block carries no body, and a chunk without a signature keeps its content.
-  expect(packed.text).toContain('(signature only)');
+  expect(packed.text).toContain('[calls authenticateUser] (signature only)');
+  expect(packed.text).toContain('[called by authenticateUser] (signature only)');
+  // A signature block carries no body.
   expect(packed.text).not.toContain('this.audit(id, ok)');
   store.close();
 });
@@ -132,6 +127,7 @@ test('property: the output never exceeds the budget', async () => {
     );
     return {
       id,
+      symbolId: null,
       path: `gen/file${Math.floor(random() * 3)}.ts`,
       language: 'typescript',
       startLine: start,

@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { chunkFile, type Chunk, type ChunkOptions } from '../chunker/index.js';
 import type { Config } from '../config/index.js';
 import { embedMissing, modelChanged, type EmbeddingProvider } from '../embedder/index.js';
+import { updateGraph } from '../graph/index.js';
 import { languageOf, parseSource, type ParsedFile } from '../parser/index.js';
 import { resolveInRoot, scan } from '../scanner/index.js';
 import type { Store } from '../store/index.js';
@@ -12,7 +13,7 @@ import { countTokens } from '../tokens.js';
  * Bump when the parser or chunker changes what gets stored for an unchanged file, so
  * existing indexes are rebuilt instead of silently keeping the old shape.
  */
-const INDEX_FORMAT = '2';
+const INDEX_FORMAT = '3';
 const BATCH_FILES = 100;
 
 export interface ProcessedFile {
@@ -103,7 +104,7 @@ export async function indexRepo(
       for (const { file, sizeBytes } of batch) {
         store.replaceFile(
           { ...file, sizeBytes },
-          file.parsed?.symbols ?? [],
+          file.parsed,
           file.chunks.map((chunk) => ({ ...chunk, tokenCount: countTokens(chunk.content) })),
         );
       }
@@ -132,6 +133,9 @@ export async function indexRepo(
     }
     store.setMeta('index_format', INDEX_FORMAT);
   });
+
+  // Name resolution depends on every file, so the graph is rebuilt whenever anything changed.
+  if (stats.indexed > 0 || stats.deleted > 0) updateGraph(store);
 
   const provider = options.provider;
   if (provider) {

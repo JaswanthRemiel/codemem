@@ -6,7 +6,7 @@
 - [x] Phase 1: Scanner, parser, chunker
 - [x] Phase 2: Store and keyword search
 - [x] Phase 3: Embeddings, hybrid retrieval, packer
-- [ ] Phase 4: Call graph
+- [x] Phase 4: Call graph
 - [ ] Phase 5: MCP server and init
 - [ ] Phase 6: Memory
 - [ ] Phase 7: Incremental indexing, watch, stats
@@ -56,9 +56,19 @@
 - Embedding input order: path, signature, docstring, then body, so the model's 256-token cut only removes the end of the body.
 - Cold run, measured 2026-11-14 on an Apple M5 with a connection of about 12 MB/s, Node 24.20.0 and npm 11.19.0, with empty npm and model caches: `npx` of the packed tarball to first output 19.3s, first `index` of the `ts-app` fixture including the 23 MB model download 5.8s, first `search` 0.9s, 26.1s in total. The install downloads and unpacks about 750 MB into the npm cache.
 
+### Phase 4
+
+- Parser records every reference (calls, base classes, implemented interfaces, referenced types) and every import binding with its alias.
+- Graph: references are resolved to symbols in the order same file, imports, unique name, each with a confidence of `exact`, `import`, or `name-match`. Module paths are resolved for TypeScript and JavaScript (relative paths, index files), Python (relative and absolute modules), and Go (through `go.mod`).
+- All 37 hand-listed call edges of the three fixtures resolve to the right symbol with the expected confidence, and no other call edge is produced.
+- Retrieval adds the direct neighbors of the top results as signature-only blocks with a reason (`calls X`, `called by Y`, `extends X`, `type used by X`, `contains X`).
+- `describeSymbol` and `findReferences` (the future `get_symbol` and `find_references` tools), reachable now through hidden `codemem debug symbol` and `codemem debug refs`.
+- Coverage threshold now includes `graph`.
+- Measured on nest (277k lines, Apple M5): 107,851 call sites, of which 19,728 resolve (8,868 exact, 5,483 import, 5,377 name-match); the rest target libraries, test helpers, or values of unknown type. Rebuilding the whole graph takes 0.7s. Warm query p50 19 ms, p95 27 ms.
+
 ## Next
 
-Phase 4: call graph edges with confidence, `find_references`, graph expansion in retrieval, import aliases.
+Phase 5: MCP server over stdio with all tools and the overview resource, `codemem serve`, `codemem init`.
 
 ## Known issues
 
@@ -71,6 +81,8 @@ Phase 4: call graph edges with confidence, `find_references`, graph expansion in
 - `codemem index` creates `.codemem/` but does not add it to `.gitignore`; `codemem init` does that in Phase 5.
 - Only the tables in use exist so far. Edges, memories, and the query log arrive as migrations in the phases that use them.
 - Without git, `.gitignore` is not honored; only the built-in excludes apply.
-- Import aliases (`import x as y`, Go named imports) are not recorded yet. Phase 4 needs them to resolve calls.
+- Call resolution has no type inference: `user.save()` resolves only when one symbol in the repo is named `save`. There is no ground truth for real repos yet, so its accuracy is measured on the fixtures only.
+- The graph is rebuilt in full after every index run that changed a file (0.7s on nest).
+- Go struct embedding and implicit interface satisfaction produce no edges. TypeScript path aliases from `tsconfig.json` are not read; a non-relative import resolves only when exactly one file matches it.
 - Class header chunks are never split, even for very large classes.
 - `npm audit` reports moderate advisories for `minimatch`, pulled in by ESLint 10 and typescript-eslint 8. These are development tools only and are not part of the published package. No fixed release was available on 2026-11-12.

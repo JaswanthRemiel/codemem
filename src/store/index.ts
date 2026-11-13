@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import * as sqliteVec from 'sqlite-vec';
 import type { Chunk } from '../chunker/index.js';
 import { StoreError } from '../errors.js';
-import type { CodeSymbol } from '../parser/index.js';
+import type { ParsedFile } from '../parser/index.js';
 import { expandForIndex } from './fts.js';
 
 /** One entry per schema version. Never edit an entry that has shipped; append a new one. */
@@ -59,6 +59,43 @@ const MIGRATIONS = [
     PRIMARY KEY (text_hash, model_id)
   ) WITHOUT ROWID;
   `,
+  `
+  -- Mentions of other symbols by name. The graph module fills in the target columns.
+  CREATE TABLE refs (
+    id INTEGER PRIMARY KEY,
+    file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+    symbol_id INTEGER REFERENCES symbols(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    receiver TEXT,
+    line INTEGER NOT NULL,
+    target_symbol_id INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
+    confidence TEXT
+  );
+  CREATE INDEX refs_file ON refs(file_id);
+  CREATE INDEX refs_symbol ON refs(symbol_id);
+  CREATE INDEX refs_target ON refs(target_symbol_id);
+  CREATE TABLE imports (
+    id INTEGER PRIMARY KEY,
+    file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+    source TEXT NOT NULL,
+    name TEXT NOT NULL,
+    local TEXT NOT NULL,
+    line INTEGER NOT NULL,
+    target_symbol_id INTEGER REFERENCES symbols(id) ON DELETE SET NULL
+  );
+  CREATE INDEX imports_file ON imports(file_id);
+  CREATE INDEX imports_target ON imports(target_symbol_id);
+  -- One row per resolved relation between two symbols, derived from refs.
+  CREATE TABLE edges (
+    src_symbol_id INTEGER NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
+    dst_symbol_id INTEGER NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    confidence TEXT NOT NULL,
+    PRIMARY KEY (src_symbol_id, dst_symbol_id, kind)
+  ) WITHOUT ROWID;
+  CREATE INDEX edges_dst ON edges(dst_symbol_id);
+  `,
 ];
 
 export interface FileRecord {
@@ -73,6 +110,8 @@ export type StoredChunk = Chunk & { tokenCount: number };
 /** A chunk as search results need it, joined with its file and symbol. */
 export interface ChunkRow {
   id: number;
+  /** Id of the chunk's symbol, or null for a line-window chunk. */
+  symbolId: number | null;
   path: string;
   language: string | null;
   startLine: number;
@@ -85,6 +124,64 @@ export interface ChunkRow {
   signature: string;
   docstring: string;
 }
+
+export interface GraphInput {
+  files: { id: number; path: string; language: string | null }[];
+  symbols: {
+    id: number;
+    fileId: number;
+    name: string;
+    qualifiedName: string;
+    kind: string;
+    parentId: number | null;
+  }[];
+  refs: {
+    id: number;
+    fileId: number;
+    symbolId: number | null;
+    kind: string;
+    name: string;
+    receiver: string | null;
+  }[];
+  imports: { id: number; fileId: number; source: string; name: string; local: string }[];
+  /** Go module roots: the directory of each go.mod and the module path it declares. */
+  goModules: { dir: string; module: string }[];
+}
+
+export interface SymbolRow {
+  id: number;
+  path: string;
+  name: string;
+  qualifiedName: string;
+  kind: string;
+  signature: string;
+  docstring: string;
+  startLine: number;
+  endLine: number;
+}
+
+export interface Neighbor extends SymbolRow {
+  /** The symbol this row is a neighbor of. */
+  of: number;
+  /** `calls`, `calls by`, `extends`, `extends by`, `uses-type`, `inside`, `contains`, ... */
+  relation: string;
+  confidence: string;
+}
+
+export interface Reference {
+  path: string;
+  line: number;
+  /** `call`, `extends`, `implements`, `type`, or `import`. */
+  kind: string;
+  confidence: string;
+  /** Qualified name of the symbol the mention is in, or null at file level. */
+  fromSymbol: string | null;
+}
+
+const SYMBOL_ROW = `
+  SELECT s.id, f.path, s.name, s.qualified_name AS qualifiedName, s.kind, s.signature,
+         s.docstring, s.start_line AS startLine, s.end_line AS endLine
+  FROM symbols s JOIN files f ON f.id = s.file_id`;
 
 /** What the embedder needs to build the text for one chunk. */
 export interface EmbeddingInput {
@@ -103,7 +200,7 @@ export interface KeywordWeights {
 }
 
 const CHUNK_ROW = `
-  SELECT c.id, f.path, f.language, c.start_line AS startLine, c.end_line AS endLine,
+  SELECT c.id, c.symbol_id AS symbolId, f.path, f.language, c.start_line AS startLine, c.end_line AS endLine,
          c.content, c.token_count AS tokenCount, s.qualified_name AS symbol,
          COALESCE(s.kind, 'window') AS kind, COALESCE(s.signature, '') AS signature,
          COALESCE(s.docstring, '') AS docstring
@@ -206,7 +303,8 @@ export class Store {
   }
 
   /** Replaces everything stored for one file. Call inside `transaction`. */
-  replaceFile(file: FileRecord, symbols: CodeSymbol[], chunks: StoredChunk[]): void {
+  replaceFile(file: FileRecord, parsed: ParsedFile | null, chunks: StoredChunk[]): void {
+    const symbols = parsed?.symbols ?? [];
     this.deleteFile(file.path);
     const fileId = this.db
       .prepare(
@@ -255,6 +353,25 @@ export class Store {
       ).lastInsertRowid;
       insertFts.run(chunkId, expandForIndex(c.content), expandForIndex(c.symbol ?? ''), pathTerms);
     }
+
+    const insertRef = this.db.prepare(
+      'INSERT INTO refs (file_id, symbol_id, kind, name, receiver, line) VALUES (?, ?, ?, ?, ?, ?)',
+    );
+    for (const r of parsed?.refs ?? []) {
+      insertRef.run(
+        fileId,
+        r.from === null ? null : symbolIds[r.from],
+        r.kind,
+        r.name,
+        r.receiver,
+        r.line,
+      );
+    }
+    const insertImport = this.db.prepare(
+      'INSERT INTO imports (file_id, source, name, local, line) VALUES (?, ?, ?, ?, ?)',
+    );
+    for (const i of parsed?.imports ?? [])
+      insertImport.run(fileId, i.source, i.name, i.local, i.line);
   }
 
   /** BM25 keyword search. `match` is an FTS5 query; higher scores are better. */
@@ -303,6 +420,141 @@ export class Store {
       .all(...ids) as ChunkRow[];
     const byId = new Map(rows.map((row) => [row.id, row]));
     return ids.flatMap((id) => byId.get(id) ?? []);
+  }
+
+  // Graph. `refs` and `imports` hold what the parser saw; the graph module resolves them
+  // and stores the result through `saveResolution`.
+
+  /** Everything the graph module needs to resolve references. */
+  graphInput(): GraphInput {
+    const all = <T>(sql: string): T[] => this.db.prepare(sql).all() as T[];
+    return {
+      files: all('SELECT id, path, language FROM files'),
+      symbols: all(
+        'SELECT id, file_id AS fileId, name, qualified_name AS qualifiedName, kind, parent_id AS parentId FROM symbols',
+      ),
+      refs: all(
+        'SELECT id, file_id AS fileId, symbol_id AS symbolId, kind, name, receiver FROM refs',
+      ),
+      imports: all('SELECT id, file_id AS fileId, source, name, local FROM imports'),
+      goModules: all<{ path: string; content: string }>(
+        "SELECT f.path, c.content FROM files f JOIN chunks c ON c.file_id = f.id WHERE (f.path = 'go.mod' OR f.path LIKE '%/go.mod') AND c.start_line = 1",
+      ).flatMap(({ path, content }) => {
+        const module = /^module\s+(\S+)/m.exec(content)?.[1];
+        return module ? [{ dir: path.slice(0, -'go.mod'.length).replace(/\/$/, ''), module }] : [];
+      }),
+    };
+  }
+
+  /** Replaces every resolved target and rebuilds `edges` from them. */
+  saveResolution(
+    refs: { id: number; target: number; confidence: string }[],
+    imports: { id: number; target: number }[],
+  ): void {
+    this.transaction(() => {
+      this.db.exec(
+        'UPDATE refs SET target_symbol_id = NULL, confidence = NULL WHERE target_symbol_id IS NOT NULL',
+      );
+      this.db.exec('UPDATE imports SET target_symbol_id = NULL WHERE target_symbol_id IS NOT NULL');
+      const setRef = this.db.prepare(
+        'UPDATE refs SET target_symbol_id = ?, confidence = ? WHERE id = ?',
+      );
+      for (const r of refs) setRef.run(r.target, r.confidence, r.id);
+      const setImport = this.db.prepare('UPDATE imports SET target_symbol_id = ? WHERE id = ?');
+      for (const i of imports) setImport.run(i.target, i.id);
+      this.db.exec('DELETE FROM edges');
+      // When several references link the same pair, the most certain one names the edge.
+      this.db.exec(`
+        INSERT INTO edges (src_symbol_id, dst_symbol_id, kind, confidence)
+        SELECT symbol_id, target_symbol_id,
+               CASE kind WHEN 'call' THEN 'calls' WHEN 'type' THEN 'uses-type' ELSE kind END,
+               CASE MIN(CASE confidence WHEN 'exact' THEN 0 WHEN 'import' THEN 1 ELSE 2 END)
+                 WHEN 0 THEN 'exact' WHEN 1 THEN 'import' ELSE 'name-match' END
+        FROM refs
+        WHERE symbol_id IS NOT NULL AND target_symbol_id IS NOT NULL AND symbol_id <> target_symbol_id
+        GROUP BY 1, 2, 3`);
+    });
+  }
+
+  edgeCount(): number {
+    return (this.db.prepare('SELECT COUNT(*) AS n FROM edges').get() as { n: number }).n;
+  }
+
+  /** Symbols whose name or qualified name is `name`. */
+  symbolsNamed(name: string): SymbolRow[] {
+    return this.db
+      .prepare(
+        `${SYMBOL_ROW} WHERE s.name = ? OR s.qualified_name = ? ORDER BY f.path, s.start_line`,
+      )
+      .all(name, name) as SymbolRow[];
+  }
+
+  /**
+   * Direct neighbors of the given symbols: both directions of every edge, plus the
+   * enclosing symbol (`inside`) and the enclosed ones (`contains`).
+   */
+  neighbors(symbolIds: number[]): Neighbor[] {
+    if (symbolIds.length === 0) return [];
+    const marks = symbolIds.map(() => '?').join(', ');
+    return this.db
+      .prepare(
+        `SELECT n.of, n.relation, n.confidence, s.id, f.path, s.name, s.qualified_name AS qualifiedName,
+                s.kind, s.signature, s.docstring, s.start_line AS startLine, s.end_line AS endLine
+         FROM (
+           SELECT src_symbol_id AS of, dst_symbol_id AS other, kind AS relation, confidence
+             FROM edges WHERE src_symbol_id IN (${marks})
+           UNION ALL
+           SELECT dst_symbol_id, src_symbol_id, kind || ' by', confidence
+             FROM edges WHERE dst_symbol_id IN (${marks})
+           UNION ALL
+           SELECT id, parent_id, 'inside', 'exact' FROM symbols
+             WHERE id IN (${marks}) AND parent_id IS NOT NULL
+           UNION ALL
+           SELECT parent_id, id, 'contains', 'exact' FROM symbols WHERE parent_id IN (${marks})
+         ) n
+         JOIN symbols s ON s.id = n.other JOIN files f ON f.id = s.file_id
+         ORDER BY n.of, n.relation, f.path, s.start_line`,
+      )
+      .all(...symbolIds, ...symbolIds, ...symbolIds, ...symbolIds) as Neighbor[];
+  }
+
+  /** The chunk that shows a symbol: its own, or the one containing it. */
+  chunkIdForSymbol(symbolId: number): number | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT c.id FROM symbols s JOIN chunks c ON c.file_id = s.file_id
+         WHERE s.id = ? AND c.start_line <= s.start_line AND c.end_line >= s.start_line
+         ORDER BY c.symbol_id IS s.id DESC, c.end_line - c.start_line, c.id LIMIT 1`,
+      )
+      .get(symbolId) as { id: number } | undefined;
+    return row?.id;
+  }
+
+  /** The chunks that make up a symbol, or the chunk containing it when it has none. */
+  chunksOfSymbol(symbolId: number): ChunkRow[] {
+    const own = this.db
+      .prepare(`${CHUNK_ROW} WHERE c.symbol_id = ? ORDER BY c.start_line`)
+      .all(symbolId) as ChunkRow[];
+    if (own.length > 0) return own;
+    const containing = this.chunkIdForSymbol(symbolId);
+    return containing === undefined ? [] : this.getChunks([containing]);
+  }
+
+  /** Every resolved mention of the given symbols, and every import of them. */
+  referencesTo(symbolIds: number[]): Reference[] {
+    if (symbolIds.length === 0) return [];
+    const marks = symbolIds.map(() => '?').join(', ');
+    return this.db
+      .prepare(
+        `SELECT f.path, r.line, r.kind, r.confidence, s.qualified_name AS fromSymbol
+           FROM refs r JOIN files f ON f.id = r.file_id LEFT JOIN symbols s ON s.id = r.symbol_id
+           WHERE r.target_symbol_id IN (${marks})
+         UNION ALL
+         SELECT f.path, i.line, 'import', 'import', NULL
+           FROM imports i JOIN files f ON f.id = i.file_id WHERE i.target_symbol_id IN (${marks})
+         ORDER BY 1, 2`,
+      )
+      .all(...symbolIds, ...symbolIds) as Reference[];
   }
 
   // Vectors. The `chunk_vectors` table is created on demand because its dimension depends

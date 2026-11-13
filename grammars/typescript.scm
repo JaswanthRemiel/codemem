@@ -11,3 +11,10 @@
 (interface_declaration name: (_) @name body: (_) @body) @def.interface
 (type_alias_declaration name: (_) @name) @def.type
 (enum_declaration name: (_) @name body: (_) @body) @def.enum
+
+; inheritance and referenced types. Earlier patterns win, so an implemented interface is
+; not also counted as a plain type reference.
+(class_heritage (extends_clause value: (identifier) @ref.extends))
+(class_heritage (implements_clause (type_identifier) @ref.implements))
+(extends_type_clause type: (type_identifier) @ref.extends)
+(type_identifier) @ref.type

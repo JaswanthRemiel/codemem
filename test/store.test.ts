@@ -66,7 +66,7 @@ test('an exact function name returns that function first', async () => {
     expect((await names(store, name))[0], name).toBe(name);
   }
   const first = (await search(store, 'authenticateUser', TEST_CONFIG.retrieval, null))[0];
-  expect(first?.reasons).toEqual(['exact-symbol', 'keyword']);
+  expect(first?.reasons.slice(0, 2)).toEqual(['exact-symbol', 'keyword']);
   expect(first?.ranks).toEqual({ keyword: 1 });
   expect(first?.chunk).toMatchObject({ path: 'src/auth.ts', startLine: 10, endLine: 23 });
   store.close();
@@ -128,7 +128,7 @@ test('re-running the index on unchanged files does no work', async () => {
 test('the schema version is recorded, data survives reopening, and newer schemas are refused', async () => {
   const { root, store } = await indexed('go-mod');
   const counts = store.counts();
-  expect(store.getMeta('schema_version')).toBe('2');
+  expect(store.getMeta('schema_version')).toBe('3');
   expect(store.getChunks([1])[0]?.tokenCount).toBeGreaterThan(0);
   store.setMeta('schema_version', '999');
   store.close();
@@ -189,9 +189,12 @@ test('CLI search prints packed results, scores with --debug, and explains a miss
   writeConfig(root, `{ ${EMBEDDINGS_OFF} }`);
   await runIndex(root, {});
   const out = (await runSearch(root, 'charge', { k: 2 })).split('\n');
-  expect(out[0]).toBe('--- shop/payments.py:11-16 function charge [exact-symbol, keyword]');
-  expect(out[1]).toBe('def charge(amount, token):');
-  expect(out.at(-1)).toMatch(/^~\d+ tokens \| 2 results$/);
+  const block = out.indexOf('--- shop/payments.py:11-16 function charge [exact-symbol, keyword]');
+  expect(block).toBeGreaterThanOrEqual(0);
+  expect(out[block + 1]).toBe('def charge(amount, token):');
+  // Two search results plus the graph neighbors of `charge`.
+  expect(out.at(-1)).toMatch(/^~\d+ tokens \| \d+ results$/);
+  expect(out.join('\n')).toContain('function pay [calls charge] (signature only)');
   const debug = await runSearch(root, 'charge', { k: 2, debug: true });
   expect(debug.split('\n')[0]).toMatch(
     /^1\. score=1\.\d+ keyword=1 vector=- {2}shop\/payments\.py:11-16 charge$/,

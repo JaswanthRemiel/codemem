@@ -29,24 +29,36 @@ export interface CodeSymbol {
   stmtLines: number[];
 }
 
-export interface CallSite {
-  callee: string;
-  /** Text before the dot in `receiver.callee()`, when it is a plain name or path. */
+export type RefKind = 'call' | 'extends' | 'implements' | 'type';
+
+/** A place where a symbol mentions another by name: a call, a base class, or a type. */
+export interface Ref {
+  kind: RefKind;
+  name: string;
+  /**
+   * For `receiver.name()`: the text before the dot when it is a plain name or path, or an
+   * empty string when it is some other expression. Null when there is no receiver.
+   */
   receiver: string | null;
   line: number;
   /** Index of the innermost enclosing symbol, or null at file level. */
-  caller: number | null;
+  from: number | null;
 }
 
+/** One name an import brings into the file. */
 export interface ImportRef {
+  /** The module as written: `./db`, `.payments`, `example.com/kv`. */
   source: string;
-  names: string[];
+  /** The imported name, `default`, `*` for the whole module, or empty for a bare import. */
+  name: string;
+  /** The name used in this file. */
+  local: string;
   line: number;
 }
 
 export interface ParsedFile {
   symbols: CodeSymbol[];
-  calls: CallSite[];
+  refs: Ref[];
   imports: ImportRef[];
 }
 
@@ -220,14 +232,14 @@ function buildDraft(
 function extract(lang: Lang, source: string, root: Node, query: Query): ParsedFile {
   const lines = source.split('\n');
   const drafts = new Map<number, Draft>();
-  const rawCalls: { callee: string; receiver: string | null; line: number; index: number }[] = [];
-  const rawImports = new Map<number, { line: number; sources: string[]; names: string[] }>();
+  const rawRefs = new Map<number, Omit<Ref, 'from'> & { index: number }>();
+  const importSources = new Map<number, { source: string; line: number }>();
+  const bindings: { node: number; source?: string; name: string; local: string }[] = [];
 
   for (const match of query.matches(root)) {
     const caps = new Map(match.captures.map((c) => [c.name, c.node]));
     const defKey = [...caps.keys()].find((key) => key.startsWith('def.'));
     const nameNode = caps.get('name');
-    const call = caps.get('call');
     const imp = caps.get('import');
 
     if (defKey && nameNode) {
@@ -249,27 +261,40 @@ function extract(lang: Lang, source: string, root: Node, query: Query): ParsedFi
         ),
       );
     } else if (imp) {
-      let entry = rawImports.get(imp.id);
-      if (!entry) {
-        entry = { line: imp.startPosition.row + 1, sources: [], names: [] };
-        rawImports.set(imp.id, entry);
+      const src = caps.get('source')?.text;
+      const alias = caps.get('ialias')?.text;
+      const module = caps.get('imodule')?.text;
+      const named = caps.get('iname')?.text;
+      const fallback = caps.get('idefault') ?? caps.get('inamespace');
+      if (src) importSources.set(imp.id, { source: src, line: imp.startPosition.row + 1 });
+      if (module) {
+        const local = alias ?? (lang === 'go' ? (module.split('/').at(-1) ?? module) : module);
+        bindings.push({ node: imp.id, source: module, name: '*', local });
+      } else if (named) {
+        bindings.push({ node: imp.id, source: src, name: named, local: alias ?? named });
+      } else if (fallback) {
+        const name = caps.has('idefault') ? 'default' : '*';
+        bindings.push({ node: imp.id, source: src, name, local: fallback.text });
       }
-      const src = caps.get('source');
-      const iname = caps.get('iname');
-      if (src) entry.sources.push(src.text);
-      if (iname) entry.names.push(iname.text);
-    } else if (call) {
-      const callee = caps.get('callee');
+      if (!importSources.has(imp.id)) {
+        importSources.set(imp.id, { source: module ?? '', line: imp.startPosition.row + 1 });
+      }
+    } else {
+      const refKey = [...caps.keys()].find((key) => key.startsWith('ref.'));
+      const node = caps.get('callee') ?? (refKey ? caps.get(refKey) : undefined);
+      if (!node || rawRefs.has(node.id)) continue; // earlier patterns win
       const recv = caps.get('recv')?.text;
-      if (!callee) continue;
-      rawCalls.push({
-        callee: callee.text,
-        receiver: recv && /^[\w.$]+$/.test(recv) ? recv : null,
-        line: call.startPosition.row + 1,
-        index: call.startIndex,
+      rawRefs.set(node.id, {
+        kind: refKey ? (refKey.slice(4) as RefKind) : 'call',
+        name: node.text,
+        receiver: recv === undefined ? null : /^[\w.$]+$/.test(recv) ? recv : '',
+        line: node.startPosition.row + 1,
+        index: node.startIndex,
       });
     }
   }
+  // A definition's own name is not a reference to it.
+  for (const id of drafts.keys()) rawRefs.delete(id);
 
   const sorted = [...drafts.values()].sort((a, b) => a.from - b.from || b.to - a.to);
   const stack: Draft[] = [];
@@ -322,9 +347,32 @@ function extract(lang: Lang, source: string, root: Node, query: Query): ParsedFi
   };
 
   const imports: ImportRef[] = [];
-  for (const { line, sources, names } of rawImports.values()) {
-    if (sources.length <= 1) imports.push({ source: sources[0] ?? '', names, line });
-    else for (const src of sources) imports.push({ source: src, names: [], line });
+  const bound = new Set<number>();
+  for (const b of bindings) {
+    const statement = importSources.get(b.node);
+    bound.add(b.node);
+    imports.push({
+      source: b.source ?? statement?.source ?? '',
+      name: b.name,
+      local: b.local,
+      line: statement?.line ?? 0,
+    });
+  }
+  for (const [node, { source: module, line }] of importSources) {
+    if (!bound.has(node)) imports.push({ source: module, name: '', local: '', line });
+  }
+
+  // One type reference per symbol and name is enough.
+  const seenTypes = new Set<string>();
+  const refs: Ref[] = [];
+  for (const { index, ...ref } of [...rawRefs.values()].sort((a, b) => a.index - b.index)) {
+    const from = callerOf(index);
+    if (ref.kind === 'type') {
+      const key = `${from}:${ref.name}`;
+      if (seenTypes.has(key)) continue;
+      seenTypes.add(key);
+    }
+    refs.push({ ...ref, from });
   }
 
   return {
@@ -341,14 +389,7 @@ function extract(lang: Lang, source: string, root: Node, query: Query): ParsedFi
       body: d.body,
       stmtLines: d.stmtLines,
     })),
-    calls: rawCalls
-      .sort((a, b) => a.index - b.index)
-      .map(({ callee, receiver, line, index }) => ({
-        callee,
-        receiver,
-        line,
-        caller: callerOf(index),
-      })),
+    refs,
     imports: imports.sort((a, b) => a.line - b.line),
   };
 }

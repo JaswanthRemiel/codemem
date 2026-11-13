@@ -138,3 +138,30 @@ Each entry: context, options, decision, consequences.
 - **Context:** The acceptance criteria ask for a property-based test of the budget limit.
 - **Decision:** A seeded pseudo-random generator inside the test, rather than adding `fast-check`.
 - **Consequences:** No new dependency. There is no automatic shrinking; a failure reports the iteration, budget, and item count for replay.
+
+## 020: How the graph is stored
+
+- **Context:** The spec lists one `edges` table with the kinds `calls`, `imports`, `extends/implements`, and `contains`. Resolving a name depends on every file in the repo, and `find_references` needs each call site, not one row per pair of symbols.
+- **Decision:**
+  - `refs` holds what the parser saw (kind, name, receiver, line, enclosing symbol) plus the resolved target and confidence. `imports` holds each import binding (source, name, local name) plus its resolved target.
+  - `edges` is derived from `refs`: one row per source, target, and kind (`calls`, `extends`, `implements`, `uses-type`), with the best confidence among the references behind it.
+  - `contains` is not copied into `edges`; it is `symbols.parent_id`. Imports are not edges either, because the importer is a file, not a symbol; `find_references` reads them from `imports`.
+  - The whole graph is resolved again after any index run that changed a file.
+- **Consequences:** Incremental indexing stays correct without tracking which edges a change could affect, at a cost of 0.7s on a 277k-line repo. `uses-type` is an extra edge kind, added because the spec's graph expansion asks for referenced types.
+
+## 021: Resolution rules
+
+- **Context:** The spec gives the order: same file, imported names, unique name in the repo.
+- **Decision:**
+  - A bare call looks in the enclosing functions, then the file's top level, then (Go) the other files of the package, then the file's imports.
+  - `this.x()`, `self.x()`, and `cls.x()` look in the enclosing class. `Name.x()` looks in a same-file class or an imported class or module of that name.
+  - A reference through an import that leads outside the repo (`fmt.Println`, `crypto.timingSafeEqual`) is left unresolved and never falls back to a name match.
+  - A call on any other expression resolves to the only symbol of that name in the file (`exact`), or failing that the only one in the repo within the same language family (`name-match`). Functions nested in other functions and constants are not name-match candidates.
+  - Type references and base classes resolve only to classes, interfaces, types, and enums.
+- **Consequences:** Precision is favored over recall: an ambiguous name produces no edge. `name-match` edges are the least certain and carry the lowest weight (0.2) in retrieval.
+
+## 022: Graph expansion details
+
+- **Context:** The spec asks for the 1-hop neighbors of the top 10 results, scored as parent score times edge weight, capped at 20.
+- **Decision:** Neighbors are callers, callees, base and derived classes, implemented interfaces, referenced types, and the enclosing class. Users of a type and members of a class are not added, since both can be very many. A neighbor that is already a search result keeps its place and only gains the reason. A function nested inside a result is skipped because the result's text already contains it. Neighbors are always shown as signature and docstring.
+- **Consequences:** Because an exact symbol match scores above 1, its neighbors (0.2 to 0.5) rank above ordinary fused results (about 0.03) and are packed first; they are short, so this costs little budget.

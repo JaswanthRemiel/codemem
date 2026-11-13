@@ -29,5 +29,9 @@
 (call_expression function: (identifier) @callee) @call
 (call_expression function: (selector_expression operand: (_) @recv field: (field_identifier) @callee)) @call
 
-; imports
-(import_spec path: (interpreted_string_literal (interpreted_string_literal_content) @source)) @import
+; referenced types
+(type_identifier) @ref.type
+
+; imports: the local name is the alias, or the last segment of the path
+(import_spec name: (package_identifier)? @ialias
+  path: (interpreted_string_literal (interpreted_string_literal_content) @imodule)) @import
