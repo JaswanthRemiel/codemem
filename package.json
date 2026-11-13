@@ -22,20 +22,26 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node -e \"require('fs').chmodSync('dist/cli/index.js', 0o755)\"",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src test scripts eslint.config.js",
+    "lint": "eslint src test scripts eslint.config.js vitest.config.js",
     "format": "prettier --write src scripts .github grammars/README.md \"test/*.{ts,mjs}\" \"*.{js,json}\" README.md DECISIONS.md PROGRESS.md SETUP.md",
     "format:check": "prettier --check src scripts .github grammars/README.md \"test/*.{ts,mjs}\" \"*.{js,json}\" README.md DECISIONS.md PROGRESS.md SETUP.md",
     "check:chars": "node scripts/check-chars.mjs",
     "test": "vitest run",
     "hooks": "git config core.hooksPath .githooks || exit 0",
-    "prepare": "npm run build && npm run -s hooks"
+    "prepare": "npm run build && npm run -s hooks",
+    "coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "better-sqlite3": "^13.1.1",
     "commander": "^15.1.0",
-    "web-tree-sitter": "^0.27.2"
+    "js-tiktoken": "^1.0.21",
+    "web-tree-sitter": "^0.27.2",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.20.5",
+    "@vitest/coverage-v8": "^5.1.0",
     "eslint": "^10.14.0",
     "prettier": "^3.10.1",
     "typescript": "~6.0.3",

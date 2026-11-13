@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import { statSync } from 'node:fs';
 import { Command } from 'commander';
 import { processFile } from '../indexer/index.js';
+import { runIndex, runSearch } from './commands.js';
 import { LANGS, parseSource } from '../parser/index.js';
 import { resolveInRoot, scan } from '../scanner/index.js';
 
@@ -40,6 +41,25 @@ export function buildProgram(): Command {
         'Not checked yet (added in later phases): SQLite extensions, embedding model, index health',
       );
       if (!ok) process.exitCode = 1;
+    });
+
+  program
+    .command('index')
+    .description('Index the current directory, skipping files that have not changed')
+    .option('--full', 'reindex every file')
+    .action(async (options: { full?: boolean }) => {
+      console.log(await runIndex(process.cwd(), options));
+    });
+
+  program
+    .command('search <query>')
+    .description('Search the index by keyword')
+    .option('-k, --limit <n>', 'number of results', '10')
+    .option('--debug', 'print scores')
+    .action((query: string, options: { limit: string; debug?: boolean }) => {
+      console.log(
+        runSearch(process.cwd(), query, { k: Number(options.limit), debug: options.debug }),
+      );
     });
 
   // Hidden developer commands, not part of the public interface.

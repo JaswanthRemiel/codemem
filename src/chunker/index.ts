@@ -6,6 +6,8 @@ export interface Chunk {
   language: Lang | null;
   /** Qualified symbol name, or null for line-window chunks. */
   symbol: string | null;
+  /** Index of that symbol in `ParsedFile.symbols`. */
+  symbolIndex: number | null;
   kind: SymbolKind | 'window';
   signature: string;
   docstring: string;
@@ -91,11 +93,13 @@ export function chunkFile(
     content: string,
     sym: CodeSymbol | null,
     parent: string | null,
+    symbolIndex: number | null = null,
   ): void => {
     chunks.push({
       path,
       language,
       symbol: sym?.qualifiedName ?? null,
+      symbolIndex,
       kind: sym?.kind ?? 'window',
       signature: sym?.signature ?? '',
       docstring: sym?.docstring ?? '',
@@ -119,7 +123,13 @@ export function chunkFile(
     for (let line = from; line <= to; line++) covered[line] = true;
 
     if (sym.kind === 'class') {
-      add([from, to], classHeader(lines, language, from, to, symbols, index), sym, parentName);
+      add(
+        [from, to],
+        classHeader(lines, language, from, to, symbols, index),
+        sym,
+        parentName,
+        index,
+      );
     } else if (to - from + 1 > opts.maxChunkLines) {
       const parts = splitAtStatements(from, to, sym.stmtLines, opts.maxChunkLines).flatMap(
         // A single statement can still be too long: cut it into plain line blocks.
@@ -127,10 +137,10 @@ export function chunkFile(
       );
       for (const [i, part] of parts.entries()) {
         const body = text(part[0], part[1]);
-        add(part, i === 0 ? body : `${sym.signature}\n${body}`, sym, parentName);
+        add(part, i === 0 ? body : `${sym.signature}\n${body}`, sym, parentName, index);
       }
     } else {
-      add([from, to], text(from, to), sym, parentName);
+      add([from, to], text(from, to), sym, parentName, index);
     }
   }
 

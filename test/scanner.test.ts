@@ -60,6 +60,16 @@ test('the size limit is configurable', () => {
   expect(scan(root, { maxFileSizeKb: 1024 }).map((f) => f.path)).toContain('data/big.txt');
 });
 
+test('include and exclude globs narrow the scan', () => {
+  const root = makeRepo();
+  expect(scan(root, { exclude: ['docs/**'] }).map((f) => f.path)).toEqual(['src/app.ts']);
+  expect(scan(root, { include: ['**/*.md'] }).map((f) => f.path)).toEqual(['docs/notes.md']);
+  // Built-in excludes still win over an include glob.
+  expect(scan(root, { include: ['**/.env*', 'src/**'] }).map((f) => f.path)).toEqual([
+    'src/app.ts',
+  ]);
+});
+
 test('isExcludedPath covers the documented categories', () => {
   for (const path of [
     'a/node_modules/b.js',

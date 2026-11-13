@@ -10,7 +10,7 @@ How to set up, run, and test codemem from a fresh machine. This file is updated 
 | npm     | 10 or newer (ships with Node.js)      | `npm --version`  |
 | Git     | 2.30 or newer                         | `git --version`  |
 
-No compiler or other build tools are needed. The tree-sitter grammars ship in the repo as WebAssembly files under `grammars/`.
+Normally no compiler or other build tools are needed: the tree-sitter grammars ship in the repo as WebAssembly files under `grammars/`, and `better-sqlite3` downloads a prebuilt binary for common platforms. If no prebuilt binary exists for your platform, `npm install` compiles it and needs Python 3 and a C++ toolchain (see Troubleshooting).
 
 OS notes:
 
@@ -35,9 +35,10 @@ npm run format:check
 npm run typecheck
 npm run check:chars
 npm test
+npm run coverage
 ```
 
-Expected: every command exits with code 0. `npm run check:chars` prints `check-chars: N tracked files clean`. `npm test` ends with `Test Files  6 passed (6)`.
+Expected: every command exits with code 0. `npm run check:chars` prints `check-chars: N tracked files clean`. `npm test` ends with `Test Files  7 passed (7)`. `npm run coverage` runs the same tests, prints a coverage table, and fails if line coverage of `src/parser`, `src/chunker`, or `src/retriever` drops below 80%.
 
 ## Run the CLI
 
@@ -90,7 +91,56 @@ Expected: `3 files, 110 lines, 16 symbols, 15 chunks in 0.0Xs` (the time varies)
 
 ## Index a sample repo and query it
 
-Not available yet. `codemem index` and `codemem search` arrive in Phase 2, `codemem context` in Phase 5, and `codemem stats` in Phase 7.
+Work on a copy of a fixture so the index does not land inside this repo. Run these from the codemem checkout:
+
+```sh
+CODEMEM=$(pwd)
+rm -rf /tmp/codemem-demo && cp -R test/fixtures/ts-app /tmp/codemem-demo
+cd /tmp/codemem-demo
+node "$CODEMEM/dist/cli/index.js" index
+node "$CODEMEM/dist/cli/index.js" index
+node "$CODEMEM/dist/cli/index.js" search authenticateUser -k 3
+node "$CODEMEM/dist/cli/index.js" search "user auth" -k 3
+```
+
+On Windows PowerShell, replace the first three lines with:
+
+```powershell
+$CODEMEM = (Get-Location).Path
+Copy-Item -Recurse -Force test/fixtures/ts-app $env:TEMP/codemem-demo
+Set-Location $env:TEMP/codemem-demo
+```
+
+and use `node "$CODEMEM/dist/cli/index.js"` the same way.
+
+Expected output (times vary):
+
+```text
+Indexed 7 of 7 files (0 unchanged, 0 removed) in 0.28s. Index: 7 files, 32 symbols, 38 chunks.
+Indexed 0 of 7 files (7 unchanged, 0 removed) in 0.01s. Index: 7 files, 32 symbols, 38 chunks.
+1. src/auth.ts:10-23  function authenticateUser  [exact-symbol, keyword]
+   export async function authenticateUser(id: string, password: string): Promise<boolean>
+2. src/service.ts:1-2  window  [keyword]
+   import { authenticateUser, parseToken } from './auth';
+3. src/service.ts:33-38  method UserService.login  [keyword]
+   @Log('login') async login(id: string, password: string): Promise<boolean>
+1. src/auth.ts:10-23  function authenticateUser  [keyword]
+   export async function authenticateUser(id: string, password: string): Promise<boolean>
+2. src/service.ts:1-2  window  [keyword]
+   import { authenticateUser, parseToken } from './auth';
+3. src/auth.ts:5-8  interface Claims  [keyword]
+   export interface Claims
+```
+
+The index is a single file, `.codemem/index.db`, in the directory you indexed. `index --full` reindexes every file. `search --debug` adds scores. Search is keyword-only until Phase 3 adds embeddings, and `--budget` arrives with the packer in the same phase.
+
+Optional settings go in `.codemem/config.json`; every field has a default:
+
+```json
+{ "include": ["src/**"], "exclude": ["**/*.test.ts"], "maxFileSizeKb": 512 }
+```
+
+`codemem context` arrives in Phase 5 and `codemem stats` in Phase 7.
 
 ## Connect to Claude Code, Cursor, and VS Code
 
@@ -147,6 +197,18 @@ Expected: one line such as `2796 files, 277244 lines, 11718 symbols, 17008 chunk
 
 To regenerate the golden files after an intended parser or chunker change, run `npx vitest run test/golden.test.ts -u` and review the diff of `test/golden/`.
 
+### Phase 2
+
+Run from a fresh clone, after `npm install`:
+
+| Step | Command                                                                   | Correct result                                                                                                                                   |
+| ---- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1    | `npm run coverage`                                                        | `Test Files  7 passed (7)` and no threshold error                                                                                                |
+| 2    | The commands in "Index a sample repo and query it"                        | The first `index` reports `Indexed 7 of 7 files`; the second reports `Indexed 0 of 7 files (7 unchanged, 0 removed)`: unchanged files do no work |
+| 3    | `search authenticateUser` in the demo copy                                | Result 1 is `function authenticateUser` with `[exact-symbol, keyword]`                                                                           |
+| 4    | `search "user auth"` in the demo copy                                     | Result 1 is `function authenticateUser` with `[keyword]`                                                                                         |
+| 5    | `node "$CODEMEM/dist/cli/index.js" search x` in a directory with no index | `error: No index found in this directory; run \`codemem index\` first`, exit code 1                                                              |
+
 ## Troubleshooting
 
 - **`npx .` says "Permission denied" or "command not found".** `dist/` is missing or stale. Run `npm run build`.
@@ -155,4 +217,8 @@ To regenerate the golden files after an intended parser or chunker change, run `
 - **Windows: `format:check` reports every file.** Line endings were converted to CRLF. Run `git add --renormalize .` and check out the files again.
 - **`Grammar for <language> failed to load`.** Run `npx . doctor` to see the underlying error. The usual cause is a missing or truncated file in `grammars/`: run `git status grammars` and `git checkout -- grammars`. Each `.wasm` file there is between 200 KB and 1.5 MB.
 - **A golden test fails after you edit a fixture or a query.** That is expected: review the diff, then regenerate with `npx vitest run test/golden.test.ts -u`.
-- **SQLite extension loading, embedding model download.** These parts do not exist yet; their troubleshooting notes are added in Phases 2 and 3.
+- **`npm install` fails while building `better-sqlite3`, or `Could not locate the bindings file`.** No prebuilt SQLite binary matched your platform and Node.js version, so it has to compile. Install Python 3 and a C++ toolchain (Xcode Command Line Tools on macOS, `build-essential` on Debian or Ubuntu, "Desktop development with C++" from Visual Studio Build Tools on Windows), then run `npm rebuild better-sqlite3`.
+- **`The index was written by a newer codemem`.** Delete `.codemem/index.db` and run `codemem index` again, or upgrade codemem.
+- **Search results look stale or wrong after upgrading codemem.** Run `codemem index --full`.
+- **Windows paths.** Paths in the index and in search output always use forward slashes, whatever the platform.
+- **SQLite extension loading (`sqlite-vec`), embedding model download.** These parts do not exist yet; their troubleshooting notes are added in Phase 3.

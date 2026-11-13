@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { closeSync, lstatSync, openSync, readSync, readdirSync, realpathSync } from 'node:fs';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { isAbsolute, join, matchesGlob, relative, resolve, sep } from 'node:path';
 import { PathError } from '../errors.js';
 
 export interface ScannedFile {
@@ -11,9 +11,13 @@ export interface ScannedFile {
 
 export interface ScanOptions {
   maxFileSizeKb: number;
+  /** Globs a file must match. Empty means every file. */
+  include: string[];
+  /** Globs that remove files, on top of the built-in excludes. */
+  exclude: string[];
 }
 
-export const DEFAULT_SCAN_OPTIONS: ScanOptions = { maxFileSizeKb: 512 };
+export const DEFAULT_SCAN_OPTIONS: ScanOptions = { maxFileSizeKb: 512, include: [], exclude: [] };
 
 const EXCLUDED_DIRS = new Set([
   '.git',
@@ -111,11 +115,15 @@ function hasExcludedContent(file: string): boolean {
 }
 
 /** Lists the files worth indexing under `root`, sorted by path. */
-export function scan(root: string, opts: ScanOptions = DEFAULT_SCAN_OPTIONS): ScannedFile[] {
+export function scan(root: string, options: Partial<ScanOptions> = {}): ScannedFile[] {
+  const opts = { ...DEFAULT_SCAN_OPTIONS, ...options };
+  const matches = (globs: string[], path: string): boolean =>
+    globs.some((glob) => matchesGlob(path, glob));
   const files: ScannedFile[] = [];
   for (const listed of new Set(listFiles(root))) {
     const path = listed.split(sep).join('/');
-    if (isExcludedPath(path)) continue;
+    if (isExcludedPath(path) || matches(opts.exclude, path)) continue;
+    if (opts.include.length > 0 && !matches(opts.include, path)) continue;
     const full = join(root, path);
     let sizeBytes: number;
     try {

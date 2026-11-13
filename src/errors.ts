@@ -8,3 +8,5 @@ export class CodememError extends Error {
 
 export class GrammarError extends CodememError {}
 export class PathError extends CodememError {}
+export class ConfigError extends CodememError {}
+export class StoreError extends CodememError {}
