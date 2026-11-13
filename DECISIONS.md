@@ -94,3 +94,10 @@ Each entry: context, options, decision, consequences.
 - **Context:** Budgets need a token count per chunk. Different models tokenize differently.
 - **Decision:** Count with `js-tiktoken` and the `o200k_base` encoding, and describe every count as approximate.
 - **Consequences:** Counting 1 MB of code takes about 0.14s, so it does not need caching.
+
+## 015: Development needs npm 11 or newer
+
+- **Context:** `better-sqlite3` 13 ships prebuilt binaries inside the package and sets `gypfile: false`. npm 10 ignores that flag when it installs from a lockfile and runs `node-gyp rebuild` anyway. On the Windows CI runner with Node 22 that failed because node-gyp could not detect Visual Studio. Reproduced locally with npm 10.9.10; npm 11 does not do this, and neither does npm 10 when installing from the registry without a lockfile.
+- **Options:** (a) install with `--ignore-scripts` and build by hand, (b) go back to `better-sqlite3` 12, which downloads its binary in an install script, (c) require npm 11 for working on this repo.
+- **Decision:** (c). CI upgrades npm before `npm ci`, and SETUP.md lists npm 11 as a prerequisite.
+- **Consequences:** People who install the published package are not affected, since that path has no lockfile. Contributors on Node 22 must upgrade npm once.

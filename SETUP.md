@@ -4,11 +4,11 @@ How to set up, run, and test codemem from a fresh machine. This file is updated 
 
 ## Prerequisites
 
-| Tool    | Version                               | Check            |
-| ------- | ------------------------------------- | ---------------- |
-| Node.js | 22.13.0 or newer (CI tests 22 and 24) | `node --version` |
-| npm     | 10 or newer (ships with Node.js)      | `npm --version`  |
-| Git     | 2.30 or newer                         | `git --version`  |
+| Tool    | Version                                                           | Check            |
+| ------- | ----------------------------------------------------------------- | ---------------- |
+| Node.js | 22.13.0 or newer (CI tests 22 and 24)                             | `node --version` |
+| npm     | 11 or newer. Node.js 22 ships npm 10: run `npm install -g npm@11` | `npm --version`  |
+| Git     | 2.30 or newer                                                     | `git --version`  |
 
 Normally no compiler or other build tools are needed: the tree-sitter grammars ship in the repo as WebAssembly files under `grammars/`, and `better-sqlite3` downloads a prebuilt binary for common platforms. If no prebuilt binary exists for your platform, `npm install` compiles it and needs Python 3 and a C++ toolchain (see Troubleshooting).
 
@@ -217,6 +217,7 @@ Run from a fresh clone, after `npm install`:
 - **Windows: `format:check` reports every file.** Line endings were converted to CRLF. Run `git add --renormalize .` and check out the files again.
 - **`Grammar for <language> failed to load`.** Run `npx . doctor` to see the underlying error. The usual cause is a missing or truncated file in `grammars/`: run `git status grammars` and `git checkout -- grammars`. Each `.wasm` file there is between 200 KB and 1.5 MB.
 - **A golden test fails after you edit a fixture or a query.** That is expected: review the diff, then regenerate with `npx vitest run test/golden.test.ts -u`.
+- **`npm install` or `npm ci` fails with `node-gyp rebuild` in `node_modules/better-sqlite3`, often "Could not find any Visual Studio installation" on Windows.** You are on npm 10. With a lockfile present, npm 10 tries to compile `better-sqlite3` even though the package ships ready-made binaries. Run `npm install -g npm@11`, delete `node_modules`, and install again.
 - **`npm install` fails while building `better-sqlite3`, or `Could not locate the bindings file`.** No prebuilt SQLite binary matched your platform and Node.js version, so it has to compile. Install Python 3 and a C++ toolchain (Xcode Command Line Tools on macOS, `build-essential` on Debian or Ubuntu, "Desktop development with C++" from Visual Studio Build Tools on Windows), then run `npm rebuild better-sqlite3`.
 - **`The index was written by a newer codemem`.** Delete `.codemem/index.db` and run `codemem index` again, or upgrade codemem.
 - **Search results look stale or wrong after upgrading codemem.** Run `codemem index --full`.
