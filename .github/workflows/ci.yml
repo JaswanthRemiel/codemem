@@ -19,7 +19,8 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-      # npm 10 (bundled with Node 22) runs node-gyp for better-sqlite3 on lockfile installs.
+      # npm 10 (bundled with Node 22) carries a node-gyp too old to find Visual Studio on the
+      # Windows runner, and lockfile installs run node-gyp for better-sqlite3.
       - run: npm install -g npm@11
       - run: npm ci
       - run: npm run lint

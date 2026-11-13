@@ -97,7 +97,7 @@ Each entry: context, options, decision, consequences.
 
 ## 015: Development needs npm 11 or newer
 
-- **Context:** `better-sqlite3` 13 ships prebuilt binaries inside the package and sets `gypfile: false`. npm 10 ignores that flag when it installs from a lockfile and runs `node-gyp rebuild` anyway. On the Windows CI runner with Node 22 that failed because node-gyp could not detect Visual Studio. Reproduced locally with npm 10.9.10; npm 11 does not do this, and neither does npm 10 when installing from the registry without a lockfile.
+- **Context:** `better-sqlite3` 13 ships prebuilt binaries inside the package. When npm installs it from a lockfile, npm (10 and 11 alike) still runs an implicit `node-gyp rebuild`. The package makes that a no-op when a prebuilt binary exists, but node-gyp must first find a C++ toolchain. npm 10 bundles node-gyp 11.5, which does not recognize the Visual Studio version on the Windows CI runner, so `npm ci` failed there on Node 22. npm 11 bundles node-gyp 12, which does. Installing from the registry without a lockfile does not run node-gyp at all (checked with npm 10.9.10 and 11.19.0).
 - **Options:** (a) install with `--ignore-scripts` and build by hand, (b) go back to `better-sqlite3` 12, which downloads its binary in an install script, (c) require npm 11 for working on this repo.
 - **Decision:** (c). CI upgrades npm before `npm ci`, and SETUP.md lists npm 11 as a prerequisite.
-- **Consequences:** People who install the published package are not affected, since that path has no lockfile. Contributors on Node 22 must upgrade npm once.
+- **Consequences:** People who install the published package are not affected, since that path has no lockfile. Contributors on Node 22 must upgrade npm once. A Windows contributor with no Visual Studio at all would still fail on the lockfile install and needs `npm ci --ignore-scripts` followed by `npm run prepare`.
