@@ -42,7 +42,7 @@ npm test
 npm run coverage
 ```
 
-Expected: every command exits with code 0. `npm run check:chars` prints `check-chars: N tracked files clean`. `npm test` ends with `Test Files  11 passed (11)`. `npm run coverage` runs the same tests, prints a coverage table, and fails if line coverage of `src/parser`, `src/chunker`, `src/retriever`, `src/packer`, or `src/graph` drops below 80%.
+Expected: every command exits with code 0. `npm run check:chars` prints `check-chars: N tracked files clean`. `npm test` builds first, then ends with `Test Files  12 passed (12)`. `npm run coverage` runs the same tests, prints a coverage table, and fails if line coverage of `src/parser`, `src/chunker`, `src/retriever`, `src/packer`, or `src/graph` drops below 80%.
 
 ## Run the CLI
 
@@ -183,7 +183,7 @@ Optional settings go in `.codemem/config.json`. Every field has a default; this 
 
 ## Inspect the call graph
 
-Two hidden developer commands show what the MCP tools `get_symbol` and `find_references` will return in Phase 5. Run them in the demo copy from the previous section:
+Two hidden developer commands print what the MCP tools `get_symbol` and `find_references` return. Run them in the demo copy from the previous section:
 
 ```sh
 node "$CODEMEM/dist/cli/index.js" debug symbol authenticateUser --depth 2
@@ -222,11 +222,89 @@ src/service.ts
 
 `debug symbol` also takes `--signature` to print the signature instead of the body, and `--depth 0` to 2.
 
-`codemem context` arrives in Phase 5 and `codemem stats` in Phase 7.
+`codemem stats` arrives in Phase 7.
+
+## Set up a project and get context from the CLI
+
+`codemem init` does the whole setup for a project: it creates `.codemem/config.json`, adds the index to `.gitignore`, builds the index, and prints the client configuration shown in the next section. Run from the codemem checkout:
+
+```sh
+CODEMEM=$(pwd)
+rm -rf /tmp/codemem-demo && cp -R test/fixtures/ts-app /tmp/codemem-demo
+cd /tmp/codemem-demo
+node "$CODEMEM/dist/cli/index.js" init
+node "$CODEMEM/dist/cli/index.js" context "check a password at login" --budget 300
+```
+
+Expected: `init` starts with these lines and then prints the client configurations:
+
+```text
+Created .codemem/config.json (empty: every setting has a default).
+Added .codemem/index.db* to .gitignore.
+Privacy: everything runs on this machine. No code leaves it and there is no telemetry.
+Indexed 8 of 8 files (0 unchanged, 0 removed) in 0.53s. Embedded 39 chunks (0 from cache) with local:Xenova/all-MiniLM-L6-v2. Index: 8 files, 32 symbols, 39 chunks.
+```
+
+(8 files rather than 7 because the new `.gitignore` is indexed too.) `context` prints what the `get_context` tool returns, so it can be pasted into any chat. Its first line is a block header such as `--- src/service.ts:33-38 method UserService.login [keyword, vector, ...]` and its last line is a footer such as `~265 tokens | 3 results | 24 dropped for budget`, never above the budget.
 
 ## Connect to Claude Code, Cursor, and VS Code
 
-Not available yet. The MCP server arrives in Phase 5.
+Clients start the server with `codemem serve`, which speaks MCP on stdin and stdout. It serves the directory it is started in, or the one given with `--root <dir>`. `codemem init` prints these configurations with the right command filled in. From a source checkout the command is `node <checkout>/dist/cli/index.js serve`; once the package is installed from npm it is `npx -y codemem serve`.
+
+**Claude Code.** In the project directory run:
+
+```sh
+claude mcp add codemem -- node "$CODEMEM/dist/cli/index.js" serve
+```
+
+or create `.mcp.json` in the project root:
+
+```json
+{
+  "mcpServers": {
+    "codemem": { "command": "node", "args": ["/path/to/codemem/dist/cli/index.js", "serve"] }
+  }
+}
+```
+
+**Cursor.** Create `.cursor/mcp.json` in the project root with the same content.
+
+**VS Code (Copilot).** Create `.mcp.json` in the workspace root with the same content plus `"type": "stdio"` in the server entry. VS Code versions that predate that file read `.vscode/mcp.json`, which uses a top-level `"servers"` key instead of `"mcpServers"`; `codemem init` prints both.
+
+### Confirm the tools appear
+
+Without any client, list the tools over the raw protocol (run in `/tmp/codemem-demo` after `init`):
+
+```sh
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"check","version":"1"}}}' \
+  '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+  | node "$CODEMEM/dist/cli/index.js" serve
+```
+
+Expected: two lines of JSON. The second lists six tools: `get_context`, `search_code`, `get_symbol`, `get_file_outline`, `find_references`, `index_status`. The memory tools (`remember`, `recall`, `forget`) arrive in Phase 6.
+
+With the MCP Inspector (downloads the inspector package on first use):
+
+```sh
+npx @modelcontextprotocol/inspector --cli node "$CODEMEM/dist/cli/index.js" serve --method tools/list
+```
+
+Expected: JSON with the same six tools, each with an `inputSchema` of type `object`. Run `npx @modelcontextprotocol/inspector node "$CODEMEM/dist/cli/index.js" serve` instead to open the Inspector's web page and call tools by hand.
+
+### Manual run in Claude Code
+
+1. Run the `init` commands from "Set up a project and get context from the CLI".
+2. In `/tmp/codemem-demo`, run `claude mcp add codemem -- node "$CODEMEM/dist/cli/index.js" serve`.
+3. Start `claude` in that directory and enter `/mcp`. Expected: `codemem` is listed as connected with 6 tools.
+4. Ask: `Call the codemem get_context tool with the task "check a password at login" and show me the raw result.`
+5. Approve the tool call when asked. Expected: the tool result contains a block headed `--- src/auth.ts:10-23 function authenticateUser [...]` and ends with a `~N tokens | N results` footer.
+6. Clean up with `claude mcp remove codemem`.
+
+In Cursor the tools appear under Settings, MCP; in VS Code under Chat: Open Customizations, MCP Servers.
+
+Logs go to stderr, never stdout. Set `CODEMEM_LOG_LEVEL` to `error`, `warn` (default), `info`, or `debug`.
 
 ## Run the benchmark
 
@@ -318,6 +396,19 @@ Run from a fresh clone, after `npm install`:
 | 4    | `debug refs findUser` in the demo copy                     | `4 references in 2 files`, as shown in "Inspect the call graph"                                                                          |
 | 5    | `search authenticateUser -k 1` in the demo copy            | One full result followed by `(signature only)` blocks tagged `called by authenticateUser` and `calls authenticateUser`                   |
 
+### Phase 5
+
+Run from a fresh clone, after `npm install`:
+
+| Step | Command                                                         | Correct result                                                                                                                                              |
+| ---- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `npm run coverage`                                              | `Test Files  12 passed (12)` and no threshold error                                                                                                         |
+| 2    | `npx vitest run test/mcp.test.ts`                               | 12 tests pass, including `serve writes nothing but protocol messages to stdout` and `the server lists every tool with a valid schema and short description` |
+| 3    | The commands in "Set up a project and get context from the CLI" | `init` reports the config, the `.gitignore` entry, the privacy line, and the index; `context` ends with a footer at or under 300 tokens                     |
+| 4    | The raw protocol command in "Confirm the tools appear"          | Two JSON lines; the second lists the six tools                                                                                                              |
+| 5    | The MCP Inspector command in the same section                   | The same six tools with valid schemas                                                                                                                       |
+| 6    | "Manual run in Claude Code"                                     | `get_context` returns a block for `authenticateUser`                                                                                                        |
+
 ## Troubleshooting
 
 - **`npx .` says "Permission denied" or "command not found".** `dist/` is missing or stale. Run `npm run build`.
@@ -334,5 +425,7 @@ Run from a fresh clone, after `npm install`:
 - **`The sqlite-vec extension failed to load`.** The platform package for `sqlite-vec` is missing. Prebuilt extensions exist for macOS (x64, arm64), Linux (x64, arm64), and Windows (x64). Run `npm ls sqlite-vec` and reinstall with `npm install`. Other platforms are not supported yet.
 - **`Embedding model ... failed to load`.** The first use downloads the model from huggingface.co. Check the network connection or proxy, then run `npx . doctor`. A partial download can be cleared by deleting `~/.cache/codemem/models`. To work offline or without the model, set `"embedding": { "provider": "none" }` in `.codemem/config.json`; search then uses keywords only.
 - **`The index holds vectors from X but the configured model is Y`.** The embedding model in the config changed. Run `codemem index --full` to rebuild the vectors.
+- **The MCP client shows codemem as failed or with no tools.** Run the server command from the client configuration in a terminal: it should start and wait silently. If it exits, the message on stderr says why. Check that the command's working directory is the project (or pass `--root`), and that `codemem index` has been run there; tools answer `The index is empty` until it has.
+- **A tool answers with stale code.** The server does not re-index on its own yet (that arrives in Phase 7). Run `codemem index` after changing files; `index_status` shows how many files are pending.
 - **A caller or callee is missing from `debug symbol`.** Resolution is best effort and never guesses across an import that leads outside the repo. A call on a value whose type is unknown (`user.save()`) resolves only when one symbol in the repo has that name. Calls to library functions have no edge.
 - **Indexing is slow.** Embedding is the slow stage: about 160 chunks per second with the default model on an Apple M5 laptop, so a 277k-line repo takes about 106 seconds. It runs once; later runs embed only changed chunks.

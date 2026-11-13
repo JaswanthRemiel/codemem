@@ -33,6 +33,8 @@ const RetrievalSchema = z.strictObject({
   /** Results returned when the caller does not say how many. */
   defaultK: z.number().int().positive().default(10),
   defaultBudgetTokens: z.number().int().positive().default(4000),
+  /** Results `get_context` considers before packing; the budget decides how many are shown. */
+  contextK: z.number().int().positive().default(20),
   /** Graph expansion (takes effect in Phase 4): how many top results get their neighbors added. */
   graphTopN: z.number().int().nonnegative().default(10),
   /** Graph expansion: the most neighbors added in total. */

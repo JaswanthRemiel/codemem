@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { CONFIG_DIR, loadConfig } from '../config/index.js';
 import { StoreError } from '../errors.js';
 import { describeSymbol, findReferences } from '../graph/describe.js';
@@ -9,6 +10,7 @@ import { createProvider } from '../embedder/index.js';
 import { pack } from '../packer/index.js';
 import { search } from '../retriever/index.js';
 import { Store } from '../store/index.js';
+import { TOOLS } from '../mcp/tools.js';
 
 const dbPath = (root: string): string => join(root, CONFIG_DIR, 'index.db');
 
@@ -69,16 +71,99 @@ export async function runSearch(
   }
 }
 
+/** `codemem context`: what the `get_context` tool returns, for pasting into any chat. */
+export async function runContext(
+  root: string,
+  task: string,
+  options: { budget?: number },
+): Promise<string> {
+  const config = loadConfig(root);
+  const getContext = TOOLS.find((tool) => tool.name === 'get_context');
+  return withStore(root, async (store) => {
+    const ctx = { root, config, store, provider: createProvider(config.embedding) };
+    return getContext?.run(ctx, { task, budget_tokens: options.budget } as never) ?? '';
+  });
+}
+
+/** How an MCP client should start this copy of codemem. */
+function serverCommand(): { command: string; args: string[] } {
+  const cli = fileURLToPath(new URL('./index.js', import.meta.url));
+  // An installed package is started through npx; a source checkout by its path.
+  return cli.includes('node_modules')
+    ? { command: 'npx', args: ['-y', 'codemem', 'serve'] }
+    : { command: 'node', args: [cli, 'serve'] };
+}
+
+/** Copy-paste MCP configuration for the supported clients. */
+export function clientConfigs(): string {
+  const { command, args } = serverCommand();
+  const json = (server: object): string =>
+    JSON.stringify({ mcpServers: { codemem: server } }, null, 2);
+  const shell = [command, ...args].map((part) => (/\s/.test(part) ? `"${part}"` : part)).join(' ');
+  return [
+    'Connect an MCP client (run it from this directory, or add "--root", "<path>" to the args):',
+    '',
+    'Claude Code, either run:',
+    `  claude mcp add codemem -- ${shell}`,
+    'or create .mcp.json in the project root:',
+    json({ command, args }),
+    '',
+    'Cursor: create .cursor/mcp.json in the project root:',
+    json({ command, args }),
+    '',
+    'VS Code (Copilot): create .mcp.json in the workspace root:',
+    json({ type: 'stdio', command, args }),
+    'Older VS Code versions read .vscode/mcp.json instead:',
+    JSON.stringify({ servers: { codemem: { type: 'stdio', command, args } } }, null, 2),
+  ].join('\n');
+}
+
+/** `codemem init`: config, .gitignore entry, first index, and client setup instructions. */
+export async function runInit(
+  root: string,
+  options: { onEmbedProgress?: (done: number, total: number) => void },
+): Promise<string> {
+  const dir = join(root, CONFIG_DIR);
+  mkdirSync(dir, { recursive: true });
+  const configPath = join(dir, 'config.json');
+  const steps: string[] = [];
+  if (!existsSync(configPath)) {
+    writeFileSync(configPath, '{}\n');
+    steps.push(`Created ${CONFIG_DIR}/config.json (empty: every setting has a default).`);
+  }
+  // The index is a local cache; .codemem/memory.json and config.json stay committable.
+  const ignorePath = join(root, '.gitignore');
+  const entry = `${CONFIG_DIR}/index.db*`;
+  const ignore = existsSync(ignorePath) ? readFileSync(ignorePath, 'utf8') : '';
+  if (!ignore.split(/\r?\n/).includes(entry)) {
+    appendFileSync(ignorePath, `${ignore && !ignore.endsWith('\n') ? '\n' : ''}${entry}\n`);
+    steps.push(`Added ${entry} to .gitignore.`);
+  }
+
+  const provider = createProvider(loadConfig(root).embedding);
+  const privacy =
+    provider && !provider.local
+      ? `Privacy: embeddings are computed by ${provider.id}, so indexed code is sent to that service.`
+      : 'Privacy: everything runs on this machine. No code leaves it and there is no telemetry.';
+  const summary = await runIndex(root, options);
+  return [...steps, privacy, summary, '', clientConfigs()].join('\n');
+}
+
 function withStore<T>(root: string, run: (store: Store) => T): T {
   if (!existsSync(dbPath(root))) {
     throw new StoreError('No index found in this directory; run `codemem index` first');
   }
   const store = new Store(dbPath(root));
+  let result: T;
   try {
-    return run(store);
-  } finally {
+    result = run(store);
+  } catch (error) {
     store.close();
+    throw error;
   }
+  if (result instanceof Promise) return result.finally(() => store.close()) as T;
+  store.close();
+  return result;
 }
 
 /** `codemem debug symbol`: a symbol with its neighbors. */

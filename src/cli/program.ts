@@ -1,8 +1,18 @@
 import { createRequire } from 'node:module';
 import { statSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { Command } from 'commander';
 import { processFile } from '../indexer/index.js';
-import { runDoctor, runIndex, runRefs, runSearch, runSymbol } from './commands.js';
+import { serve } from '../mcp/server.js';
+import {
+  runContext,
+  runDoctor,
+  runIndex,
+  runInit,
+  runRefs,
+  runSearch,
+  runSymbol,
+} from './commands.js';
 import { resolveInRoot, scan } from '../scanner/index.js';
 
 const pkg = createRequire(import.meta.url)('../../package.json') as { version: string };
@@ -21,17 +31,52 @@ export function buildProgram(): Command {
       if (!ok) process.exitCode = 1;
     });
 
+  const tty = process.stderr.isTTY;
+  /** A progress bar on stderr while chunks are embedded. Silent when not a terminal. */
+  const onEmbedProgress = (done: number, total: number): void => {
+    if (!tty) return;
+    const filled = Math.round((done / Math.max(total, 1)) * 24);
+    process.stderr.write(
+      `\rEmbedding [${'#'.repeat(filled)}${'.'.repeat(24 - filled)}] ${done}/${total}`,
+    );
+  };
+  const clearProgress = (): void => {
+    if (tty) process.stderr.write('\r\x1b[K');
+  };
+
+  program
+    .command('init')
+    .description('Set up codemem in the current directory and print MCP client configuration')
+    .action(async () => {
+      const report = await runInit(process.cwd(), { onEmbedProgress });
+      clearProgress();
+      console.log(report);
+    });
+
+  program
+    .command('serve')
+    .description('Start the MCP server on stdio (this is what MCP clients run)')
+    .option('--root <dir>', 'project directory, default the current directory')
+    .action(async (options: { root?: string }) => {
+      await serve(resolve(options.root ?? process.cwd()));
+    });
+
+  program
+    .command('context <task>')
+    .description('Print the context an agent would get for a task, to paste into any chat')
+    .option('--budget <tokens>', 'token budget for the output')
+    .action(async (task: string, options: { budget?: string }) => {
+      const budget = Number(options.budget);
+      console.log(await runContext(process.cwd(), task, Number.isFinite(budget) ? { budget } : {}));
+    });
+
   program
     .command('index')
     .description('Index the current directory, skipping files that have not changed')
     .option('--full', 'reindex every file and rebuild vectors')
     .action(async (options: { full?: boolean }) => {
-      const tty = process.stderr.isTTY;
-      const onEmbedProgress = (done: number, total: number): void => {
-        if (tty) process.stderr.write(`\rEmbedding ${done}/${total}`);
-      };
       const summary = await runIndex(process.cwd(), { ...options, onEmbedProgress });
-      if (tty) process.stderr.write('\r\x1b[K');
+      clearProgress();
       console.log(summary);
     });
 

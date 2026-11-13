@@ -166,3 +166,27 @@ Each entry: context, options, decision, consequences.
 - **Context:** The spec asks for the 1-hop neighbors of the top 10 results, scored as parent score times edge weight, capped at 20.
 - **Decision:** Neighbors are callers, callees, base and derived classes, implemented interfaces, referenced types, and the enclosing class. Users of a type and members of a class are not added, since both can be very many. A neighbor that is already a search result keeps its place and only gains the reason. A function nested inside a result is skipped because the result's text already contains it. Neighbors are always shown as signature and docstring.
 - **Consequences:** Because an exact symbol match scores above 1, its neighbors (0.2 to 0.5) rank above ordinary fused results (about 0.03) and are packed first; they are short, so this costs little budget.
+
+## 023: Memory tools are registered in Phase 6, not Phase 5
+
+- **Context:** Phase 5 asks for all tools; `remember`, `recall`, and `forget` depend on the memory module, which is Phase 6.
+- **Options:** (a) register the three tools now with handlers that say memory is not available, (b) register them when they work.
+- **Decision:** (b). Phase 5 ships the six tools that have an implementation.
+- **Consequences:** An agent never sees a tool that cannot do its job. The tool list grows from six to nine in Phase 6.
+
+## 024: Client configuration formats
+
+- **Context:** `codemem init` prints copy-paste configuration. Checked against each client's documentation on 2026-11-14.
+- **Decision:** Claude Code: `claude mcp add codemem -- <command>` or a project `.mcp.json` with `mcpServers`. Cursor: `.cursor/mcp.json` with `mcpServers`. VS Code: workspace-root `.mcp.json` with `mcpServers` and `"type": "stdio"`, which its documentation now names as the format to use; the older `.vscode/mcp.json` with a `servers` key is printed as well for versions that predate it. The command is `npx -y codemem serve` when codemem runs from an installed package and `node <path>/dist/cli/index.js serve` from a source checkout.
+- **Consequences:** One `.mcp.json` serves both Claude Code and VS Code. The printed command contains an absolute path when run from a checkout, so that file should not be committed in that case.
+
+## 025: Server behavior
+
+- **Context:** Details the spec leaves open.
+- **Decision:**
+  - `serve` works on its current directory or `--root`, reads the config once at start, and keeps one database connection open.
+  - `search_code` filters by language and path globs after ranking, looking up to ten times further down the ranking when a filter is set.
+  - `get_context` considers `retrieval.contextK` results (default 20) and lets the budget decide how many are shown.
+  - Tools other than the two search tools end with a `~N tokens` line.
+  - The overview lists only top-level symbols that something refers to, and reduces depth and symbols per directory until it fits 1,500 tokens.
+- **Consequences:** A config change needs a server restart. Filters can return fewer than `k` results when matches are rare.

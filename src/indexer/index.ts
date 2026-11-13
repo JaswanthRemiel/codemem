@@ -3,7 +3,10 @@ import { readFile } from 'node:fs/promises';
 import { chunkFile, type Chunk, type ChunkOptions } from '../chunker/index.js';
 import type { Config } from '../config/index.js';
 import { embedMissing, modelChanged, type EmbeddingProvider } from '../embedder/index.js';
+import { execFileSync } from 'node:child_process';
 import { updateGraph } from '../graph/index.js';
+import { log } from '../log.js';
+import { buildOverview } from './overview.js';
 import { languageOf, parseSource, type ParsedFile } from '../parser/index.js';
 import { resolveInRoot, scan } from '../scanner/index.js';
 import type { Store } from '../store/index.js';
@@ -73,6 +76,38 @@ export async function processFile(
   return processSource(path, await readSource(root, path), opts);
 }
 
+/** The current git commit of `root`, or an empty string outside a git repo. */
+function headCommit(root: string): string {
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return '';
+  }
+}
+
+/** How the files under `root` differ from the index, without changing anything. */
+export async function pendingChanges(
+  root: string,
+  store: Store,
+  config: Config,
+): Promise<{ changed: number; added: number; deleted: number }> {
+  const known = store.fileHashes();
+  const result = { changed: 0, added: 0, deleted: 0 };
+  const present = new Set<string>();
+  for (const { path } of scan(root, config)) {
+    present.add(path);
+    const stored = known.get(path);
+    if (stored === undefined) result.added++;
+    else if (stored !== hashOf(await readSource(root, path))) result.changed++;
+  }
+  for (const path of known.keys()) if (!present.has(path)) result.deleted++;
+  return result;
+}
+
 /**
  * Brings the store in line with the files under `root`. Files whose content hash is
  * unchanged are skipped unless `full` is set; files that disappeared are removed.
@@ -135,7 +170,15 @@ export async function indexRepo(
   });
 
   // Name resolution depends on every file, so the graph is rebuilt whenever anything changed.
-  if (stats.indexed > 0 || stats.deleted > 0) updateGraph(store);
+  if (stats.indexed > 0 || stats.deleted > 0 || store.getMeta('overview') === undefined) {
+    updateGraph(store);
+    store.setMeta('overview', buildOverview(store));
+  }
+  store.setMeta('last_indexed_at', new Date().toISOString());
+  store.setMeta('last_indexed_commit', headCommit(root));
+  log.debug(
+    `indexed ${stats.indexed} of ${stats.scanned} files in ${Math.round(performance.now() - started)} ms`,
+  );
 
   const provider = options.provider;
   if (provider) {

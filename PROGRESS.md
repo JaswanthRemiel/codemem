@@ -7,7 +7,7 @@
 - [x] Phase 2: Store and keyword search
 - [x] Phase 3: Embeddings, hybrid retrieval, packer
 - [x] Phase 4: Call graph
-- [ ] Phase 5: MCP server and init
+- [x] Phase 5: MCP server and init
 - [ ] Phase 6: Memory
 - [ ] Phase 7: Incremental indexing, watch, stats
 - [ ] Phase 8: Benchmark
@@ -78,15 +78,24 @@
 
 - Follow-up fix: a call on a capitalized receiver that is neither defined in the file nor imported (`Object`, `Math`, `JSON`) is no longer name-matched. That removes three of the six errors in the sample (16 of 19 name-matches correct, 84%; 24 of 27 overall, 89%) and 314 name-match edges on nest. The other three errors (a chained call, a variable holding a built-in object, a library's fluent method) need type information and remain. The sample is small, so treat these figures as rough.
 
+### Phase 5
+
+- MCP server over stdio (`codemem serve [--root <dir>]`) with six tools: `get_context`, `search_code`, `get_symbol`, `get_file_outline`, `find_references`, `index_status`. Inputs are zod schemas; results are plain text with a token footer; a failing call returns an error result and the server keeps running.
+- Resource `codemem://overview`: a directory map to depth 3 with the most-referenced symbols per directory, rebuilt at index time and capped at 1,500 tokens.
+- `codemem init` (config, `.gitignore` entry, first index with a progress bar, privacy statement, client configurations) and `codemem context "<task>"`.
+- All logging goes to stderr at the level set by `CODEMEM_LOG_LEVEL`; a test fails if `serve` writes anything but protocol messages to stdout.
+- Tool descriptions are under 80 tokens each.
+
 ## Next
 
-Phase 5: MCP server over stdio with all tools and the overview resource, `codemem serve`, `codemem init`.
+Phase 6: memory (`remember`, `recall`, `forget`, JSON mirror, staleness, memories in `get_context`).
 
 ## Notes for later phases
 
 - Phase 7: prune unused embedding cache entries on `codemem index --full`.
 - Phase 8: record the machine the benchmark ran on (CPU, memory, OS, Node.js version) in the results file and the README.
 - Phase 8: the quantized embedding model gives slightly different vectors on different CPUs, so ranks can shift by a place. Either compare results with a tolerance or offer a full-precision model option, and say which in the README.
+- Phase 8: add an ablation for graph expansion with and without `name-match` edges. If recall does not drop without them, leave `name-match` out of expansion by default.
 - Phase 8: before deciding on `tsconfig.json` path alias support, check whether the chosen TypeScript benchmark repo uses `paths`.
 
 ## Known issues
@@ -97,7 +106,10 @@ Phase 5: MCP server over stdio with all tools and the overview resource, `codeme
 - Cached vectors of chunks that were edited away are never pruned. To do by Phase 7: prune unused cache entries on `codemem index --full`.
 - Each vector is stored twice (search table and cache), which adds about 1.5 KB per chunk.
 - `sqlite-vec` has no prebuilt extension for Windows on ARM.
-- `codemem index` creates `.codemem/` but does not add it to `.gitignore`; `codemem init` does that in Phase 5.
+- The three memory tools are not registered yet; they arrive with the memory module in Phase 6.
+- The server answers from the index as it is: it does not re-index before a tool call until Phase 7.
+- The MCP Inspector check and the manual run in Claude Code are documented in SETUP.md but were not run by the build agent; the same protocol paths are covered by automated tests.
+- `codemem index` creates `.codemem/` but only `codemem init` adds the index to `.gitignore`.
 - Only the tables in use exist so far. Edges, memories, and the query log arrive as migrations in the phases that use them.
 - Without git, `.gitignore` is not honored; only the built-in excludes apply.
 - Call resolution has no type inference: `user.save()` resolves only when one symbol in the repo is named `save`. On real code about one in four name-match edges is wrong (see the hand-check above); they carry the lowest retrieval weight (0.2).

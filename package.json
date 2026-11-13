@@ -29,10 +29,13 @@
     "test": "vitest run",
     "hooks": "git config core.hooksPath .githooks || exit 0",
     "prepare": "npm run build && npm run -s hooks",
-    "coverage": "vitest run --coverage"
+    "coverage": "vitest run --coverage",
+    "pretest": "npm run -s build",
+    "precoverage": "npm run -s build"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.2",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "better-sqlite3": "^13.1.1",
     "commander": "^15.1.0",
     "js-tiktoken": "^1.0.21",

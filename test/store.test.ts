@@ -154,6 +154,7 @@ test('config: every default, nested overrides, and clear errors', () => {
       keywordWeights: { content: 1, symbol: 5, path: 2 },
       defaultK: 10,
       defaultBudgetTokens: 4000,
+      contextK: 20,
       graphTopN: 10,
       graphMaxNeighbors: 20,
       edgeWeights: { exact: 0.5, import: 0.4, 'name-match': 0.2 },

@@ -530,6 +530,48 @@ export class Store {
     return row?.id;
   }
 
+  /** The symbols of one file in line order, with the id of each one's enclosing symbol. */
+  symbolsInFile(path: string): (SymbolRow & { parentId: number | null })[] {
+    return this.db
+      .prepare(
+        `SELECT s.id, f.path, s.name, s.qualified_name AS qualifiedName, s.kind, s.signature,
+                s.docstring, s.start_line AS startLine, s.end_line AS endLine, s.parent_id AS parentId
+         FROM symbols s JOIN files f ON f.id = s.file_id WHERE f.path = ? ORDER BY s.start_line, s.id`,
+      )
+      .all(path) as (SymbolRow & { parentId: number | null })[];
+  }
+
+  fileLanguage(path: string): string | null | undefined {
+    const row = this.db.prepare('SELECT language FROM files WHERE path = ?').get(path) as
+      { language: string | null } | undefined;
+    return row ? row.language : undefined;
+  }
+
+  /** Every file path, and every top-level symbol that something refers to. */
+  overviewInput(): {
+    files: string[];
+    symbols: { path: string; name: string; references: number }[];
+  } {
+    return {
+      files: (this.db.prepare('SELECT path FROM files').all() as { path: string }[]).map(
+        (f) => f.path,
+      ),
+      symbols: this.db
+        .prepare(
+          `SELECT f.path, s.qualified_name AS name, COUNT(r.id) AS "references"
+           FROM symbols s JOIN files f ON f.id = s.file_id JOIN refs r ON r.target_symbol_id = s.id
+           WHERE s.parent_id IS NULL AND s.kind <> 'constant' GROUP BY s.id`,
+        )
+        .all() as { path: string; name: string; references: number }[],
+    };
+  }
+
+  /** How many chunks have a vector. */
+  vectorCount(): number {
+    if (!this.hasVectors()) return 0;
+    return (this.db.prepare('SELECT COUNT(*) AS n FROM chunk_vectors').get() as { n: number }).n;
+  }
+
   /** The chunks that make up a symbol, or the chunk containing it when it has none. */
   chunksOfSymbol(symbolId: number): ChunkRow[] {
     const own = this.db
