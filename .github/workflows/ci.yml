@@ -13,6 +13,8 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         node: [22, 24]
     runs-on: ${{ matrix.os }}
+    env:
+      npm_config_fetch_retries: 5
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -21,7 +23,16 @@ jobs:
           cache: npm
       # The packed tarball must install and run with the npm that ships with each Node.js
       # version, the way `npx codemem` would for a user. No lockfile is involved on this path.
-      - run: npm ci --ignore-scripts
+      # Installs download a few hundred megabytes; retry once so a dropped connection on a
+      # runner does not fail the job, and publish the error if both attempts fail.
+      - name: Install without scripts
+        shell: bash
+        run: |
+          npm ci --ignore-scripts > "$RUNNER_TEMP/install.log" 2>&1 || (sleep 20 && npm ci --ignore-scripts > "$RUNNER_TEMP/install.log" 2>&1) || {
+            cat "$RUNNER_TEMP/install.log"
+            echo "::error title=npm ci failed::$(tail -c 3000 "$RUNNER_TEMP/install.log" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+            exit 1
+          }
       - run: npm pack
       - name: Run the packed tarball with the bundled npm
         shell: bash
@@ -47,7 +58,14 @@ jobs:
       # npm 10 (bundled with Node 22) carries a node-gyp too old to find Visual Studio on the
       # Windows runner, and lockfile installs run node-gyp for better-sqlite3.
       - run: npm install -g npm@11
-      - run: npm ci
+      - name: Install
+        shell: bash
+        run: |
+          npm ci > "$RUNNER_TEMP/install.log" 2>&1 || (sleep 20 && npm ci > "$RUNNER_TEMP/install.log" 2>&1) || {
+            cat "$RUNNER_TEMP/install.log"
+            echo "::error title=npm ci failed::$(tail -c 3000 "$RUNNER_TEMP/install.log" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+            exit 1
+          }
       - run: npm run lint
       - run: npm run format:check
       - run: npm run typecheck
