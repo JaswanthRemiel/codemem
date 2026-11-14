@@ -92,7 +92,9 @@
 - Mirror at `.codemem/memory.json`, written on every change and treated as the source of truth: a changed file is loaded on the next command, and a deleted index is rebuilt from it.
 - Staleness: each link stores a hash of the linked code; after every index run a memory whose linked file or symbol changed or disappeared is marked stale, and unmarked if the code returns to what it was.
 - Recall fuses keyword and vector ranks like code search. Memories that arrive through the file are embedded on first recall.
-- `get_context` starts with a project memory section: memories linked to the files of its results, then memories matching the task, within a quarter of the budget, stale ones marked.
+- `get_context` starts with a project memory section, within a quarter of the budget, stale ones marked. A memory is attached automatically when it is linked to a result's file as a whole or to a symbol that is in the results; any other memory has to match the task.
+- Matching needs a minimum on at least one side: half of the query's terms (`retrieval.memoryMinKeywordMatch`) or cosine similarity 0.3 (`retrieval.memoryMinSimilarity`). One shared word is not a match. The same rule applies to the `recall` tool.
+- `memory.json` is written sorted by id with one memory per line.
 - The three memory tools are registered, so the server offers nine tools. `codemem memory list/add/rm` do the same from the command line.
 - Acceptance added by the owner on 2026-11-14: the MCP Inspector lists all nine tools. An automated test asserts the same list through the protocol; the Inspector itself is run by the owner.
 - Coverage threshold now includes `memory`.
@@ -107,6 +109,7 @@ Phase 7: incremental indexing with a git fast path, `codemem watch`, auto-refres
 - Phase 8: record the machine the benchmark ran on (CPU, memory, OS, Node.js version) in the results file and the README.
 - Phase 8: the quantized embedding model gives slightly different vectors on different CPUs, so ranks can shift by a place. Either compare results with a tolerance or offer a full-precision model option, and say which in the README.
 - Phase 8: add an ablation for graph expansion with and without `name-match` edges. If recall does not drop without them, leave `name-match` out of expansion by default.
+- Phase 8: add an ablation with project memories on and off in `get_context`.
 - Phase 8: before deciding on `tsconfig.json` path alias support, check whether the chosen TypeScript benchmark repo uses `paths`.
 
 ## Known issues
@@ -118,8 +121,8 @@ Phase 7: incremental indexing with a git fast path, `codemem watch`, auto-refres
 - Each vector is stored twice (search table and cache), which adds about 1.5 KB per chunk.
 - `sqlite-vec` has no prebuilt extension for Windows on ARM.
 - Memory staleness reflects the last index run; with no auto-refresh until Phase 7, run `codemem index` after editing.
-- Keyword recall for `get_context` matches on any task word, so a loosely related memory can be included (at most five, within a quarter of the budget).
-- Two people adding memories at once can produce a git merge conflict in `memory.json`; it is plain JSON with one memory per array entry, and a broken file is refused rather than loaded.
+- The memory match thresholds (half of the query terms, or cosine similarity 0.3) are first guesses; Phase 8 should check them with the memories ablation.
+- `memory.json` has one memory per line, sorted by id, so most concurrent additions merge cleanly. Two additions that land next to each other, or after the last line, can still conflict; a broken file is refused rather than loaded.
 - The server answers from the index as it is: it does not re-index before a tool call until Phase 7.
 - The MCP Inspector check and the manual run in Claude Code are documented in SETUP.md but were not run by the build agent; the same protocol paths are covered by automated tests.
 - `codemem index` creates `.codemem/` but only `codemem init` adds the index to `.gitignore`.

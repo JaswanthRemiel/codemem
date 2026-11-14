@@ -73,21 +73,22 @@ async function query(ctx: ToolContext, text: string, options: QueryOptions): Pro
 }
 
 /**
- * Project memory for a task: memories linked to the files of the results, then memories
- * that match the task text. At most a quarter of the budget, so code keeps most of it.
+ * Project memory for a task: memories linked to a result's file as a whole or to a symbol
+ * in the results, then memories that match the task text. At most a quarter of the budget, so code keeps most of it.
  */
 async function memoryBlock(
   ctx: ToolContext,
   task: string,
-  results: { chunk: { path: string } }[],
+  results: { chunk: { path: string; symbol: string | null } }[],
   budget: number,
 ): Promise<string> {
-  const { memoryLimit, memoryMinSimilarity } = ctx.config.retrieval;
-  const matched = await recall(ctx.root, ctx.store, ctx.provider, task, {
-    limit: memoryLimit,
-    minSimilarity: memoryMinSimilarity,
+  const matched = await recall(ctx.root, ctx.store, ctx.provider, task, ctx.config.retrieval, {
+    limit: ctx.config.retrieval.memoryLimit,
   });
-  const linked = linkedMemories(ctx.store, [...new Set(results.map((r) => r.chunk.path))]);
+  const linked = linkedMemories(
+    ctx.store,
+    results.map((r) => ({ path: r.chunk.path, symbol: r.chunk.symbol })),
+  );
   const seen = new Set<string>();
   const memories = [...linked, ...matched].filter((m: Memory) => !seen.has(m.id) && seen.add(m.id));
   const lines = ['=== Project memory (decisions and conventions recorded for this repo) ==='];
@@ -234,9 +235,14 @@ export const TOOLS: ToolDefinition[] = [
       kind: z.enum(MEMORY_KINDS).optional(),
     },
     async (ctx, args) => {
-      const memories = await recall(ctx.root, ctx.store, ctx.provider, args.query, {
-        kind: args.kind,
-      });
+      const memories = await recall(
+        ctx.root,
+        ctx.store,
+        ctx.provider,
+        args.query,
+        ctx.config.retrieval,
+        { kind: args.kind },
+      );
       if (memories.length === 0) return 'No memories match.';
       return withTokens(memories.map(formatMemory).join('\n'));
     },

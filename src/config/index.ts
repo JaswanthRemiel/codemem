@@ -39,6 +39,8 @@ const RetrievalSchema = z.strictObject({
   memoryLimit: z.number().int().nonnegative().default(5),
   /** A memory found only by vector search needs at least this cosine similarity to the task. */
   memoryMinSimilarity: z.number().min(0).max(1).default(0.3),
+  /** A memory found only by keyword search must contain at least this share of the task's terms. */
+  memoryMinKeywordMatch: z.number().min(0).max(1).default(0.5),
   /** Graph expansion: how many top results get their neighbors added. */
   graphTopN: z.number().int().nonnegative().default(10),
   /** Graph expansion: the most neighbors added in total. */

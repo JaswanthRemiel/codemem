@@ -157,6 +157,7 @@ test('config: every default, nested overrides, and clear errors', () => {
       contextK: 20,
       memoryLimit: 5,
       memoryMinSimilarity: 0.3,
+      memoryMinKeywordMatch: 0.5,
       graphTopN: 10,
       graphMaxNeighbors: 20,
       edgeWeights: { exact: 0.5, import: 0.4, 'name-match': 0.2 },

@@ -336,7 +336,7 @@ and the `context` output now starts with:
   (linked: src/hash.ts hash; tags: security)
 ```
 
-Memories are mirrored to `.codemem/memory.json`. Commit that file to share them with a team; `.codemem/index.db` stays local. The file is the source of truth: a changed file (after `git pull`, or a hand edit) is loaded on the next command.
+Memories are mirrored to `.codemem/memory.json`, sorted by id with one memory per line so that git merges stay clean. Commit that file to share them with a team; `.codemem/index.db` stays local. The file is the source of truth: a changed file (after `git pull`, or a hand edit) is loaded on the next command.
 
 A memory is marked stale when code it is linked to changes. Edit the linked function, re-index, and list again:
 
@@ -356,7 +356,9 @@ node "$CODEMEM/dist/cli/index.js" index
 node "$CODEMEM/dist/cli/index.js" memory list
 ```
 
-Expected: the same memory is listed again. Other commands: `memory list "<query>"` searches, `memory list --kind todo` filters, `memory rm <id>` deletes, and `memory add` takes `--path <file>` as well as `--symbol` (both repeatable).
+Expected: the same memory is listed again. A memory linked to a whole file (`--path`) is shown whenever that file is in the results. One linked to a symbol is shown when that symbol is in the results. Otherwise it must match the task: at least half of the task's terms, or enough similarity in meaning (`retrieval.memoryMinKeywordMatch` and `retrieval.memoryMinSimilarity` in the config).
+
+Other commands: `memory list "<query>"` searches, `memory list --kind todo` filters, `memory rm <id>` deletes, and `memory add` takes `--path <file>` as well as `--symbol` (both repeatable).
 
 ## Run the benchmark
 

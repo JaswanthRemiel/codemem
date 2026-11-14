@@ -21,6 +21,7 @@ import { Store } from '../src/store/index.js';
 import { countTokens } from '../src/tokens.js';
 import { fakeProvider, indexed, TEST_CONFIG } from './helpers.js';
 
+const T = TEST_CONFIG.retrieval;
 const mirror = (root: string): string => join(root, '.codemem/memory.json');
 const readMirror = (root: string) =>
   JSON.parse(readFileSync(mirror(root), 'utf8')) as {
@@ -115,20 +116,20 @@ test('recall finds memories by keyword, filters by kind, and lists everything fo
   }).memory;
   remember(root, store, { text: 'Move notify to a queue.', kind: 'todo' });
 
-  expect((await recall(root, store, null, 'payment retries')).map((m) => m.id)).toEqual([a.id]);
-  expect((await recall(root, store, null, 'sku length'))[0]?.id).toBe(b.id);
+  expect((await recall(root, store, null, 'payment retries', T)).map((m) => m.id)).toEqual([a.id]);
+  expect((await recall(root, store, null, 'sku length', T))[0]?.id).toBe(b.id);
   // Tags are searchable too.
-  expect((await recall(root, store, null, 'payments')).map((m) => m.id)).toContain(a.id);
-  expect(await recall(root, store, null, 'kubernetes')).toEqual([]);
-  expect((await recall(root, store, null, '')).map((m) => m.kind)).toEqual([
+  expect((await recall(root, store, null, 'payments', T)).map((m) => m.id)).toContain(a.id);
+  expect(await recall(root, store, null, 'kubernetes', T)).toEqual([]);
+  expect((await recall(root, store, null, '', T)).map((m) => m.kind)).toEqual([
     'convention',
     'gotcha',
     'todo',
   ]);
-  expect((await recall(root, store, null, '', { kind: 'todo' })).map((m) => m.text)).toEqual([
+  expect((await recall(root, store, null, '', T, { kind: 'todo' })).map((m) => m.text)).toEqual([
     'Move notify to a queue.',
   ]);
-  expect(await recall(root, store, null, 'sku', { kind: 'todo' })).toEqual([]);
+  expect(await recall(root, store, null, 'sku', T, { kind: 'todo' })).toEqual([]);
   store.close();
 });
 
@@ -143,16 +144,17 @@ test('recall with an embedding model also matches by meaning, and embeds memorie
 
   provider.calls.length = 0;
   const found = await recall(root, store, provider, 'gateway charge customers payment', {
-    minSimilarity: 0.5,
+    ...T,
+    memoryMinSimilarity: 0.5,
   });
   expect(found[0]?.id).toBe(kept.id);
   // Two memories embedded once, plus the query.
   expect(provider.calls.map((batch) => batch.length)).toEqual([2, 1]);
   provider.calls.length = 0;
-  await recall(root, store, provider, 'wiki documentation');
+  await recall(root, store, provider, 'wiki documentation', T);
   expect(provider.calls.map((batch) => batch.length)).toEqual([0, 1]);
   // A high similarity bar removes weak vector-only matches.
-  const strict = await recall(root, store, provider, 'zzz qqq', { minSimilarity: 0.9 });
+  const strict = await recall(root, store, provider, 'zzz qqq', { ...T, memoryMinSimilarity: 0.9 });
   expect(strict).toEqual([]);
   store.close();
 });
@@ -168,7 +170,7 @@ test('forget deletes a memory from the database and the mirror', async () => {
   expect(forget(root, store, memory.id)).toBe(false);
   expect(store.listMemories()).toEqual([]);
   expect(readMirror(root).memories).toEqual([]);
-  expect(await recall(root, store, null, 'keys lower')).toEqual([]);
+  expect(await recall(root, store, null, 'keys lower', T)).toEqual([]);
   store.close();
 });
 
@@ -190,8 +192,10 @@ test('deleting index.db and re-indexing restores memories from memory.json', asy
   await indexRepo(root, fresh, TEST_CONFIG);
   const restored = fresh.listMemories();
   expect(restored).toEqual([{ ...memory, stale: false }]);
-  expect((await recall(root, fresh, null, 'token format'))[0]?.id).toBe(memory.id);
-  expect(linkedMemories(fresh, ['src/auth.ts']).map((m) => m.id)).toEqual([memory.id]);
+  expect((await recall(root, fresh, null, 'token format', T))[0]?.id).toBe(memory.id);
+  expect(
+    linkedMemories(fresh, [{ path: 'src/auth.ts', symbol: 'parseToken' }]).map((m) => m.id),
+  ).toEqual([memory.id]);
   fresh.close();
 });
 
@@ -259,7 +263,7 @@ test('a memory.json changed outside codemem is picked up, and a broken one is re
     links: [{ path: 'shop/payments.py', symbol: 'charge', contentHash: 'outdated' }],
   });
   writeFileSync(mirror(root), JSON.stringify(file));
-  const all = await recall(root, store, null, '');
+  const all = await recall(root, store, null, '', T);
   expect(all.map((m) => m.id)).toEqual(['m_teammate', mine.id]);
   // Its link hash does not match this checkout, so it is flagged.
   expect(all[0]?.stale).toBe(true);
@@ -281,6 +285,89 @@ test('a memory.json changed outside codemem is picked up, and a broken one is re
   store.close();
 });
 
+test('one shared word is not a match: a memory needs half of the query terms or enough similarity', async () => {
+  const { root, store } = await indexed('py-pkg');
+  const policy = remember(root, store, {
+    text: 'Password rules live in the security handbook.',
+    kind: 'decision',
+  }).memory;
+  // One of four terms: below the minimum.
+  expect(await recall(root, store, null, 'reset the user password email', T)).toEqual([]);
+  // Two of three terms.
+  expect((await recall(root, store, null, 'password security review', T)).map((m) => m.id)).toEqual(
+    [policy.id],
+  );
+  // The minimum is configurable: at zero, any shared word matches again.
+  const loose = { ...T, memoryMinKeywordMatch: 0 };
+  expect(
+    (await recall(root, store, null, 'reset the user password email', loose)).map((m) => m.id),
+  ).toEqual([policy.id]);
+  // With a model, enough similarity is the other way in.
+  const provider = fakeProvider();
+  const similar = await recall(root, store, provider, 'handbook of security rules', {
+    ...T,
+    memoryMinKeywordMatch: 1,
+  });
+  expect(similar.map((m) => m.id)).toEqual([policy.id]);
+  expect(
+    await recall(root, store, provider, 'deploy pipeline', { ...T, memoryMinSimilarity: 0.5 }),
+  ).toEqual([]);
+  store.close();
+});
+
+test('a memory is attached automatically only through a whole-file link or a symbol in the results', async () => {
+  const { root, store } = await indexed('ts-app');
+  const onFile = remember(root, store, {
+    text: 'auth.ts must not import from service.ts.',
+    kind: 'convention',
+    paths: ['src/auth.ts'],
+  }).memory;
+  const onSymbol = remember(root, store, {
+    text: 'parseToken accepts sub.exp only.',
+    kind: 'gotcha',
+    symbols: ['parseToken'],
+  }).memory;
+  const ids = (results: { path: string; symbol: string | null }[]): string[] =>
+    linkedMemories(store, results).map((m) => m.id);
+
+  // Another symbol of the same file: the file-level memory comes along, the symbol one does not.
+  expect(ids([{ path: 'src/auth.ts', symbol: 'authenticateUser' }])).toEqual([onFile.id]);
+  expect(ids([{ path: 'src/auth.ts', symbol: null }])).toEqual([onFile.id]);
+  expect(ids([{ path: 'src/auth.ts', symbol: 'parseToken' }])).toEqual([onFile.id, onSymbol.id]);
+  // The same symbol name in another file is a different symbol.
+  expect(ids([{ path: 'src/db.ts', symbol: 'parseToken' }])).toEqual([]);
+  store.close();
+});
+
+test('memory.json is sorted by id with one memory per line', async () => {
+  const { root, store } = await indexed('go-mod');
+  for (const text of ['third note', 'first note', 'second note'])
+    remember(root, store, { text, kind: 'todo' });
+  const lines = readFileSync(mirror(root), 'utf8').split('\n');
+  expect(lines.slice(0, 3)).toEqual(['{', '  "version": 1,', '  "memories": [']);
+  expect(lines.slice(-3)).toEqual(['  ]', '}', '']);
+  const entries = lines.slice(3, -3);
+  expect(entries).toHaveLength(3);
+  const ids = entries.map((line) => (JSON.parse(line.replace(/,$/, '')) as { id: string }).id);
+  expect(ids).toEqual([...ids].sort());
+  // Deleting the last one leaves valid JSON, and an empty list is valid too.
+  forget(root, store, ids[2] as string);
+  expect(readMirror(root).memories.map((m) => m.id)).toEqual(ids.slice(0, 2));
+  forget(root, store, ids[0] as string);
+  forget(root, store, ids[1] as string);
+  expect(readMirror(root).memories).toEqual([]);
+  // The file round-trips: a fresh database loads exactly what was written.
+  const kept = remember(root, store, {
+    text: 'kept',
+    kind: 'decision',
+    symbols: ['normalize'],
+  }).memory;
+  store.setMeta('memory_json_hash', '');
+  syncMemories(root, store);
+  expect(store.listMemories()).toEqual([kept]);
+  store.close();
+});
+
 test('get_context puts linked and matching memories first, and marks stale ones', async () => {
   const { root, store } = await indexed('ts-app');
   const c = await client(root, store);
@@ -290,6 +377,10 @@ test('get_context puts linked and matching memories first, and marks stale ones'
     symbols: ['authenticateUser'],
   }).memory;
   const matching = remember(root, store, {
+    text: 'Password check failures are counted per user.',
+    kind: 'decision',
+  }).memory;
+  const oneWord = remember(root, store, {
     text: 'Password rules live in the security handbook.',
     kind: 'decision',
   }).memory;
@@ -307,6 +398,8 @@ test('get_context puts linked and matching memories first, and marks stale ones'
   expect(lines[2]).toBe('  Never log passwords in authenticateUser.');
   expect(context).toContain(`[decision] ${matching.id}`);
   expect(context).not.toContain(unrelated.id);
+  // Sharing one word with the task is not enough.
+  expect(context).not.toContain(oneWord.id);
   expect(context.indexOf('--- src/auth.ts')).toBeGreaterThan(context.indexOf(matching.id));
 
   // A memory linked to a returned file is attached even when its words do not match.

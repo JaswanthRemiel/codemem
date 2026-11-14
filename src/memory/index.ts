@@ -5,7 +5,8 @@ import { z } from 'zod';
 import { CONFIG_DIR } from '../config/index.js';
 import type { EmbeddingProvider } from '../embedder/index.js';
 import { CodememError } from '../errors.js';
-import { ftsQuery, fuse } from '../retriever/index.js';
+import { ftsQuery, fuse, queryTokens, type RetrievalConfig } from '../retriever/index.js';
+import { expandTerms } from '../store/fts.js';
 import type { MemoryLink, MemoryRow, Store } from '../store/index.js';
 
 export class MemoryError extends CodememError {}
@@ -89,8 +90,14 @@ const toFile = (m: Memory): Omit<Memory, 'stale'> => ({
 });
 
 function writeMirror(root: string, store: Store): void {
-  const body = { version: 1, memories: store.listMemories().map(toFile) };
-  const text = `${JSON.stringify(body, null, 2)}\n`;
+  // Sorted by id with one memory per line: two people adding memories touch different
+  // lines, so git can merge the file without conflicts in most cases.
+  const lines = store
+    .listMemories()
+    .map(toFile)
+    .sort((a, b) => (a.id < b.id ? -1 : 1))
+    .map((memory) => `    ${JSON.stringify(memory)}`);
+  const text = `{\n  "version": 1,\n  "memories": [\n${lines.join(',\n')}\n  ]\n}\n`;
   mkdirSync(join(root, CONFIG_DIR), { recursive: true });
   // Write then rename, so a crash cannot leave half a file.
   const temp = `${mirrorPath(root)}.tmp`;
@@ -201,19 +208,36 @@ export function forget(root: string, store: Store, id: string): boolean {
 export interface RecallOptions {
   kind?: string | undefined;
   limit?: number;
-  /** Memories found only by vector search need at least this cosine similarity. */
-  minSimilarity?: number;
+}
+
+/** The minimum relevance a memory needs to count as a match. */
+export type MemoryThresholds = Pick<
+  RetrievalConfig,
+  'memoryMinSimilarity' | 'memoryMinKeywordMatch'
+>;
+
+/** The share of the query's terms that occur in a memory, with the same prefix rule as search. */
+function keywordMatch(terms: string[], memory: Memory): number {
+  if (terms.length === 0) return 0;
+  const words = [...new Set(expandTerms(`${memory.text} ${memory.tags.join(' ')}`))];
+  const found = terms.filter((term) =>
+    words.some((word) => (term.length >= 3 ? word.startsWith(term) : word === term)),
+  );
+  return found.length / terms.length;
 }
 
 /**
  * Memories matching a query, best first: keyword and vector ranks fused the same way as
- * code search. An empty query lists everything.
+ * code search. A memory must clear a minimum on at least one side: enough of the query's
+ * terms, or enough vector similarity. One shared word is not a match. An empty query
+ * lists everything.
  */
 export async function recall(
   root: string,
   store: Store,
   provider: EmbeddingProvider | null,
   query: string,
+  thresholds: MemoryThresholds,
   options: RecallOptions = {},
 ): Promise<Memory[]> {
   syncMemories(root, store);
@@ -222,8 +246,12 @@ export async function recall(
   if (!query.trim()) return all.slice(0, limit);
   const byId = new Map(all.map((m) => [m.id, m]));
 
+  const terms = [...new Set(queryTokens(query).flatMap((token) => expandTerms(token)))];
   const match = ftsQuery(query);
-  const keyword = match ? store.memoryKeywordSearch(match, 50) : [];
+  const keyword = (match ? store.memoryKeywordSearch(match, 50) : []).filter((id) => {
+    const memory = byId.get(id);
+    return memory && keywordMatch(terms, memory) >= thresholds.memoryMinKeywordMatch;
+  });
   let vector: string[] = [];
   if (provider && all.length > 0) {
     const stored = store.memoryEmbeddings(provider.id);
@@ -245,7 +273,7 @@ export async function recall(
           let similarity = 0;
           for (let i = 0; i < target.length; i++)
             similarity += (target[i] ?? 0) * (m.embedding[i] ?? 0);
-          return similarity >= (options.minSimilarity ?? 0) ? [{ id: m.id, similarity }] : [];
+          return similarity >= thresholds.memoryMinSimilarity ? [{ id: m.id, similarity }] : [];
         })
         .sort((a, b) => b.similarity - a.similarity)
         .map((m) => m.id);
@@ -265,10 +293,24 @@ export async function recall(
     .slice(0, limit);
 }
 
-/** Memories linked to any of the given files. */
-export function linkedMemories(store: Store, paths: string[]): Memory[] {
-  const ids = new Set(store.memoryIdsForPaths(paths));
-  return store.listMemories().filter((m) => ids.has(m.id));
+/**
+ * Memories that belong with a set of results whatever their wording: those linked to a
+ * result's file as a whole, or to a symbol that is itself in the results. A memory linked
+ * to some other symbol of the same file has to earn its place through `recall`.
+ */
+export function linkedMemories(
+  store: Store,
+  results: { path: string; symbol: string | null }[],
+): Memory[] {
+  const paths = new Set(results.map((r) => r.path));
+  const symbols = new Set(results.map((r) => `${r.path} ${r.symbol}`));
+  return store
+    .listMemories()
+    .filter((memory) =>
+      memory.links.some((link) =>
+        link.symbol === null ? paths.has(link.path) : symbols.has(`${link.path} ${link.symbol}`),
+      ),
+    );
 }
 
 /** One memory as text for an agent: kind, id, staleness, text, links, and tags. */

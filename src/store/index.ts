@@ -750,17 +750,6 @@ export class Store {
       .run(Buffer.from(embedding.buffer, embedding.byteOffset, embedding.byteLength), modelId, id);
   }
 
-  /** Ids of memories linked to any of the given files. */
-  memoryIdsForPaths(paths: string[]): string[] {
-    if (paths.length === 0) return [];
-    const rows = this.db
-      .prepare(
-        `SELECT DISTINCT memory_id AS id FROM memory_links WHERE file_path IN (${paths.map(() => '?').join(', ')})`,
-      )
-      .all(...paths) as { id: string }[];
-    return rows.map((row) => row.id);
-  }
-
   /** The symbol with this qualified name in this file. */
   symbolAt(path: string, qualifiedName: string): SymbolRow | undefined {
     return this.db
