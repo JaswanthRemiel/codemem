@@ -123,6 +123,17 @@ const MIGRATIONS = [
     tokenize="unicode61 tokenchars '_$'"
   );
   `,
+  `
+  CREATE TABLE query_log (
+    id INTEGER PRIMARY KEY,
+    tool TEXT NOT NULL,
+    query TEXT NOT NULL,
+    tokens_returned INTEGER NOT NULL,
+    baseline_tokens_estimate INTEGER NOT NULL,
+    latency_ms INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  `,
 ];
 
 export interface FileRecord {
@@ -130,6 +141,8 @@ export interface FileRecord {
   language: string | null;
   contentHash: string;
   sizeBytes: number;
+  /** When the file was read, in milliseconds since the epoch. */
+  readAt: number;
 }
 
 export type StoredChunk = Chunk & { tokenCount: number };
@@ -210,6 +223,24 @@ const SYMBOL_ROW = `
          s.docstring, s.start_line AS startLine, s.end_line AS endLine
   FROM symbols s JOIN files f ON f.id = s.file_id`;
 
+export interface QueryLogEntry {
+  tool: string;
+  query: string;
+  tokensReturned: number;
+  /** Estimated tokens to reach the same code by reading whole files. */
+  baselineTokens: number;
+  latencyMs: number;
+}
+
+export interface QueryLogSummary {
+  tool: string;
+  queries: number;
+  tokensReturned: number;
+  baselineTokens: number;
+  meanLatencyMs: number;
+  since: string;
+}
+
 export interface MemoryLink {
   path: string;
   /** Qualified symbol name, or null when the memory is about the whole file. */
@@ -272,6 +303,8 @@ export class Store {
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('synchronous = NORMAL');
     this.db.pragma('foreign_keys = ON');
+    // The MCP server, `watch`, and the CLI can write to the same index: wait instead of failing.
+    this.db.pragma('busy_timeout = 5000');
     this.migrate();
   }
 
@@ -311,6 +344,60 @@ export class Store {
         'INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
       )
       .run(key, value);
+  }
+
+  /** What is known about every indexed file, for deciding whether it changed. */
+  fileStates(): Map<string, { hash: string; sizeBytes: number; indexedAt: number }> {
+    const rows = this.db
+      .prepare(
+        'SELECT path, content_hash AS hash, size_bytes AS sizeBytes, indexed_at AS indexedAt FROM files',
+      )
+      .all() as { path: string; hash: string; sizeBytes: number; indexedAt: number }[];
+    return new Map(rows.map(({ path, ...state }) => [path, state]));
+  }
+
+  /** Records that a file was looked at and found unchanged. */
+  touchFile(path: string, indexedAt: number): void {
+    this.db.prepare('UPDATE files SET indexed_at = ? WHERE path = ?').run(indexedAt, path);
+  }
+
+  /** Approximate tokens of each whole file, from its chunks. */
+  fileTokens(paths: string[]): number {
+    if (paths.length === 0) return 0;
+    const row = this.db
+      .prepare(
+        `SELECT COALESCE(SUM(c.token_count), 0) AS n FROM chunks c JOIN files f ON f.id = c.file_id
+         WHERE f.path IN (${paths.map(() => '?').join(', ')})`,
+      )
+      .get(...paths) as { n: number };
+    return row.n;
+  }
+
+  logQuery(entry: QueryLogEntry): void {
+    this.db
+      .prepare(
+        'INSERT INTO query_log (tool, query, tokens_returned, baseline_tokens_estimate, latency_ms, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+      .run(
+        entry.tool,
+        entry.query,
+        entry.tokensReturned,
+        entry.baselineTokens,
+        entry.latencyMs,
+        new Date().toISOString(),
+      );
+  }
+
+  /** Totals per tool over the whole query log. */
+  queryLogSummary(): QueryLogSummary[] {
+    return this.db
+      .prepare(
+        `SELECT tool, COUNT(*) AS queries, SUM(tokens_returned) AS tokensReturned,
+                SUM(baseline_tokens_estimate) AS baselineTokens, CAST(AVG(latency_ms) AS INTEGER) AS meanLatencyMs,
+                MIN(created_at) AS since
+         FROM query_log GROUP BY tool ORDER BY queries DESC, tool`,
+      )
+      .all() as QueryLogSummary[];
   }
 
   /** Path to content hash for every indexed file. */
@@ -357,7 +444,7 @@ export class Store {
       .prepare(
         'INSERT INTO files (path, language, content_hash, size_bytes, indexed_at) VALUES (?, ?, ?, ?, ?)',
       )
-      .run(file.path, file.language, file.contentHash, file.sizeBytes, Date.now()).lastInsertRowid;
+      .run(file.path, file.language, file.contentHash, file.sizeBytes, file.readAt).lastInsertRowid;
 
     const insertSymbol = this.db.prepare(
       'INSERT INTO symbols (file_id, name, qualified_name, kind, signature, docstring, start_line, end_line) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
@@ -838,9 +925,33 @@ export class Store {
       );
   }
 
-  /** Removes cached vectors of other models. Returns how many rows were removed. */
-  pruneEmbeddingCache(modelId: string): number {
-    return this.db.prepare('DELETE FROM embedding_cache WHERE model_id <> ?').run(modelId).changes;
+  /**
+   * Removes cached vectors of other models, and, when `keep` is given, every cached vector
+   * whose text hash is not in it. Returns how many rows were removed.
+   */
+  pruneEmbeddingCache(modelId: string, keep?: Set<string>): number {
+    let removed = this.db
+      .prepare('DELETE FROM embedding_cache WHERE model_id <> ?')
+      .run(modelId).changes;
+    if (keep) {
+      this.transaction(() => {
+        this.db.exec('CREATE TEMP TABLE IF NOT EXISTS keep_hashes (text_hash TEXT PRIMARY KEY)');
+        this.db.exec('DELETE FROM keep_hashes');
+        const insert = this.db.prepare('INSERT OR IGNORE INTO keep_hashes (text_hash) VALUES (?)');
+        for (const hash of keep) insert.run(hash);
+        removed += this.db
+          .prepare(
+            'DELETE FROM embedding_cache WHERE text_hash NOT IN (SELECT text_hash FROM keep_hashes)',
+          )
+          .run().changes;
+      });
+    }
+    return removed;
+  }
+
+  /** How many vectors the embedding cache holds. */
+  embeddingCacheSize(): number {
+    return (this.db.prepare('SELECT COUNT(*) AS n FROM embedding_cache').get() as { n: number }).n;
   }
 
   /** Nearest chunks by cosine similarity; higher scores are closer. */

@@ -4,7 +4,8 @@ import type { Config } from '../config/index.js';
 import type { EmbeddingProvider } from '../embedder/index.js';
 import { CodememError } from '../errors.js';
 import { describeSymbol, findReferences } from '../graph/describe.js';
-import { pendingChanges } from '../indexer/index.js';
+import { indexRepo, pendingChanges } from '../indexer/index.js';
+import { log } from '../log.js';
 import {
   forget,
   formatMemory,
@@ -26,11 +27,32 @@ export interface ToolContext {
   config: Config;
   store: Store;
   provider: EmbeddingProvider | null;
+  /** The refresh that is running now, shared by concurrent tool calls. */
+  refreshing?: Promise<unknown> | undefined;
+  /** True while a refresh has not finished within the time a tool call may wait for it. */
+  refreshPending?: boolean;
 }
 
+/** What a tool returns: text for the agent, and the files its code came from. */
+export interface ToolResult {
+  text: string;
+  /** Paths whose code is in `text`, for the baseline estimate in `codemem stats`. */
+  files?: string[];
+}
+
+/** How long a tool call waits for the index to catch up with the files. */
+export const REFRESH_WAIT_MS = 2000;
+const REFRESH_NOTE = '(index refresh still running: results may not include your latest edits)';
+/** Room kept in the budget for the note above. */
+const REFRESH_NOTE_TOKENS = 20;
+
 export class EmptyIndexError extends CodememError {
-  constructor() {
-    super('The index is empty. Run `codemem index` (or `codemem init`) in the project first.');
+  constructor(building = false) {
+    super(
+      building
+        ? 'The index is still being built for the first time. Try again in a moment.'
+        : 'The index is empty. Run `codemem index` (or `codemem init`) in the project first.',
+    );
   }
 }
 
@@ -38,7 +60,7 @@ const withTokens = (text: string): string =>
   `${text}\n\n~${countTokens(text).toLocaleString('en-US')} tokens`;
 
 function requireIndex(ctx: ToolContext): void {
-  if (ctx.store.counts().files === 0) throw new EmptyIndexError();
+  if (ctx.store.counts().files === 0) throw new EmptyIndexError(ctx.refreshPending);
 }
 
 interface QueryOptions {
@@ -51,7 +73,7 @@ interface QueryOptions {
 }
 
 /** Search, filter by language and path globs, and pack into the budget. */
-async function query(ctx: ToolContext, text: string, options: QueryOptions): Promise<string> {
+async function query(ctx: ToolContext, text: string, options: QueryOptions): Promise<ToolResult> {
   requireIndex(ctx);
   const { language, paths } = options;
   const filtered = language !== undefined || (paths !== undefined && paths.length > 0);
@@ -68,8 +90,79 @@ async function query(ctx: ToolContext, text: string, options: QueryOptions): Pro
       return ok && (r.detail === 'signature' || ++kept <= options.k);
     });
   }
-  const preamble = options.memories ? await memoryBlock(ctx, text, results, options.budget) : '';
-  return pack(results, options.budget, preamble).text;
+  const budget = options.budget - (ctx.refreshPending ? REFRESH_NOTE_TOKENS : 0);
+  const preamble = options.memories ? await memoryBlock(ctx, text, results, budget) : '';
+  const packed = pack(results, budget, preamble);
+  // Only results shown in full count toward the baseline: an agent would have had to read
+  // those files, while the signature-only neighbors are an extra it would not have loaded.
+  const files = packed.included
+    .filter((item) => item.detail === 'full')
+    .map((item) => item.chunk.path);
+  return { text: packed.text, files: [...new Set(files)] };
+}
+
+/**
+ * Runs a quick re-index if files changed, waiting at most `REFRESH_WAIT_MS`. A refresh that
+ * takes longer keeps running in the background and `ctx.refreshPending` says so.
+ */
+export async function refreshIndex(ctx: ToolContext, waitMs = REFRESH_WAIT_MS): Promise<void> {
+  ctx.refreshing ??= indexRepo(ctx.root, ctx.store, ctx.config, {
+    quick: true,
+    provider: ctx.provider,
+  })
+    .catch((error: unknown) => log.warn(`index refresh failed: ${String(error)}`))
+    .finally(() => {
+      ctx.refreshing = undefined;
+      ctx.refreshPending = false;
+    });
+  let timer: NodeJS.Timeout | undefined;
+  const timedOut = await Promise.race([
+    ctx.refreshing.then(() => false),
+    new Promise<boolean>((done) => {
+      timer = setTimeout(() => done(true), waitMs);
+    }),
+  ]);
+  clearTimeout(timer);
+  ctx.refreshPending = timedOut;
+}
+
+/**
+ * Runs one tool the way every caller should: refresh the index first, run, add the refresh
+ * note when the index is behind, and log the query for `codemem stats`.
+ */
+export async function runTool(
+  ctx: ToolContext,
+  tool: ToolDefinition,
+  args: Record<string, unknown>,
+  options: { refresh?: boolean } = {},
+): Promise<string> {
+  const started = performance.now();
+  if (options.refresh !== false && tool.name !== 'index_status') await refreshIndex(ctx);
+  const result = await tool.run(ctx, args as never);
+  const { text, files = [] } = typeof result === 'string' ? { text: result } : result;
+  const answer = ctx.refreshPending ? `${text}\n${REFRESH_NOTE}` : text;
+  const tokens = countTokens(answer);
+  const queryText =
+    args['task'] ??
+    args['query'] ??
+    args['name'] ??
+    args['path'] ??
+    args['text'] ??
+    args['id'] ??
+    '';
+  try {
+    ctx.store.logQuery({
+      tool: tool.name,
+      query: String(queryText).slice(0, 500),
+      tokensReturned: tokens,
+      // Reading the same code without codemem means reading those files in full.
+      baselineTokens: Math.max(tokens, ctx.store.fileTokens(files)),
+      latencyMs: Math.round(performance.now() - started),
+    });
+  } catch (error) {
+    log.warn(`could not log the query: ${String(error)}`);
+  }
+  return answer;
 }
 
 /**
@@ -118,14 +211,17 @@ export interface ToolDefinition {
   shape: z.ZodRawShape;
   /** False for tools that change project memory. */
   readOnly: boolean;
-  run: (ctx: ToolContext, args: never) => Promise<string> | string;
+  run: (ctx: ToolContext, args: never) => Promise<string | ToolResult> | string | ToolResult;
 }
 
 function tool<Shape extends z.ZodRawShape>(
   name: string,
   description: string,
   shape: Shape,
-  run: (ctx: ToolContext, args: z.infer<z.ZodObject<Shape>>) => Promise<string> | string,
+  run: (
+    ctx: ToolContext,
+    args: z.infer<z.ZodObject<Shape>>,
+  ) => Promise<string | ToolResult> | string | ToolResult,
   readOnly = true,
 ): ToolDefinition {
   return { name, description, shape, readOnly, run: run as ToolDefinition['run'] };
@@ -186,7 +282,11 @@ export const TOOLS: ToolDefinition[] = [
     },
     (ctx, args) => {
       requireIndex(ctx);
-      return withTokens(describeSymbol(ctx.store, args.name, args));
+      const files = ctx.store.symbolsNamed(args.name).map((symbol) => symbol.path);
+      return {
+        text: withTokens(describeSymbol(ctx.store, args.name, args)),
+        files: [...new Set(files)].slice(0, 1),
+      };
     },
   ),
   tool(
@@ -195,7 +295,8 @@ export const TOOLS: ToolDefinition[] = [
     { path: z.string().min(1).describe('File path relative to the project root.') },
     (ctx, args) => {
       requireIndex(ctx);
-      return withTokens(fileOutline(ctx.store, args.path));
+      const path = args.path.replaceAll('\\', '/').replace(/^\.\//, '');
+      return { text: withTokens(fileOutline(ctx.store, path)), files: [path] };
     },
   ),
   tool(

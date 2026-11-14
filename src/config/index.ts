@@ -64,6 +64,14 @@ const ConfigSchema = z.strictObject({
   maxFileSizeKb: z.number().int().positive().default(512),
   embedding: EmbeddingSchema.prefault({}),
   retrieval: RetrievalSchema.prefault({}),
+  watch: z
+    .strictObject({
+      /** `codemem watch` waits this long after the last file change before re-indexing. */
+      debounceMs: z.number().int().nonnegative().default(500),
+    })
+    .prefault({}),
+  /** There is no telemetry. The field exists so that fact is visible in the config. */
+  telemetry: z.literal(false).default(false),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

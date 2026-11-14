@@ -7,6 +7,8 @@ export interface ScannedFile {
   /** Path relative to the root, with forward slashes. */
   path: string;
   sizeBytes: number;
+  /** Last modification time, in milliseconds since the epoch. */
+  mtimeMs: number;
 }
 
 export interface ScanOptions {
@@ -98,7 +100,7 @@ function listFiles(root: string): string[] {
 }
 
 /** True for binary, minified, or generated content, judged from the first bytes of the file. */
-function hasExcludedContent(file: string): boolean {
+export function hasExcludedContent(file: string): boolean {
   const buffer = Buffer.alloc(HEAD_BYTES);
   const fd = openSync(file, 'r');
   let length: number;
@@ -114,8 +116,11 @@ function hasExcludedContent(file: string): boolean {
   return minified || GENERATED_HEADER.test(text.slice(0, 1000));
 }
 
-/** Lists the files worth indexing under `root`, sorted by path. */
-export function scan(root: string, options: Partial<ScanOptions> = {}): ScannedFile[] {
+/**
+ * Files under `root` that pass every check on name, type, and size, sorted by path. Their
+ * content has not been looked at yet: see `hasExcludedContent`.
+ */
+export function listCandidates(root: string, options: Partial<ScanOptions> = {}): ScannedFile[] {
   const opts = { ...DEFAULT_SCAN_OPTIONS, ...options };
   const matches = (globs: string[], path: string): boolean =>
     globs.some((glob) => matchesGlob(path, glob));
@@ -124,18 +129,19 @@ export function scan(root: string, options: Partial<ScanOptions> = {}): ScannedF
     const path = listed.split(sep).join('/');
     if (isExcludedPath(path) || matches(opts.exclude, path)) continue;
     if (opts.include.length > 0 && !matches(opts.include, path)) continue;
-    const full = join(root, path);
-    let sizeBytes: number;
     try {
-      const stat = lstatSync(full);
+      const stat = lstatSync(join(root, path));
       if (!stat.isFile()) continue; // symlinks, submodules, deleted files
-      sizeBytes = stat.size;
+      if (stat.size === 0 || stat.size > opts.maxFileSizeKb * 1024) continue;
+      files.push({ path, sizeBytes: stat.size, mtimeMs: stat.mtimeMs });
     } catch {
       continue;
     }
-    if (sizeBytes === 0 || sizeBytes > opts.maxFileSizeKb * 1024) continue;
-    if (hasExcludedContent(full)) continue;
-    files.push({ path, sizeBytes });
   }
   return files.sort((a, b) => (a.path < b.path ? -1 : 1));
+}
+
+/** Lists the files worth indexing under `root`, sorted by path. */
+export function scan(root: string, options: Partial<ScanOptions> = {}): ScannedFile[] {
+  return listCandidates(root, options).filter((file) => !hasExcludedContent(join(root, file.path)));
 }

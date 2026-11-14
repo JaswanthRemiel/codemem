@@ -13,6 +13,8 @@ import {
   runMemory,
   runRefs,
   runSearch,
+  runStats,
+  runWatch,
   runSymbol,
 } from './commands.js';
 import { resolveInRoot, scan } from '../scanner/index.js';
@@ -125,6 +127,21 @@ export function buildProgram(): Command {
       const summary = await runIndex(process.cwd(), { ...options, onEmbedProgress });
       clearProgress();
       console.log(summary);
+    });
+
+  program
+    .command('watch')
+    .description('Keep the index fresh while you work')
+    .action(async () => {
+      const stop = await runWatch(process.cwd(), (line) => console.log(line));
+      process.once('SIGINT', () => void stop().then(() => process.exit(0)));
+    });
+
+  program
+    .command('stats')
+    .description('Show queries served and tokens served against an estimated baseline')
+    .action(() => {
+      console.log(runStats(process.cwd()));
     });
 
   program

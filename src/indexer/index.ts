@@ -9,7 +9,7 @@ import { log } from '../log.js';
 import { refreshStaleness, syncMemories } from '../memory/index.js';
 import { buildOverview } from './overview.js';
 import { languageOf, parseSource, type ParsedFile } from '../parser/index.js';
-import { resolveInRoot, scan } from '../scanner/index.js';
+import { hasExcludedContent, listCandidates, resolveInRoot, scan } from '../scanner/index.js';
 import type { Store } from '../store/index.js';
 import { countTokens } from '../tokens.js';
 
@@ -44,6 +44,8 @@ export interface IndexStats {
 
 export interface IndexOptions {
   full?: boolean;
+  /** Trust size and modification time instead of hashing every file. */
+  quick?: boolean;
   /** Null or missing leaves the index keyword-only. */
   provider?: EmbeddingProvider | null;
   onEmbedProgress?: (done: number, total: number) => void;
@@ -109,9 +111,18 @@ export async function pendingChanges(
   return result;
 }
 
+/** A modification time this close to the last look is not trusted: the content is hashed. */
+const MTIME_MARGIN_MS = 2000;
+
 /**
- * Brings the store in line with the files under `root`. Files whose content hash is
- * unchanged are skipped unless `full` is set; files that disappeared are removed.
+ * Brings the store in line with the files under `root`: changed files are re-read, files
+ * that disappeared are removed, and the graph, overview, memories, and vectors follow.
+ *
+ * - default: every file is read and hashed, and only files whose hash changed are indexed.
+ * - `quick`: a file whose size is unchanged and whose modification time is older than the
+ *   last look is taken as unchanged without reading it. Used before tool calls and by
+ *   `watch`, where the check runs often and must cost a few milliseconds.
+ * - `full`: every file is indexed again.
  */
 export async function indexRepo(
   root: string,
@@ -120,11 +131,13 @@ export async function indexRepo(
   options: IndexOptions = {},
 ): Promise<IndexStats> {
   const started = performance.now();
-  const full = options.full === true || store.getMeta('index_format') !== INDEX_FORMAT;
-  const known = store.fileHashes();
-  const files = scan(root, config);
+  const formatChanged = store.getMeta('index_format') !== INDEX_FORMAT;
+  const full = options.full === true || formatChanged;
+  const quick = options.quick === true && !full;
+  const known = store.fileStates();
+  const candidates = listCandidates(root, config);
   const stats: IndexStats = {
-    scanned: files.length,
+    scanned: 0,
     indexed: 0,
     unchanged: 0,
     deleted: 0,
@@ -134,12 +147,12 @@ export async function indexRepo(
     seconds: 0,
   };
 
-  let batch: { file: ProcessedFile; sizeBytes: number }[] = [];
+  let batch: { file: ProcessedFile; sizeBytes: number; readAt: number }[] = [];
   const flush = (): void => {
     store.transaction(() => {
-      for (const { file, sizeBytes } of batch) {
+      for (const { file, sizeBytes, readAt } of batch) {
         store.replaceFile(
-          { ...file, sizeBytes },
+          { ...file, sizeBytes, readAt },
           file.parsed,
           file.chunks.map((chunk) => ({ ...chunk, tokenCount: countTokens(chunk.content) })),
         );
@@ -148,44 +161,72 @@ export async function indexRepo(
     batch = [];
   };
 
-  for (const { path, sizeBytes } of files) {
-    const source = await readSource(root, path);
-    if (!full && known.get(path) === hashOf(source)) {
+  const present = new Set<string>();
+  for (const { path, sizeBytes, mtimeMs } of candidates) {
+    const state = known.get(path);
+    if (
+      quick &&
+      state &&
+      state.sizeBytes === sizeBytes &&
+      mtimeMs < state.indexedAt - MTIME_MARGIN_MS
+    ) {
+      present.add(path);
+      stats.scanned++;
       stats.unchanged++;
       continue;
     }
+    // Only now is the content looked at: binary, minified, and generated files drop out.
+    if (hasExcludedContent(resolveInRoot(root, path))) continue;
+    present.add(path);
+    stats.scanned++;
+    const readAt = Date.now();
+    const source = await readSource(root, path);
+    if (!full && state?.hash === hashOf(source)) {
+      stats.unchanged++;
+      // Remember the look, so a recently touched file is not hashed on every quick check.
+      if (quick) store.touchFile(path, readAt);
+      continue;
+    }
     const file = await processSource(path, source);
-    batch.push({ file, sizeBytes });
+    batch.push({ file, sizeBytes, readAt });
     stats.indexed++;
     stats.chunks += file.chunks.length;
     if (batch.length >= BATCH_FILES) flush();
   }
   flush();
 
-  const present = new Set(files.map((file) => file.path));
   store.transaction(() => {
     for (const path of known.keys()) {
       if (!present.has(path) && store.deleteFile(path)) stats.deleted++;
     }
-    store.setMeta('index_format', INDEX_FORMAT);
+    if (formatChanged) store.setMeta('index_format', INDEX_FORMAT);
   });
+  const changed = stats.indexed > 0 || stats.deleted > 0;
+  log.debug(
+    `files: ${stats.indexed} indexed, ${stats.deleted} removed in ${Math.round(performance.now() - started)} ms`,
+  );
 
-  // Name resolution depends on every file, so the graph is rebuilt whenever anything changed.
-  if (stats.indexed > 0 || stats.deleted > 0 || store.getMeta('overview') === undefined) {
-    updateGraph(store);
-    store.setMeta('overview', buildOverview(store));
-  }
   // Memories follow the code: pick up a changed memory.json, then re-check every link.
   syncMemories(root, store);
+  if (quick && !changed) {
+    stats.seconds = (performance.now() - started) / 1000;
+    return stats;
+  }
+
+  // Name resolution depends on every file, so the graph is rebuilt whenever anything changed.
+  if (changed || store.getMeta('overview') === undefined) {
+    const graphStarted = performance.now();
+    updateGraph(store);
+    store.setMeta('overview', buildOverview(store));
+    log.debug(`graph and overview rebuilt in ${Math.round(performance.now() - graphStarted)} ms`);
+  }
   refreshStaleness(store);
   store.setMeta('last_indexed_at', new Date().toISOString());
   store.setMeta('last_indexed_commit', headCommit(root));
-  log.debug(
-    `indexed ${stats.indexed} of ${stats.scanned} files in ${Math.round(performance.now() - started)} ms`,
-  );
 
   const provider = options.provider;
   if (provider) {
+    const embedStarted = performance.now();
     // A full rebuild is the way to switch models; anything else refuses to mix them.
     if (options.full && modelChanged(store, provider)) store.clearVectors();
     const embed = await embedMissing(
@@ -196,9 +237,11 @@ export async function indexRepo(
     );
     stats.embedded = embed.embedded;
     stats.embeddingsCached = embed.cached;
-    // shortcut: cached vectors of edited-away chunks are kept (about 1.5 KB each).
-    // Prune by hash if the cache ever dominates the index size.
-    store.pruneEmbeddingCache(provider.id);
+    // A full run embeds every chunk, so it knows exactly which cached vectors are in use.
+    store.pruneEmbeddingCache(provider.id, options.full ? embed.hashes : undefined);
+    log.debug(
+      `embedded ${embed.embedded} chunks in ${Math.round(performance.now() - embedStarted)} ms`,
+    );
   }
 
   stats.seconds = (performance.now() - started) / 1000;

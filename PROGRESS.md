@@ -9,7 +9,7 @@
 - [x] Phase 4: Call graph
 - [x] Phase 5: MCP server and init
 - [x] Phase 6: Memory
-- [ ] Phase 7: Incremental indexing, watch, stats
+- [x] Phase 7: Incremental indexing, watch, stats
 - [ ] Phase 8: Benchmark
 - [ ] Phase 9: Release prep
 
@@ -99,13 +99,23 @@
 - Acceptance added by the owner on 2026-11-14: the MCP Inspector lists all nine tools. An automated test asserts the same list through the protocol; the Inspector itself is run by the owner.
 - Coverage threshold now includes `memory`.
 
+### Phase 7
+
+- Quick change detection: a file whose size is unchanged and whose modification time is older than the last look is taken as unchanged without reading it. `codemem index` still hashes every file; the quick mode serves tool calls and `watch`.
+- Auto-refresh: the MCP server runs a quick re-index before every tool call except `index_status`, waits at most 2 seconds, and otherwise answers from the current index with a note. A server with no index builds one on the first call.
+- `codemem watch` (chokidar, debounced by `watch.debounceMs`) and `codemem stats` (queries, tokens served, estimated baseline, estimated saving, per tool).
+- `query_log` table: one row per tool call from the MCP server, `codemem context`, and `codemem memory`.
+- `codemem index --full` prunes cached vectors that no chunk uses.
+- `codemem doctor` reports index health: files, chunks, pending changes, chunks without a vector.
+- Config: `watch.debounceMs` and `telemetry` (always `false`).
+- Measured on nest (277k lines, 2,797 files, Apple M5, 2026-11-14): a 20-file change re-indexes in 2.0s end to end (target under 3s); the quick check with nothing changed takes about 30 ms; `get_context` including that check runs at p50 56 ms and p95 65 ms.
+
 ## Next
 
-Phase 7: incremental indexing with a git fast path, `codemem watch`, auto-refresh before tool calls, the query log, and `codemem stats`.
+Phase 8: benchmark (repos, tasks mined from history, baseline and codemem strategies, ablations, metrics, README table).
 
 ## Notes for later phases
 
-- Phase 7: prune unused embedding cache entries on `codemem index --full`.
 - Phase 8: record the machine the benchmark ran on (CPU, memory, OS, Node.js version) in the results file and the README.
 - Phase 8: the quantized embedding model gives slightly different vectors on different CPUs, so ranks can shift by a place. Either compare results with a tolerance or offer a full-precision model option, and say which in the README.
 - Phase 8: add an ablation for graph expansion with and without `name-match` edges. If recall does not drop without them, leave `name-match` out of expansion by default.
@@ -117,13 +127,15 @@ Phase 7: incremental indexing with a git fast path, `codemem watch`, auto-refres
 - The default embedding model is a small general-purpose model, not a code-trained one (see decision 016). The benchmark in Phase 8 should compare it with `jinaai/jina-embeddings-v2-base-code`.
 - The OpenAI and Voyage providers are tested against a stubbed HTTP server only, not the live services (no API key was used).
 - Install size: `@huggingface/transformers` brings about 430 MB of ONNX runtime files into `node_modules`.
-- Cached vectors of chunks that were edited away are never pruned. To do by Phase 7: prune unused cache entries on `codemem index --full`.
+- Cached vectors of chunks that were edited away are pruned only by `codemem index --full`.
 - Each vector is stored twice (search table and cache), which adds about 1.5 KB per chunk.
 - `sqlite-vec` has no prebuilt extension for Windows on ARM.
-- Memory staleness reflects the last index run; with no auto-refresh until Phase 7, run `codemem index` after editing.
 - The memory match thresholds (half of the query terms, or cosine similarity 0.3) are first guesses; Phase 8 should check them with the memories ablation.
 - `memory.json` has one memory per line, sorted by id, so most concurrent additions merge cleanly. Two additions that land next to each other, or after the last line, can still conflict; a broken file is refused rather than loaded.
-- The server answers from the index as it is: it does not re-index before a tool call until Phase 7.
+- Quick change detection trusts size and modification time. A change that keeps both is missed until `codemem index` runs; this is the same trade git makes.
+- The 3-second re-index target was measured on nest, since the benchmark repos are chosen in Phase 8. Re-measure on the largest of them then.
+- The `stats` baseline assumes an agent would read in full every file a result body came from, so the saving it shows is an upper bound, not a measurement.
+- `codemem search` and `codemem context` do not re-index before answering; only the MCP server and `watch` do.
 - The MCP Inspector check and the manual run in Claude Code are documented in SETUP.md but were not run by the build agent; the same protocol paths are covered by automated tests.
 - `codemem index` creates `.codemem/` but only `codemem init` adds the index to `.gitignore`.
 - Only the tables in use exist so far. Edges, memories, and the query log arrive as migrations in the phases that use them.

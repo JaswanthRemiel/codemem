@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -184,7 +185,8 @@ test('the overview stays under 1,500 tokens on a wide and deep repo', async () =
 }, 60_000);
 
 test('a failing tool call is an error result, and the server keeps answering', async () => {
-  const root = copyFixture('go-mod');
+  // A directory with nothing to index: there is no index to answer from.
+  const root = mkdtempSync(join(tmpdir(), 'codemem-empty-'));
   const store = new Store(join(root, 'index.db'));
   const server = createServer({ root, config: TEST_CONFIG, store, provider: null });
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();

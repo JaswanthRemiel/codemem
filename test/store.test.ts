@@ -128,7 +128,7 @@ test('re-running the index on unchanged files does no work', async () => {
 test('the schema version is recorded, data survives reopening, and newer schemas are refused', async () => {
   const { root, store } = await indexed('go-mod');
   const counts = store.counts();
-  expect(store.getMeta('schema_version')).toBe('4');
+  expect(store.getMeta('schema_version')).toBe('5');
   expect(store.getChunks([1])[0]?.tokenCount).toBeGreaterThan(0);
   store.setMeta('schema_version', '999');
   store.close();
@@ -146,6 +146,8 @@ test('config: every default, nested overrides, and clear errors', () => {
     include: [],
     exclude: [],
     maxFileSizeKb: 512,
+    watch: { debounceMs: 500 },
+    telemetry: false,
     embedding: { provider: 'local', model: '', batchSize: 8, maxTokens: 256 },
     retrieval: {
       rrfK: 60,

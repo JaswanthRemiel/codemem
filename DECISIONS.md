@@ -204,3 +204,26 @@ Each entry: context, options, decision, consequences.
   - `memory.json` is written sorted by id with one memory per line, so concurrent additions usually touch different lines and merge cleanly.
   - `symbols` passed to `remember` must resolve to exactly one symbol; anything else is stored unlinked and reported back.
 - **Consequences:** Deleting the index or pulling a teammate's file needs no extra step. The table has two extra columns (`embedding`, `embedding_model`) beyond the spec. A whole-file memory is attached whenever that file appears in results, relevant or not; that is what a whole-file link means. The two minimums are first guesses, to be checked by the Phase 8 memories ablation.
+
+## 027: Change detection by size and modification time, not `git diff`
+
+- **Context:** The spec asks for a hash diff with `git diff --name-only` as a fast path, and for a re-index check before every tool call. Measured on nest (2,797 files, warm disk cache): listing files through git 21 ms; `lstat` of every file 3 ms; reading and hashing every file 57 ms; `git diff --name-only HEAD` 61 ms, before the extra commands needed for untracked files and for commits since the last index.
+- **Options:** (a) `git diff` fast path, (b) compare each file's size and modification time with what the index recorded, and hash only files that differ.
+- **Decision:** (b). It is faster than `git diff` at this size, works outside git, and needs no bookkeeping about commits, dirty files, or rebases. A file modified within 2 seconds of the last look is hashed rather than trusted, to cover coarse timestamps. `codemem index` keeps hashing every file, so the exhaustive check is one command away.
+- **Consequences:** The quick check costs about 30 ms on a 277k-line repo. A change that keeps both size and modification time is missed by the quick check, as it would be by git's own index. `git diff` is not used at all, which departs from the spec.
+
+## 028: Auto-refresh and the query log
+
+- **Context:** Details the spec leaves open.
+- **Decision:**
+  - One refresh runs at a time per server; concurrent tool calls wait on the same one. After 2 seconds a call stops waiting, the refresh continues in the background, and the answer ends with a note that costs 20 tokens of the budget.
+  - `index_status` does not refresh, so it can report pending changes.
+  - The baseline of a query is the token count of every whole file that a full result body came from. Files that contributed only a signature do not count, and tools that return no code (references, memory, status) log a baseline equal to what they served.
+  - The query text is stored (up to 500 characters) in the local index only.
+- **Consequences:** The saving in `codemem stats` is an upper-bound estimate with a stated definition; the measured numbers come from `codemem bench`.
+
+## 029: chokidar 5, not 6
+
+- **Context:** chokidar 6 requires Node.js 22.22 or newer; the project minimum is 22.13.
+- **Decision:** Use chokidar 5 (Node.js 20.19 or newer).
+- **Consequences:** One major behind. Move to 6 if the minimum Node.js version is raised.

@@ -166,6 +166,8 @@ export interface EmbedStats {
   embedded: number;
   /** How many of those came from the cache instead of the model. */
   cached: number;
+  /** Text hashes of every chunk that received a vector in this run. */
+  hashes: Set<string>;
 }
 
 /** True when the stored vectors came from a different model than `provider`. */
@@ -189,7 +191,11 @@ export async function embedMissing(
       `The index holds vectors from ${store.embeddingModel()} but the configured model is ${provider.id}; run \`codemem index --full\` to rebuild them`,
     );
   }
-  const stats: EmbedStats = { embedded: 0, cached: 0 };
+  const stats: EmbedStats = { embedded: 0, cached: 0, hashes: new Set() };
+  // Cheap check first: finding the chunks that lack a vector scans the whole table.
+  if (store.embeddingModel() !== undefined && store.vectorCount() === store.counts().chunks) {
+    return stats;
+  }
   const pending = store.chunksWithoutVectors();
   for (let start = 0; start < pending.length; start += batchSize) {
     const batch = pending.slice(start, start + batchSize).map((chunk) => {
@@ -218,6 +224,7 @@ export async function embedMissing(
         if (misses.includes(item)) store.cacheEmbedding(item.hash, provider.id, vector);
       }
     });
+    for (const item of batch) stats.hashes.add(item.hash);
     stats.embedded += batch.length;
     stats.cached += batch.length - misses.length;
     onProgress?.(stats.embedded, pending.length);

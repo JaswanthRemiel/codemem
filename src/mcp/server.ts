@@ -8,7 +8,7 @@ import { createProvider } from '../embedder/index.js';
 import { CodememError } from '../errors.js';
 import { log } from '../log.js';
 import { Store } from '../store/index.js';
-import { TOOLS, type ToolContext } from './tools.js';
+import { runTool, TOOLS, type ToolContext } from './tools.js';
 
 const pkg = createRequire(import.meta.url)('../../package.json') as { version: string };
 
@@ -38,7 +38,7 @@ export function createServer(ctx: ToolContext): McpServer {
       async (args: unknown) => {
         const started = performance.now();
         try {
-          const text = await tool.run(ctx, args as never);
+          const text = await runTool(ctx, tool, (args ?? {}) as Record<string, unknown>);
           log.debug(`${tool.name} answered in ${Math.round(performance.now() - started)} ms`);
           return { content: [{ type: 'text' as const, text }] };
         } catch (error) {

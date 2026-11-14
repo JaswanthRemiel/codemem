@@ -35,7 +35,7 @@ test('doctor checks the runtime, grammars, SQLite, and the embedding setting', a
     'Grammar go: ok',
     'SQLite with FTS5 and sqlite-vec: ok',
     'Embedding model: off (keyword search only)',
-    'Not checked yet (added in a later phase): index health',
+    'Index: none yet (run `codemem init` in the project)',
   ]);
 });
 

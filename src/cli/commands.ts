@@ -4,13 +4,15 @@ import { fileURLToPath } from 'node:url';
 import { CONFIG_DIR, loadConfig } from '../config/index.js';
 import { StoreError } from '../errors.js';
 import { describeSymbol, findReferences } from '../graph/describe.js';
-import { indexRepo } from '../indexer/index.js';
+import { indexRepo, pendingChanges, type IndexStats } from '../indexer/index.js';
+import { startWatch } from '../indexer/watch.js';
 import { LANGS, parseSource } from '../parser/index.js';
 import { createProvider } from '../embedder/index.js';
 import { pack } from '../packer/index.js';
 import { search } from '../retriever/index.js';
 import { Store } from '../store/index.js';
-import { TOOLS } from '../mcp/tools.js';
+import { runTool, TOOLS } from '../mcp/tools.js';
+import { formatStats } from '../stats/index.js';
 
 const dbPath = (root: string): string => join(root, CONFIG_DIR, 'index.db');
 
@@ -29,11 +31,7 @@ export async function runIndex(
     const vectors = provider
       ? ` Embedded ${stats.embedded} chunks (${stats.embeddingsCached} from cache) with ${provider.id}.`
       : ' Embeddings are off.';
-    return (
-      `Indexed ${stats.indexed} of ${stats.scanned} files ` +
-      `(${stats.unchanged} unchanged, ${stats.deleted} removed) in ${stats.seconds.toFixed(2)}s.` +
-      `${vectors} Index: ${total.files} files, ${total.symbols} symbols, ${total.chunks} chunks.`
-    );
+    return `${describeRun(stats)}${vectors} Index: ${total.files} files, ${total.symbols} symbols, ${total.chunks} chunks.`;
   } finally {
     store.close();
   }
@@ -81,7 +79,8 @@ export async function runContext(
   const getContext = TOOLS.find((tool) => tool.name === 'get_context');
   return withStore(root, async (store) => {
     const ctx = { root, config, store, provider: createProvider(config.embedding) };
-    return getContext?.run(ctx, { task, budget_tokens: options.budget } as never) ?? '';
+    if (!getContext) return '';
+    return runTool(ctx, getContext, { task, budget_tokens: options.budget }, { refresh: false });
   });
 }
 
@@ -98,7 +97,7 @@ export async function runMemory(
   const store = new Store(dbPath(root));
   try {
     const ctx = { root, config, store, provider: createProvider(config.embedding) };
-    return (await memoryTool?.run(ctx, args as never)) ?? '';
+    return memoryTool ? await runTool(ctx, memoryTool, args, { refresh: false }) : '';
   } finally {
     store.close();
   }
@@ -185,6 +184,37 @@ function withStore<T>(root: string, run: (store: Store) => T): T {
   return result;
 }
 
+/** One line describing an index run, shared by `index`, `init`, and `watch`. */
+function describeRun(stats: IndexStats): string {
+  return `Indexed ${stats.indexed} of ${stats.scanned} files (${stats.unchanged} unchanged, ${stats.deleted} removed) in ${stats.seconds.toFixed(2)}s.`;
+}
+
+/**
+ * `codemem watch`: indexes once, then re-indexes whenever files change. Returns a function
+ * that stops watching.
+ */
+export async function runWatch(
+  root: string,
+  print: (line: string) => void,
+): Promise<() => Promise<void>> {
+  const config = loadConfig(root);
+  mkdirSync(join(root, CONFIG_DIR), { recursive: true });
+  const store = new Store(dbPath(root));
+  const provider = createProvider(config.embedding);
+  print(describeRun(await indexRepo(root, store, config, { provider })));
+  const watcher = startWatch(root, store, config, provider, (stats) => print(describeRun(stats)));
+  print(`Watching ${root} for changes. Press Ctrl+C to stop.`);
+  return async () => {
+    await watcher.close();
+    store.close();
+  };
+}
+
+/** `codemem stats`: queries served and tokens served against the estimated baseline. */
+export function runStats(root: string): string {
+  return withStore(root, (store) => formatStats(store));
+}
+
 /** `codemem debug symbol`: a symbol with its neighbors. */
 export function runSymbol(
   root: string,
@@ -243,6 +273,22 @@ export async function runDoctor(root: string): Promise<{ lines: string[]; ok: bo
       return `${provider.id} ok (${vector?.length} dimensions)`;
     },
   );
-  lines.push('Not checked yet (added in a later phase): index health');
+  await check('Index', 'Run `codemem index --full` to rebuild it.', async () => {
+    if (!existsSync(dbPath(root))) return 'none yet (run `codemem init` in the project)';
+    const store = new Store(dbPath(root));
+    try {
+      const counts = store.counts();
+      const pending = await pendingChanges(root, store, loadConfig(root));
+      const model = store.embeddingModel();
+      const missing = model ? counts.chunks - store.vectorCount() : 0;
+      return [
+        `${counts.files} files, ${counts.chunks} chunks`,
+        `${pending.changed + pending.added + pending.deleted} pending changes`,
+        model ? `${missing} chunks without a vector` : 'no vectors',
+      ].join(', ');
+    } finally {
+      store.close();
+    }
+  });
   return { lines, ok };
 }

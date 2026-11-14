@@ -42,7 +42,7 @@ npm test
 npm run coverage
 ```
 
-Expected: every command exits with code 0. `npm run check:chars` prints `check-chars: N tracked files clean`. `npm test` builds first, then ends with `Test Files  13 passed (13)`. `npm run coverage` runs the same tests, prints a coverage table, and fails if line coverage of `src/parser`, `src/chunker`, `src/retriever`, `src/packer`, `src/graph`, or `src/memory` drops below 80%.
+Expected: every command exits with code 0. `npm run check:chars` prints `check-chars: N tracked files clean`. `npm test` builds first, then ends with `Test Files  14 passed (14)`. `npm run coverage` runs the same tests, prints a coverage table, and fails if line coverage of `src/parser`, `src/chunker`, `src/retriever`, `src/packer`, `src/graph`, or `src/memory` drops below 80%.
 
 ## Run the CLI
 
@@ -63,10 +63,10 @@ Grammar python: ok
 Grammar go: ok
 SQLite with FTS5 and sqlite-vec: ok
 Embedding model: local:Xenova/all-MiniLM-L6-v2 ok (384 dimensions)
-Not checked yet (added in a later phase): index health
+Index: none yet (run `codemem init` in the project)
 ```
 
-The Node.js line shows your own version. A failed check prints `failed (...)` with a fix hint, and `doctor` exits with code 1.
+The Node.js line shows your own version. In an indexed project the last line reads like `Index: 8 files, 39 chunks, 0 pending changes, 0 chunks without a vector`. A failed check prints `failed (...)` with a fix hint, and `doctor` exits with code 1.
 
 ## Inspect how a file is chunked
 
@@ -222,8 +222,6 @@ src/service.ts
 
 `debug symbol` also takes `--signature` to print the signature instead of the body, and `--depth 0` to 2.
 
-`codemem stats` arrives in Phase 7.
-
 ## Set up a project and get context from the CLI
 
 `codemem init` does the whole setup for a project: it creates `.codemem/config.json`, adds the index to `.gitignore`, builds the index, and prints the client configuration shown in the next section. Run from the codemem checkout:
@@ -305,6 +303,42 @@ Expected: JSON with the same nine tools, each with an `inputSchema` of type `obj
 In Cursor the tools appear under Settings, MCP; in VS Code under Chat: Open Customizations, MCP Servers.
 
 Logs go to stderr, never stdout. Set `CODEMEM_LOG_LEVEL` to `error`, `warn` (default), `info`, or `debug`.
+
+## Keep the index fresh, and see what it saved
+
+The MCP server checks for changed files before every tool call and re-indexes them first, so agents do not get stale code and there is no need to run `codemem index` by hand while a client is connected. The check compares file sizes and modification times, which takes a few milliseconds. If catching up takes longer than 2 seconds (after a branch switch, say), the tool answers from the index as it is and its last line says `(index refresh still running: results may not include your latest edits)`.
+
+Outside a client, `codemem watch` does the same continuously. Run in `/tmp/codemem-demo`:
+
+```sh
+node "$CODEMEM/dist/cli/index.js" watch
+```
+
+Expected: an `Indexed ...` line, then `Watching /tmp/codemem-demo for changes. Press Ctrl+C to stop.` Edit and save a file in another terminal and, half a second later, a line such as `Indexed 1 of 8 files (7 unchanged, 0 removed) in 0.35s.` appears. Stop it with Ctrl+C.
+
+`codemem index` remains the thorough check: it reads and hashes every file, so it also catches a change that kept both the size and the modification time. `codemem index --full` rebuilds everything and removes cached vectors that are no longer used.
+
+Every tool call is logged in the local index. After a few `codemem context` runs or MCP tool calls:
+
+```sh
+node "$CODEMEM/dist/cli/index.js" stats
+```
+
+Expected, with your own numbers:
+
+```text
+Queries served: 3 since 2026-11-14
+Tokens served: ~1,120
+Estimated baseline: ~3,400 tokens (reading in full every file a result body came from)
+Estimated saving: up to ~2,280 tokens (67%)
+
+By tool (queries, tokens served, estimated baseline, mean latency):
+  get_context  3  ~1,120  ~3,400  45 ms
+
+Token counts are approximate, and the baseline is an estimate, not a measurement: ...
+```
+
+The query log holds the text of each query. It stays in `.codemem/index.db` on your machine and is never sent anywhere.
 
 ## Project memory
 
@@ -474,6 +508,31 @@ Run from a fresh clone, after `npm install`:
 | 3    | The commands in "Project memory"                        | The memory is stored and listed, appears first in `context`, turns `STALE` after the edit, and survives deleting the index                                                      |
 | 4    | The MCP Inspector command in "Confirm the tools appear" | All nine tools are listed with valid schemas                                                                                                                                    |
 
+### Phase 7
+
+Run from a fresh clone, after `npm install`:
+
+| Step | Command                                                                              | Correct result                                                                                                                                                           |
+| ---- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1    | `npm run coverage`                                                                   | `Test Files  14 passed (14)` and no threshold error                                                                                                                      |
+| 2    | `npx vitest run test/incremental.test.ts`                                            | 10 tests pass, including `a tool call re-indexes changed files first, so agents never get stale code` and `watch re-indexes after files change, once the changes settle` |
+| 3    | In the demo copy: `context "check a password at login"` twice, then `stats`          | `Queries served: 2`, a tokens-served line, an estimated baseline, and an estimated saving                                                                                |
+| 4    | In the demo copy: `watch`, then save a change to `src/hash.ts` from another terminal | A new `Indexed 1 of 8 files` line within about a second                                                                                                                  |
+| 5    | Speed check, see below                                                               | A 20-file change re-indexes in under 3 seconds                                                                                                                           |
+
+Speed check on a large repo (needs network access for the clone):
+
+```sh
+git clone --depth 1 https://github.com/nestjs/nest.git /tmp/codemem-perf-nest
+CODEMEM=$(pwd)
+cd /tmp/codemem-perf-nest
+node "$CODEMEM/dist/cli/index.js" index
+for f in $(git ls-files 'packages/core/**/*.ts' | grep -v spec | head -20); do printf '\nexport function codememProbe(value: number): number {\n  return value + 1;\n}\n' >> "$f"; done
+time node "$CODEMEM/dist/cli/index.js" index
+```
+
+Expected: the second `index` prints `Indexed 20 of 2797 files` (the total changes as that repo changes) and `time` reports under 3 seconds. Measured on 2026-11-14 on an Apple M5: 2.0 seconds, of which reading and parsing 0.8s, rebuilding the graph 0.6s, and embedding the new chunks 0.5s. The first `index` of that repo takes about 2 minutes because it embeds every chunk.
+
 ## Troubleshooting
 
 - **`npx .` says "Permission denied" or "command not found".** `dist/` is missing or stale. Run `npm run build`.
@@ -493,6 +552,7 @@ Run from a fresh clone, after `npm install`:
 - **The MCP client shows codemem as failed or with no tools.** Run the server command from the client configuration in a terminal: it should start and wait silently. If it exits, the message on stderr says why. Check that the command's working directory is the project (or pass `--root`), and that `codemem index` has been run there; tools answer `The index is empty` until it has.
 - **`.codemem/memory.json is not valid`.** The file was damaged, usually by a merge conflict. Fix the JSON or restore it with `git checkout -- .codemem/memory.json`. Until then the memories already in the index stay as they are, and nothing is overwritten.
 - **A memory is marked STALE.** Code it is linked to changed after it was written. If it is still true, delete it and add it again to link it to the current code; if not, `codemem memory rm <id>`. A memory that arrived through git can also show as stale when your checkout differs from the author's.
-- **A tool answers with stale code.** The server does not re-index on its own yet (that arrives in Phase 7). Run `codemem index` after changing files; `index_status` shows how many files are pending.
+- **A tool answers with stale code.** The server re-indexes changed files before each tool call, judging by size and modification time. A file whose content changed while both stayed the same is missed: run `codemem index`, which hashes every file. If answers end with `(index refresh still running ...)`, a large re-index is in progress; ask again shortly.
+- **`codemem watch` does not notice changes.** Files under excluded directories (`node_modules`, `dist`, `vendor`, and so on) are not watched. On Linux, a large repo can exceed the inotify watch limit; raise `fs.inotify.max_user_watches`.
 - **A caller or callee is missing from `debug symbol`.** Resolution is best effort and never guesses across an import that leads outside the repo. A call on a value whose type is unknown (`user.save()`) resolves only when one symbol in the repo has that name. Calls to library functions have no edge.
 - **Indexing is slow.** Embedding is the slow stage: about 160 chunks per second with the default model on an Apple M5 laptop, so a 277k-line repo takes about 106 seconds. It runs once; later runs embed only changed chunks.
