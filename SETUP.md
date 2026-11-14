@@ -338,7 +338,7 @@ By tool (queries, tokens served, estimated baseline, mean latency):
 Token counts are approximate, and the baseline is an estimate, not a measurement: ...
 ```
 
-The query log holds the text of each query. It stays in `.codemem/index.db` on your machine and is never sent anywhere.
+On the small demo repo the saving is close to 0%, because a 4,000-token answer already holds most of the repo; the numbers above are from a larger one. The query log holds the text of each query. It stays in `.codemem/index.db` on your machine and is never sent anywhere.
 
 ## Project memory
 
