@@ -26,15 +26,24 @@ jobs:
       - name: Run the packed tarball with the bundled npm
         shell: bash
         run: |
-          npm --version
           mkdir "$RUNNER_TEMP/packtest"
           cp codemem-*.tgz "$RUNNER_TEMP/packtest/codemem.tgz"
           cd "$RUNNER_TEMP/packtest"
           printf 'export function helloWorld() {\n  return 1;\n}\n' > a.ts
-          npx --yes ./codemem.tgz --version
-          npx --yes ./codemem.tgz doctor
-          npx --yes ./codemem.tgz index
-          npx --yes ./codemem.tgz search helloWorld | grep 'function helloWorld'
+          # On failure the end of the output becomes an annotation, which can be read
+          # without signing in to GitHub.
+          if ! {
+            npm --version &&
+            npx --yes ./codemem.tgz --version &&
+            npx --yes ./codemem.tgz doctor &&
+            npx --yes ./codemem.tgz index &&
+            npx --yes ./codemem.tgz search helloWorld | grep 'function helloWorld'
+          } > "$RUNNER_TEMP/pack.log" 2>&1; then
+            cat "$RUNNER_TEMP/pack.log"
+            echo "::error title=Packed tarball failed::$(tail -c 3000 "$RUNNER_TEMP/pack.log" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/pack.log"
       # npm 10 (bundled with Node 22) carries a node-gyp too old to find Visual Studio on the
       # Windows runner, and lockfile installs run node-gyp for better-sqlite3.
       - run: npm install -g npm@11
