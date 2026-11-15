@@ -1,14 +1,12 @@
 # remimem
 
-remimem is a local-first MCP server and CLI that indexes a codebase and gives coding agents only the code context they need.
+remimem: codebase memory for coding agents.
 
-It is under active development and not ready for use yet.
-
-To build and test it from source, see [SETUP.md](SETUP.md).
+It is a local-first MCP server and CLI that indexes a codebase and gives coding agents (Claude Code, Cursor, VS Code Copilot, any MCP client) the smallest set of code that answers their question, within a token budget. It also keeps project memory, decisions and conventions that persist across sessions, and ships the benchmark below so the savings can be checked.
 
 ## Benchmark
 
-How much context does remimem save, and does it find the right code? Each task is a real commit from an open-source repository, described by its commit message; the code is indexed as it was just before that commit, and a strategy is scored on whether it returns the files and symbols the commit went on to change. The baseline imitates an agent that greps for keywords and reads whole files.
+How much context does remimem save, and does it find the right code? Each task is a real commit from an open-source repository, described by its commit message. The code is indexed as it was just before that commit, and a strategy is scored on whether it returns the files and symbols the commit went on to change. The baseline imitates an agent that greps for keywords and reads whole files.
 
 <!-- prettier-ignore-start -->
 <!-- bench:start -->
@@ -73,4 +71,142 @@ Reproduce with `npm install && npx . bench` from a clone. Results vary slightly 
 <!-- bench:end -->
 <!-- prettier-ignore-end -->
 
-What these numbers do not show: the tasks are commit messages, which are written after the change and can name the place that was changed, so they are easier than a bug report written beforehand. The test split is 36 tasks, so one task moves a percentage by about three points. The baseline is a simulation, not a real agent. One test-split task was looked at while the harness was being debugged, before any tuning; the settings it prompted were then chosen on the training split alone. Details and the full method are in [SETUP.md](SETUP.md).
+What these numbers do not show: the tasks are commit messages, which are written after the change and can name the place that was changed, so they are easier than a bug report written beforehand. The test split is 36 tasks, so one task moves a percentage by about three points. The baseline is a simulation, not a real agent. One test-split task was looked at while the harness was being debugged, before any tuning; the settings it prompted were then chosen on the training split alone, and the headline is given with and without it. The method is described in [SETUP.md](SETUP.md#run-the-benchmark).
+
+## Install
+
+In the project you want to index (Node.js 22.13 or newer):
+
+```sh
+npx -y remimem init
+```
+
+This creates `.remimem/`, builds the index, and prints the client configuration below. The first run downloads a 23 MB embedding model; after that nothing needs the network. To build from source instead, see [SETUP.md](SETUP.md).
+
+## Connect your agent
+
+**Claude Code.** Run this in the project:
+
+```sh
+claude mcp add remimem -- npx -y remimem serve
+```
+
+or create `.mcp.json` in the project root:
+
+```json
+{
+  "mcpServers": {
+    "remimem": { "command": "npx", "args": ["-y", "remimem", "serve"] }
+  }
+}
+```
+
+**Cursor.** Create `.cursor/mcp.json` in the project root with the same content.
+
+**VS Code (Copilot).** Create `.mcp.json` in the workspace root:
+
+```json
+{
+  "mcpServers": {
+    "remimem": { "type": "stdio", "command": "npx", "args": ["-y", "remimem", "serve"] }
+  }
+}
+```
+
+Older VS Code versions read `.vscode/mcp.json` instead, which uses a `servers` key:
+
+```json
+{
+  "servers": {
+    "remimem": { "type": "stdio", "command": "npx", "args": ["-y", "remimem", "serve"] }
+  }
+}
+```
+
+The server works on the directory it is started in; add `"--root", "<path>"` to the args to point it elsewhere.
+
+## How it works
+
+- **Index by structure.** Files are parsed with tree-sitter (TypeScript, JavaScript, Python, Go) into functions, methods, classes, and types; every other text file is indexed in line windows.
+- **Search three ways.** A query runs against a keyword index that understands identifiers, a vector index built by a local embedding model, and an exact lookup of symbol names. The rankings are fused.
+- **Follow the call graph.** Callers, callees, base classes, and referenced types of the top results are added as signatures, each with the reason it is there.
+- **Pack to a budget.** Results are fitted into the token budget you give, grouped by file in line order with `path:start-end` headers. The answer never exceeds the budget and says what was dropped.
+- **Remember.** Decisions, conventions, and gotchas are stored with links to code, shown at the top of later answers, and flagged when the code they are about changes.
+
+```text
+files -> scanner -> parser -> chunker -> SQLite (keyword index, vectors, call graph, memory)
+                                              |
+agent -> MCP tool -> retriever (keyword + vector + graph) -> packer -> text within the budget
+```
+
+Changed files are re-indexed before each tool call, so answers follow your edits.
+
+## Tools
+
+| Tool               | What it returns                                                                                                                                                |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_context`      | The best starting context for a task: project memory, the top code in full, and neighbor signatures. Inputs: `task`, `budget_tokens` (default 4,000), `paths`. |
+| `search_code`      | Ranked code for a query, with the reason each result matched. Inputs: `query`, `k` (default 10), `budget_tokens`, `language`, `paths`.                         |
+| `get_symbol`       | One function, class, or type with its callers and callees. Inputs: `name`, `include` (`body` or `signature`), `depth` (0 to 2).                                |
+| `get_file_outline` | The symbols of a file with signatures and line numbers, no bodies. Input: `path`.                                                                              |
+| `find_references`  | Where a symbol is called, extended, used as a type, or imported, as `path:line` grouped by file. Input: `name`.                                                |
+| `remember`         | Saves a decision, convention, gotcha, or todo, optionally linked to files and symbols. Inputs: `text`, `kind`, `paths`, `symbols`, `tags`.                     |
+| `recall`           | Matching memories, stale ones marked. Inputs: `query`, `kind`.                                                                                                 |
+| `forget`           | Deletes a memory. Input: `id`.                                                                                                                                 |
+| `index_status`     | Files, chunks, last indexed commit, pending changes, embedding model.                                                                                          |
+
+There is also one resource, `remimem://overview`: a directory map with the most-referenced symbols per directory.
+
+The same functions are available from the command line: `remimem init`, `index [--full]`, `watch`, `serve`, `search "<query>"`, `context "<task>"`, `memory list|add|rm`, `stats`, `doctor`, and `bench` (from a source checkout).
+
+## Configuration
+
+Optional, in `.remimem/config.json`. Every setting has a default; unknown keys are rejected.
+
+| Setting                                                                 | Default                                         | Meaning                                                                                                                                                                      |
+| ----------------------------------------------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `include`, `exclude`                                                    | none                                            | Globs that limit which files are indexed. Vendored, generated, binary, oversized, and secret-looking files are always skipped.                                               |
+| `maxFileSizeKb`                                                         | 512                                             | Larger files are skipped.                                                                                                                                                    |
+| `embedding.provider`                                                    | `local`                                         | `local`, `none` (keyword search only), or `openai` and `voyage`, which send code to that service. Keys come from `OPENAI_API_KEY` or `VOYAGE_API_KEY`, never from this file. |
+| `embedding.model`                                                       | `Xenova/all-MiniLM-L6-v2`                       | Changing it needs `remimem index --full`.                                                                                                                                    |
+| `retrieval.defaultBudgetTokens`                                         | 4000                                            | Budget when a call does not give one.                                                                                                                                        |
+| `retrieval.rrfK`, `keywordLimit`, `vectorLimit`, `keywordWeights`       | 60, 50, 50, content 1 / symbol 5 / path 2       | Ranking fusion.                                                                                                                                                              |
+| `retrieval.textFileWeight`                                              | 0.25                                            | How much a result from a file that is not parsed as code counts against one from code.                                                                                       |
+| `retrieval.graphTopN`, `graphMaxNeighbors`, `edgeWeights`               | 10, 20, exact 0.5 / import 0.4 / name-match 0.2 | Call graph expansion.                                                                                                                                                        |
+| `retrieval.memoryLimit`, `memoryMinKeywordMatch`, `memoryMinSimilarity` | 5, 0.5, 0.4                                     | Which memories `get_context` attaches.                                                                                                                                       |
+| `watch.debounceMs`                                                      | 500                                             | How long `remimem watch` waits after the last change.                                                                                                                        |
+
+Memories are mirrored to `.remimem/memory.json`, which is meant to be committed so a team shares them. The index, `.remimem/index.db`, is local and is added to `.gitignore` by `init`.
+
+## Privacy
+
+Everything runs on your machine. Code is parsed, embedded, and stored locally, in one SQLite file inside the project. Nothing is sent anywhere unless you set `embedding.provider` to `openai` or `voyage`, in which case the text of indexed code goes to that service to be embedded. There is no telemetry. The query log behind `remimem stats` stays in the local index. The one network request in the default setup is the first download of the embedding model from huggingface.co.
+
+## Limitations
+
+- **The benchmark tasks are commit messages.** They are written after the change and often name what changed, so they are easier than bug reports. The test split is 36 tasks from three repositories, and the baseline is a simulation of a grep-driven agent, not a real one.
+- **Documentation is down-weighted.** Results from files that are not parsed as code (Markdown, JSON, SQL) count a quarter by default, because changelogs were crowding out code. If you search mostly for prose, raise `retrieval.textFileWeight`.
+- **No type inference.** The call graph resolves names, not types: `user.save()` is linked only when one symbol in the repo is named `save`. In a hand-check on a large TypeScript repo about one in four of these name-match links was wrong. Calls into libraries have no links at all.
+- **Structural parsing covers four languages.** TypeScript, JavaScript, Python, and Go. Everything else is searchable as text in line windows, without symbols or a call graph.
+- **The OpenAI and Voyage embedding providers are tested only against stubs.** They have never been run against the live services.
+- **Install size.** The local embedding runtime brings about 430 MB into `node_modules`, and a first `npx` run downloads and unpacks about 750 MB.
+- **The end-to-end benchmark hook has never been run.** `remimem bench --e2e` prints a cost estimate and does nothing more without `--yes`; the agent flags it would use are unverified.
+- **Memories cost a little code.** With project memory attached, the share of right files shown with a full body dropped by about 2 points in the benchmark (90% against 92%), because memory takes up to a quarter of the budget. Only a quarter of the memories attached there were relevant.
+- **The default embedding model is not trained on code.** A code-trained alternative found no more of the right files in the benchmark and indexed five times slower, so it is an option, not the default.
+- **Change detection trusts size and modification time.** A change that keeps both is missed until `remimem index` runs, which hashes every file.
+- **Platform gaps.** Vector search has no prebuilt extension for Windows on ARM. TypeScript path aliases from `tsconfig.json` are not read. Go struct embedding and implicit interface satisfaction produce no graph links.
+
+## Roadmap
+
+- More languages at structural depth: Java, Rust, C#.
+- Team mode: a shared index and memory with access control.
+- A pull request reviewer that uses project memory and conventions to flag violations.
+- Smarter context: reranking with a small cross-encoder, and learning from which results agents open.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md), which includes how to add a language. [SETUP.md](SETUP.md) covers building, testing, and verifying each part, [DECISIONS.md](DECISIONS.md) records why things are the way they are, and [CHANGELOG.md](CHANGELOG.md) lists what changed.
+
+## License
+
+[MIT](LICENSE)

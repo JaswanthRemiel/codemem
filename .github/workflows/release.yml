@@ -1,0 +1,29 @@
+name: Release
+
+# Started by hand only (see RELEASING.md). Publishes the checked-out ref to npm with
+# provenance. It needs the NPM_TOKEN secret, or trusted publishing set up on npmjs.com.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # lets npm attach a provenance statement
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run check:chars
+      - run: npm run coverage
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

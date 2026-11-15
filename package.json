@@ -1,7 +1,7 @@
 {
   "name": "remimem",
   "version": "0.1.0",
-  "description": "Local-first MCP server and CLI that serves coding agents only the code context they need",
+  "description": "Codebase memory for coding agents: a local-first MCP server and CLI that serves only the code context an agent needs",
   "license": "MIT",
   "author": "Jaswanth Remiel AG",
   "repository": {
@@ -24,8 +24,8 @@
     "build": "tsc -p tsconfig.build.json && node -e \"require('fs').chmodSync('dist/cli/index.js', 0o755)\"",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src test scripts eslint.config.js vitest.config.js",
-    "format": "prettier --write src scripts .github grammars/README.md \"test/*.{ts,mjs}\" \"*.{js,json}\" README.md DECISIONS.md PROGRESS.md SETUP.md",
-    "format:check": "prettier --check src scripts .github grammars/README.md \"test/*.{ts,mjs}\" \"*.{js,json}\" README.md DECISIONS.md PROGRESS.md SETUP.md",
+    "format": "prettier --write src scripts .github grammars/README.md \"docs/**/*.md\" \"test/*.{ts,mjs}\" \"*.{js,json}\" README.md DECISIONS.md PROGRESS.md SETUP.md CONTRIBUTING.md CHANGELOG.md RELEASING.md",
+    "format:check": "prettier --check src scripts .github grammars/README.md \"docs/**/*.md\" \"test/*.{ts,mjs}\" \"*.{js,json}\" README.md DECISIONS.md PROGRESS.md SETUP.md CONTRIBUTING.md CHANGELOG.md RELEASING.md",
     "check:chars": "node scripts/check-chars.mjs",
     "test": "vitest run",
     "hooks": "git config core.hooksPath .githooks || exit 0",
@@ -54,5 +54,18 @@
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.72.2",
     "vitest": "^5.1.0"
-  }
+  },
+  "homepage": "https://github.com/JaswanthRemiel/remimem#readme",
+  "bugs": {
+    "url": "https://github.com/JaswanthRemiel/remimem/issues"
+  },
+  "keywords": [
+    "mcp",
+    "rag",
+    "ai-agents",
+    "code-search",
+    "developer-tools",
+    "model-context-protocol",
+    "tree-sitter"
+  ]
 }

@@ -583,9 +583,21 @@ Run from a fresh clone, after `npm install`:
 | 5    | `npx . bench --compare bench/results/<newest default-model file>.json` | Every line starts with `ok`, exit code 0                                                                                                                                                                                                |
 | 6    | `npx . bench --e2e`                                                    | Three lines: the number of agent runs, an estimated cost, and `Nothing was run.`                                                                                                                                                        |
 
+### Phase 9
+
+Run from a fresh clone, after `npm install`:
+
+| Step | Command                             | Correct result                                                                                                                                                                        |
+| ---- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `npm run coverage`                  | `Test Files  15 passed (15)` and no threshold error                                                                                                                                   |
+| 2    | `npm pack --dry-run`                | 38 files: `package.json`, `README.md`, `LICENSE`, files under `dist/` (none under `dist/bench/`), and files under `grammars/`. `npm publish --dry-run` lists the same files           |
+| 3    | `npx . init` in a copy of a fixture | The printed client configuration uses the server name `remimem`                                                                                                                       |
+| 4    | Read `README.md` top to bottom      | Pitch, benchmark, install, client configuration (VS Code shows the workspace-root `.mcp.json` first), how it works, tools, configuration, privacy, limitations, roadmap, contributing |
+| 5    | Read `RELEASING.md`                 | The tag, publish, and release commands are listed and none has been run: `git tag` prints nothing, and `npm view remimem` returns a 404                                               |
+
 ## Troubleshooting
 
-- **`npx .` says "Permission denied" or "command not found".** `dist/` is missing or stale. Run `npm run build`.
+- **`npx .` says "Permission denied" or "command not found".** `dist/` is missing or stale. Run `npm run build`. If the message names a different command than `remimem` after a rename of the package, `npx` is using a cached link from before the rename: delete the matching directory under `~/.npm/_npx` (each one's `package.json` names the path it was made for).
 - **`npm install` fails with an engine error.** Your Node.js is older than 22.13.0. Install a newer version.
 - **A commit is rejected with "em dash or emoji".** The pre-commit hook found a banned character. The message gives the file and line; replace the character and commit again.
 - **Windows: `format:check` reports every file.** Line endings were converted to CRLF. Run `git add --renormalize .` and check out the files again.

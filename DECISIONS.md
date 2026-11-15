@@ -279,3 +279,13 @@ Each entry: context, options, decision, consequences.
 - **Options:** (a) publish under a suffixed name and keep the project name, (b) rename everything.
 - **Decision:** (b), by owner decision on 2026-11-15: remimem. The package, the binary, the `.remimem/` directory, the `REMIMEM_*` environment variables, the MCP server name, the `remimem://overview` resource, the model and benchmark cache under `~/.cache/remimem`, the docs, and the repository links all use the new name. `remimem` was free on npm on that date.
 - **Consequences:** Earlier entries in this file were written under the old name and have been updated to the new one. An index made before the rename, in a `.codemem/` directory, is not picked up; run `remimem init` again. The GitHub repository has to be renamed by its owner for the links to resolve.
+
+## 037: Release preparation
+
+- **Context:** Phase 9 prepares a release without performing one.
+- **Decision:**
+  - Publishing is a workflow started by hand (`.github/workflows/release.yml`), because npm provenance can only be produced by a CI run. It publishes with `npm publish --provenance --access public` and needs either the `NPM_TOKEN` secret or trusted publishing.
+  - Package contents were checked with `npm pack --dry-run`, which lists the same files as `npm publish --dry-run`, so that no form of `npm publish` was run by the build.
+  - The demo is scripted for VHS in `docs/demo.tape`. The GIF was not recorded, since VHS is not installed on the build machine and installing software there was not asked for; the README does not reference an image that does not exist.
+  - VS Code setup in the README shows the workspace-root `.mcp.json` with `mcpServers` first and `.vscode/mcp.json` as the older format, following VS Code's own documentation (decision 024).
+- **Consequences:** Three things in the repository have never been executed: the release workflow, the demo script, and the end-to-end benchmark hook. Each says so where it lives.

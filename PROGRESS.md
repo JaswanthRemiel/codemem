@@ -11,7 +11,7 @@
 - [x] Phase 6: Memory
 - [x] Phase 7: Incremental indexing, watch, stats
 - [x] Phase 8: Benchmark
-- [ ] Phase 9: Release prep
+- [x] Phase 9: Release prep
 
 ## Done
 
@@ -134,13 +134,38 @@ Success metrics from the spec, as measured:
 | Query latency p95, warm index                        | under 300 ms       | 35 ms in the benchmark; 65 ms on nest including the change check                                                                                   |
 | Install to first answer                              | under 2 minutes    | 26s from empty caches                                                                                                                              |
 
+### Phase 9
+
+- Renamed the project to remimem, as its own commit, after `npm view` showed the working name was taken on npm (decision 036).
+- README in the order the spec gives: pitch, benchmark, install, client configuration, how it works with a diagram, tool reference, configuration, privacy, limitations, roadmap, contributing.
+- `CONTRIBUTING.md` (including how to add a language), issue and pull request templates, `CHANGELOG.md`, `RELEASING.md`, release notes in `docs/releases/v0.1.0.md`, and package metadata (description, keywords, homepage, bugs).
+- A release workflow that is started by hand and publishes with provenance. It has not been run.
+- The package contains 38 files: `package.json`, `README.md`, `LICENSE`, `dist/` without the benchmark, and `grammars/`.
+
+Release checklist:
+
+| Item                                                                                     | State                                                                                                                                                                  |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| README sections in order                                                                 | Done                                                                                                                                                                   |
+| Demo GIF                                                                                 | Not done: the recorder (VHS) is not installed on the build machine. The script is `docs/demo.tape`; `RELEASING.md` says how to record it and where the image line goes |
+| Install in one line, client configurations                                               | Done                                                                                                                                                                   |
+| How it works, tool reference, configuration, privacy, limitations, roadmap, contributing | Done                                                                                                                                                                   |
+| `CONTRIBUTING.md` with how to add a language                                             | Done                                                                                                                                                                   |
+| Issue and pull request templates                                                         | Done                                                                                                                                                                   |
+| `CHANGELOG.md`, version 0.1.0                                                            | Done                                                                                                                                                                   |
+| Publish command with provenance, release notes, repo topics, in `RELEASING.md`           | Prepared, not performed                                                                                                                                                |
+| Package contents                                                                         | Checked with `npm pack --dry-run`; `npm publish --dry-run` was not run by the build, to stay clear of the rule against running `npm publish`                           |
+
 ## Next
 
-Phase 9: release prep (README, CONTRIBUTING, CHANGELOG, templates, RELEASING.md). No publish.
+Release, by the repository owner: rename the GitHub repository, record the demo, then follow `RELEASING.md`. Nothing has been published, tagged, or released.
 
 ## Notes for later phases
 
 ## Known issues
+
+- The GitHub repository is still named by the old working name; links in the docs point at the new name and resolve once the owner renames it.
+- The demo GIF does not exist yet, and neither `docs/demo.tape` nor the release workflow has been run.
 
 - The default embedding model is a small general-purpose model, not a code-trained one. On the benchmark the code-trained alternative did not find more files and indexed 5.5 times slower (decision 016, updated).
 - The OpenAI and Voyage providers are tested against a stubbed HTTP server only, not the live services (no API key was used).
