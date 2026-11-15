@@ -48,6 +48,13 @@ export async function runBenchCommand(
     ...(options.tune ? { tune: true } : {}),
     log: print,
   });
+  // A partial run is for trying things out: it is printed, not recorded.
+  if (options.repo?.length || (Number.isFinite(limit) && limit > 0)) {
+    print('');
+    print(renderSummary(results));
+    print('\nPartial run: no results file was written.');
+    return true;
+  }
   const model = options.model ? `-${options.model.replace(/[^a-z0-9]+/gi, '-')}` : '';
   const dir = join(benchDir(), 'results');
   const base = join(dir, `${results.date}-${results.gitSha}${model}`);

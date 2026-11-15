@@ -423,8 +423,8 @@ Other options:
 
 | Option            | What it does                                                                                                                                                            |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--repo <name>`   | Run one repository (repeatable).                                                                                                                                        |
-| `--limit <n>`     | Run only the first n tasks of each repository, for a quick try.                                                                                                         |
+| `--repo <name>`   | Run one repository (repeatable). Prints the summary without writing a results file.                                                                                     |
+| `--limit <n>`     | Run only the first n tasks of each repository, for a quick try. Prints the summary without writing a results file.                                                      |
 | `--update-readme` | Paste the summary into `README.md` between the `bench:start` and `bench:end` markers.                                                                                   |
 | `--tune`          | Also run the tuning configurations on the training split and print that table.                                                                                          |
 | `--model <name>`  | Index with another embedding model, for example `jinaai/jina-embeddings-v2-base-code`. The README then shows both models.                                               |
@@ -574,14 +574,14 @@ Expected: the second `index` prints `Indexed 20 of 2797 files` (the total change
 
 Run from a fresh clone, after `npm install`:
 
-| Step | Command                                                                | Correct result                                                                                                 |
-| ---- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| 1    | `npm run coverage`                                                     | `Test Files  15 passed (15)` and no threshold error                                                            |
-| 2    | `npx vitest run test/bench.test.ts`                                    | 9 tests pass, including `the benchmark data in this repo is complete, and the README shows the latest results` |
-| 3    | `npx . bench --limit 2`                                                | Six progress lines, then a summary with all tables; finishes in about a minute after the clones                |
-| 4    | `npx . bench`                                                          | The full summary; the headline figures are close to the README's                                               |
-| 5    | `npx . bench --compare bench/results/<newest default-model file>.json` | Every line starts with `ok`, exit code 0                                                                       |
-| 6    | `npx . bench --e2e`                                                    | Three lines: the number of agent runs, an estimated cost, and `Nothing was run.`                               |
+| Step | Command                                                                | Correct result                                                                                                                                                                                                                          |
+| ---- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `npm run coverage`                                                     | `Test Files  15 passed (15)` and no threshold error                                                                                                                                                                                     |
+| 2    | `npx vitest run test/bench.test.ts`                                    | 9 tests pass, including `the benchmark data in this repo is complete, and the README shows the latest results`                                                                                                                          |
+| 3    | `npx . bench --limit 3`                                                | Nine progress lines, then a summary with all tables (three test tasks) and `Partial run: no results file was written.`; about a minute after the clones                                                                                 |
+| 4    | `npx . bench`                                                          | The full summary; the headline figures are close to the README's. It writes a new file in `bench/results`: delete it afterwards, or rerun with `--update-readme`, because a test checks that the README matches the newest results file |
+| 5    | `npx . bench --compare bench/results/<newest default-model file>.json` | Every line starts with `ok`, exit code 0                                                                                                                                                                                                |
+| 6    | `npx . bench --e2e`                                                    | Three lines: the number of agent runs, an estimated cost, and `Nothing was run.`                                                                                                                                                        |
 
 ## Troubleshooting
 
