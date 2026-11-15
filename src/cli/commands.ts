@@ -53,7 +53,12 @@ export async function runSearch(
     // The same quick check the MCP server runs before a tool call: pick up changed files.
     await indexRepo(root, store, config, { quick: true, provider });
     const results = await search(store, query, config.retrieval, provider, options.k);
-    const packed = pack(results, options.budget ?? config.retrieval.defaultBudgetTokens);
+    const packed = pack(
+      results,
+      options.budget ?? config.retrieval.defaultBudgetTokens,
+      '',
+      config.retrieval.neighborBudgetShare,
+    );
     if (!options.debug) return packed.text;
     const scores = results.map(({ chunk, score, ranks }, i) => {
       const fit = packed.included.some((item) => item.chunk.id === chunk.id) ? '' : '  (dropped)';

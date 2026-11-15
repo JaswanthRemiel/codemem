@@ -130,28 +130,48 @@ function footer(tokens: number, results: number, dropped: number): string {
  * fit in full is tried as signature-only before it is dropped. `preamble` (project memory)
  * goes first and counts toward the budget; it is left out if it cannot fit. The returned
  * text never exceeds the budget.
+ *
+ * `neighborShare` keeps that share of the budget free for signature-only items (graph
+ * neighbors). They score below every full result, so without it the full results use up
+ * the budget and the cheap pointers to related code are the first thing lost.
  */
-export function pack(candidates: PackItem[], budget: number, preamble = ''): PackResult {
+export function pack(
+  candidates: PackItem[],
+  budget: number,
+  preamble = '',
+  neighborShare = 0,
+): PackResult {
   const seen = new Set<number>();
   const items = [...candidates]
     .sort((a, b) => b.score - a.score)
     .filter((item) => !seen.has(item.chunk.id) && seen.add(item.chunk.id));
+  // Per-item cost is an estimate (joining blocks changes it slightly); the loop further
+  // down measures the real text.
+  const costOf = (item: PackItem): number => countTokens(renderBlock(toBlock(item))) + 2;
 
   const bodyBudget = budget - FOOTER_RESERVE;
   const head = preamble && countTokens(preamble) + 2 <= bodyBudget ? `${preamble}\n\n` : '';
   const included: PackItem[] = [];
   const dropped: PackItem[] = [];
   let estimate = head ? countTokens(head) : 0;
+  const neighborCosts = new Map(
+    items.filter((item) => item.detail === 'signature').map((item) => [item, costOf(item)]),
+  );
+  let reserve = Math.min(
+    Math.floor(Math.max(0, neighborShare) * bodyBudget),
+    [...neighborCosts.values()].reduce((sum, cost) => sum + cost, 0),
+  );
   for (const item of items) {
-    // Per-item cost is an estimate (joining blocks changes it slightly); the loop below
-    // measures the real text.
+    const neighborCost = neighborCosts.get(item);
+    const limit = bodyBudget - (neighborCost === undefined ? reserve : 0);
     const forms: PackItem[] =
       item.detail === 'full' && item.chunk.signature
         ? [item, { ...item, detail: 'signature' }]
         : [item];
     const fitting = forms
-      .map((form) => ({ form, cost: countTokens(renderBlock(toBlock(form))) + 2 }))
-      .find(({ cost }) => estimate + cost <= bodyBudget);
+      .map((form) => ({ form, cost: neighborCost ?? costOf(form) }))
+      .find(({ cost }) => estimate + cost <= limit);
+    if (neighborCost !== undefined) reserve = Math.max(0, reserve - neighborCost);
     if (fitting) {
       included.push(fitting.form);
       estimate += fitting.cost;

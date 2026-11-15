@@ -1,0 +1,60 @@
+{"id":"m_72f0d8d5","text":"feat(adapters/netlify): publish to JSR (#5468)","files":["adapters/netlify/src/conninfo.ts","adapters/netlify/src/index.ts","adapters/netlify/src/mod.ts"]}
+{"id":"m_90d02fb1","text":"fix(types): allow returning a Blob as a response body (#5446)","files":["src/context.ts"]}
+{"id":"m_6cadf753","text":"fix(lambda-edge): fail with a descriptive error on a malformed event (#5358)","files":["src/adapter/lambda-edge/handler.ts"]}
+{"id":"m_de310ac0","text":"fix(lambda-edge): sync content type detection with aws-lambda (#5426)","files":["src/adapter/lambda-edge/handler.ts"]}
+{"id":"m_28e8572c","text":"fix(aws-lambda): preserve empty query parameters (#5292)","files":["src/adapter/aws-lambda/handler.ts"]}
+{"id":"m_0d86899d","text":"fix(aws-lambda): treat binary +xml archive media types as binary (#5424)","files":["src/adapter/aws-lambda/handler.ts"]}
+{"id":"m_52febbcc","text":"fix(jwt): throw JwtTokenInvalid when the signature is not valid base64url (#5379)","files":["src/utils/jwt/jwt.ts"]}
+{"id":"m_f950277c","text":"fix(pretty-json): don't break responses with unparseable JSON bodies (#5377)","files":["src/middleware/pretty-json/index.ts"]}
+{"id":"m_00ee8757","text":"fix(linear-router): don't match an empty path segment as a param (#5373)","files":["src/router/linear-router/router.ts"]}
+{"id":"m_f5a53463","text":"fix(accepts): match media types and language tags case-insensitively (#5376)","files":["src/helper/accepts/accepts.ts"]}
+{"id":"m_cb5bea36","text":"fix(jsx): replace Suspense and ErrorBoundary content across newlines (#5380)","files":["src/jsx/components.ts","src/jsx/streaming.ts"]}
+{"id":"m_e8c8c212","text":"perf(jsx/dom): optimize matching-head child lookup during reconciliation (#5329)","files":["src/jsx/dom/render.ts"]}
+{"id":"m_edd138ee","text":"fix(request): keep the request media type when reusing a cached body (#5366)","files":["src/request.ts"]}
+{"id":"m_9b4e9c28","text":"fix(accept): clamp a negative q to 0, not 1 (#5357)","files":["src/utils/accept.ts"]}
+{"id":"m_65cff90e","text":"fix(accept): treat the q parameter name as case-insensitive (#5349)","files":["src/utils/accept.ts"]}
+{"id":"m_f147de5e","text":"fix(accepts, language): skip accept entries with quality 0 when matching (#5311)","files":["src/helper/accepts/accepts.ts","src/middleware/language/language.ts"]}
+{"id":"m_90e1b948","text":"fix(aws-lambda): respect backpressure when streaming the response body (#5351)","files":["src/adapter/aws-lambda/handler.ts"]}
+{"id":"m_7792f5dc","text":"perf(jsx/dom): reduce lookup work for large keyed updates (#5340)","files":["src/jsx/dom/render.ts"]}
+{"id":"m_dac5d579","text":"refactor(on-handler): use forEach for consistent handler iteration (#5326)","files":["src/hono-base.ts"]}
+{"id":"m_e2740d5a","text":"fix(types): allow symbol keys in Context<any> get and set fallbacks (#5300)","files":["src/context.ts"]}
+{"id":"m_499c35eb","text":"fix(client): normalize root WebSocket URLs (#5291)","files":["src/client/client.ts"]}
+{"id":"m_50b8788c","text":"fix(client): keep a param value of \"index\" in $url() and $path() (#5297)","files":["src/client/client.ts"]}
+{"id":"m_5e5b83d6","text":"fix(utils/stream): do not let abort listeners crash abort() (#5274)","files":["src/utils/stream.ts"]}
+{"id":"m_241ae4c7","text":"fix(cookie): allow parsing signed cookies with empty string values (#5246)","files":["src/utils/cookie.ts"]}
+{"id":"m_c409d855","text":"fix(request): serialize cached JSON body in cloneRawRequest (#5288)","files":["src/request.ts"]}
+{"id":"m_612b59c0","text":"fix(request): drop stale content length for cloned FormData (#5282)","files":["src/request.ts"]}
+{"id":"m_73794bda","text":"fix(client): omit empty query delimiter (#5283)","files":["src/client/client.ts"]}
+{"id":"m_28a9c128","text":"fix(accepts): support wildcard media types and specificity ordering in defaultMatch (#5255)","files":["src/helper/accepts/accepts.ts"]}
+{"id":"m_1096d66e","text":"fix(client): support custom buildSearchParams and filter undefined query in $ws() (#5256)","files":["src/client/client.ts"]}
+{"id":"m_c4a44071","text":"fix(client): skip an undefined entry inside a form array (#5280)","files":["src/client/client.ts"]}
+{"id":"m_2059584f","text":"fix(client): skip an undefined entry inside a query array (#5272)","files":["src/client/utils.ts"]}
+{"id":"m_d6c0b0de","text":"fix(client): skip undefined header and cookie values (#5244)","files":["src/client/client.ts"]}
+{"id":"m_f8b7847d","text":"fix(etag): match If-None-Match tags with optional whitespace before the comma (#5222)","files":["src/middleware/etag/index.ts"]}
+{"id":"m_4b44abe1","text":"perf(router): share null object creation (#5267)","files":["src/router/reg-exp-router/node.ts","src/router/reg-exp-router/router.ts","src/router/reg-exp-router/trie.ts","src/router/trie-router/node.ts"]}
+{"id":"m_a10592f3","text":"fix(reg-exp-router): associate wildcard middleware with matching routes (#5266)","files":["src/router/reg-exp-router/node.ts","src/router/reg-exp-router/router.ts"]}
+{"id":"m_48e360fc","text":"fix(jsx/dom): execute previous ref cleanup when ref prop changes on re-render (#5264)","files":["src/jsx/dom/render.ts"]}
+{"id":"m_79677607","text":"fix(request): handle params on unmatched requests (#5268)","files":["src/request.ts"]}
+{"id":"m_5ad469a8","text":"feat(pretty-json): support structured JSON content-types (+json) (#5226)","files":["src/middleware/pretty-json/index.ts"]}
+{"id":"m_c91ec9b6","text":"fix(utils/ipaddr): avoid truncation on embedded IPv4 addresses in expandIPv6 (#5247)","files":["src/utils/ipaddr.ts"]}
+{"id":"m_eea9735f","text":"fix(csrf): exempt OPTIONS request from CSRF validation (#5250)","files":["src/middleware/csrf/index.ts"]}
+{"id":"m_a1946287","text":"fix(pattern-router/linear-router): prevent prefix overmatch on wildcard routes (#5252)","files":["src/router/linear-router/router.ts","src/router/pattern-router/router.ts"]}
+{"id":"m_63bbcf50","text":"fix(trie-router): match suffix wildcard routes (#5236)","files":["src/router/trie-router/node.ts","src/router/trie-router/router.ts"]}
+{"id":"m_8bf03c37","text":"fix(cors): append Origin to Vary header on OPTIONS preflight (#5235)","files":["src/middleware/cors/index.ts"]}
+{"id":"m_546eca0c","text":"fix(etag): avoid skipping headers when filtering 304 response headers (#5234)","files":["src/middleware/etag/index.ts"]}
+{"id":"m_7195c248","text":"fix(etag): copy pending stream bytes (#5239)","files":["src/middleware/etag/digest.ts"]}
+{"id":"m_4eb022de","text":"fix(client): prevent URL corruption when replaceUrlParam contains $ replacement tokens (#5227)","files":["src/client/utils.ts"]}
+{"id":"m_6ea514d6","text":"feat(secure-headers): add missing W3C Permissions-Policy directives (#5214)","files":["src/middleware/secure-headers/permissions-policy.ts"]}
+{"id":"m_329b6f46","text":"fix(client): send falsy JSON bodies (#5215)","files":["src/client/client.ts"]}
+{"id":"m_a1e4ac7d","text":"perf(cors): pre-join static array header options during initialization (#5210)","files":["src/middleware/cors/index.ts"]}
+{"id":"m_d982f637","text":"fix(url): strip trailing question mark correctly for optional params with regex quantifiers (#5209)","files":["src/utils/url.ts"]}
+{"id":"m_26de7313","text":"fix(etag): stabilize digest across stream chunks (#5205)","files":["src/middleware/etag/digest.ts"]}
+{"id":"m_f2a72d33","text":"fix(client): serialize multiple cookies correctly (#5202)","files":["src/client/client.ts"]}
+{"id":"m_8a5852d4","text":"fix(etag): resolve incorrect incremental hashing for chunked responses (#5199)","files":["src/middleware/etag/digest.ts"]}
+{"id":"m_765d13b0","text":"fix(jsx): render async children of document metadata tags instead of [object Promise] (#5204)","files":["src/jsx/intrinsic-element/components.ts"]}
+{"id":"m_13a9481e","text":"fix(secure-headers): output standard empty parentheses () instead of none for disabled Permissions-Policy directives (#5197)","files":["src/middleware/secure-headers/secure-headers.ts"]}
+{"id":"m_f6aa913c","text":"fix(etag): skip unsafe methods or error responses on non-* case (#5196)","files":["src/middleware/etag/index.ts"]}
+{"id":"m_cd31bc19","text":"fix(utils/stream): re-acquire writer lock when pipe() throws (#4988)","files":["src/utils/stream.ts"]}
+{"id":"m_569b4191","text":"fix(trie-router): count every slash a pattern consumes (#5189)","files":["src/router/trie-router/node.ts"]}
+{"id":"m_224d2f5c","text":"fix(jsx): handle useSyncExternalStore subscription and snapshot changes (#5166)","files":["src/jsx/hooks/index.ts"]}
+{"id":"m_09cf01c0","text":"fix(cookie): relax name validation when parsing Cookie header (#5164)","files":["src/utils/cookie.ts"]}

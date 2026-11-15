@@ -38,6 +38,8 @@ export interface ToolResult {
   text: string;
   /** Paths whose code is in `text`, for the baseline estimate in `codemem stats`. */
   files?: string[];
+  /** Distinct paths of the search results, best first, before packing. */
+  rankedFiles?: string[];
 }
 
 /** How long a tool call waits for the index to catch up with the files. */
@@ -63,7 +65,7 @@ function requireIndex(ctx: ToolContext): void {
   if (ctx.store.counts().files === 0) throw new EmptyIndexError(ctx.refreshPending);
 }
 
-interface QueryOptions {
+export interface QueryOptions {
   k: number;
   budget: number;
   /** `get_context` puts project memory first. */
@@ -73,7 +75,11 @@ interface QueryOptions {
 }
 
 /** Search, filter by language and path globs, and pack into the budget. */
-async function query(ctx: ToolContext, text: string, options: QueryOptions): Promise<ToolResult> {
+export async function query(
+  ctx: ToolContext,
+  text: string,
+  options: QueryOptions,
+): Promise<ToolResult> {
   requireIndex(ctx);
   const { language, paths } = options;
   const filtered = language !== undefined || (paths !== undefined && paths.length > 0);
@@ -92,13 +98,14 @@ async function query(ctx: ToolContext, text: string, options: QueryOptions): Pro
   }
   const budget = options.budget - (ctx.refreshPending ? REFRESH_NOTE_TOKENS : 0);
   const preamble = options.memories ? await memoryBlock(ctx, text, results, budget) : '';
-  const packed = pack(results, budget, preamble);
+  const packed = pack(results, budget, preamble, ctx.config.retrieval.neighborBudgetShare);
   // Only results shown in full count toward the baseline: an agent would have had to read
   // those files, while the signature-only neighbors are an extra it would not have loaded.
   const files = packed.included
     .filter((item) => item.detail === 'full')
     .map((item) => item.chunk.path);
-  return { text: packed.text, files: [...new Set(files)] };
+  const ranked = [...results].sort((a, b) => b.score - a.score).map((r) => r.chunk.path);
+  return { text: packed.text, files: [...new Set(files)], rankedFiles: [...new Set(ranked)] };
 }
 
 /**
@@ -175,6 +182,7 @@ async function memoryBlock(
   results: { chunk: { path: string; symbol: string | null } }[],
   budget: number,
 ): Promise<string> {
+  if (ctx.config.retrieval.memoryLimit === 0) return '';
   const matched = await recall(ctx.root, ctx.store, ctx.provider, task, ctx.config.retrieval, {
     limit: ctx.config.retrieval.memoryLimit,
   });

@@ -1,0 +1,60 @@
+{"id":"m_6a390cb5","text":"fix(middleware/proxy): append RealIP to X-Forwarded-For for WebSocket requests (#2994)","files":["middleware/proxy.go"]}
+{"id":"m_29727ff9","text":"fix(middleware): correct documented KeyAuth KeyLookup default","files":["middleware/key_auth.go"]}
+{"id":"m_dac56bce","text":"fix(binder): MustUnixTime docs say time.Time, not time.Duration","files":["binder.go"]}
+{"id":"m_c08ea0fc","text":"Fix typos in CSRFConfig comments","files":["middleware/csrf.go"]}
+{"id":"m_98d99d5c","text":"fix proxy panic when balancer has no target","files":["middleware/proxy.go"]}
+{"id":"m_46f2b8be","text":"refactor: replace Split in loops with more efficient SplitSeq (#2969)","files":["middleware/extractor.go"]}
+{"id":"m_f16f84de","text":"Context.Json should not unwrap response and just wrap Response so other middlewares can use their own \"wrapping\" Responses and see the status code. (#2964)","files":["context.go"]}
+{"id":"m_d1d8ad3f","text":"Context.Scheme should validate values taken from header (#2953)","files":["context.go"]}
+{"id":"m_0143b9da","text":"fix(lint): resolve staticcheck issues and improve code quality (#2941)","files":["bind.go","binder_generic.go","middleware/basic_auth.go","middleware/static.go","response.go","route.go","router.go"]}
+{"id":"m_607f385c","text":"use ListenConfig for StartConfig listeners","files":["server.go"]}
+{"id":"m_83e04d26","text":"Do not set http.Server.WriteTimeout in StartConfig this is bad for SSE and static file serving (#2932)","files":["server.go"]}
+{"id":"m_a7005b2f","text":"Add NewDefaultFS function to help create filesystem that allows absolute paths (#2931)","files":["echo.go"]}
+{"id":"m_a0e5ff7e","text":"Add doc comments to clarify usage of File related methods and leading slash handling","files":["context.go","echo.go","group.go"]}
+{"id":"m_3f50cc66","text":"Fix rate limiter documentation for default burst value","files":["middleware/rate_limiter.go"]}
+{"id":"m_675712da","text":"Add StartConfig.Listener so server with custom Listener is easier to create.","files":["server.go"]}
+{"id":"m_ec05bc85","text":"fix: correct spelling mistakes in comments and field name","files":["echotest/context.go","middleware/csrf.go","middleware/request_logger.go","response.go","server.go"]}
+{"id":"m_fa5311b2","text":"Add changelog for v5.0.4 release","files":["version.go"]}
+{"id":"m_9183f1e8","text":"CSRF: support older token-based CSRF protection handler that want to render token into template","files":["middleware/csrf.go"]}
+{"id":"m_fa0078cf","text":"Graceful shutdown: http.Serve needs to wait for graceful shutdown goroutine to finish. Fixes #2897","files":["server.go"]}
+{"id":"m_09ccfbaa","text":"Fill c.Request().Pattern field with route path to help standard library based middlewares.","files":["router.go"]}
+{"id":"m_26ec148e","text":"security (static middleware): fix bowser=true listing all file names from given filesystem root","files":["middleware/static.go"]}
+{"id":"m_1f3ef293","text":"Context: json should not send status code before serialization is complete (#2877)","files":["context.go","response.go"]}
+{"id":"m_f1d43af1","text":"fix: add Connection header validation to IsWebSocket() (RFC 6455)","files":["context.go"]}
+{"id":"m_3205495c","text":"Update RateLimiterWithConfig example","files":["middleware/rate_limiter.go"]}
+{"id":"m_096ce41d","text":"Panic MW: will now return a custom PanicStackError with stack trace when config.DisablePrintStack is set to false.","files":["middleware/recover.go"]}
+{"id":"m_c0ff1d40","text":"fix failing tests under Windows","files":["middleware/static_windows.go"]}
+{"id":"m_8bfe9f52","text":"Serve does not return http.ErrServerClosed anymore, handle graceful shutdown properly","files":["echo.go","server.go"]}
+{"id":"m_98913cd8","text":"Echo logger defaults to slog.NewJSONHandler","files":["echo.go","server.go"]}
+{"id":"m_85e01ed1","text":"Response should implement http.Flusher and http.Hijacker to work with older libraries that do not use `http.NewResponseController()`","files":["response.go"]}
+{"id":"m_d0f9d1e7","text":"CRSF with Sec-Fetch-Site=same-site falls back to legacy token","files":["middleware/csrf.go"]}
+{"id":"m_f3fc6184","text":"CRSF with Sec-Fetch-Site checks","files":["echo.go","middleware/csrf.go","middleware/middleware.go","middleware/util.go"]}
+{"id":"m_9fe43f78","text":"fix Rate limiter disallows fractional rates","files":["middleware/rate_limiter.go"]}
+{"id":"m_1b5122aa","text":"document things to reduce false positives","files":["middleware/static.go"]}
+{"id":"m_c9b8b36c","text":"fix Time-of-Check-Time-of-Use bug in rate limiter","files":["middleware/rate_limiter.go"]}
+{"id":"m_f7dc94df","text":"handle errors in body dump middleware","files":["middleware/body_dump.go"]}
+{"id":"m_0232b579","text":"improve logger middleware error value logging","files":["middleware/logger.go"]}
+{"id":"m_e2133320","text":"fix goroutine leak in proxy raw mode","files":["middleware/proxy.go"]}
+{"id":"m_88a60e4b","text":"fix data race with errors in proxy raw","files":["middleware/proxy.go"]}
+{"id":"m_c12cb08a","text":"Logger middleware json string escaping and deprecation (#2849)","files":["middleware/logger.go","middleware/request_logger.go"]}
+{"id":"m_53b692c4","text":"Ensure proxy connection is closed in proxyRaw function","files":["middleware/proxy.go"]}
+{"id":"m_e644ff8f","text":"Replace custom private IP range check with built-in net.IP.IsPrivate() method","files":["ip.go"]}
+{"id":"m_55cb3b62","text":"Optimize realm quoting to happen once during middleware creation","files":["middleware/basic_auth.go"]}
+{"id":"m_432a2adf","text":"Improve BasicAuth middleware: use strings.Cut and RFC compliance","files":["middleware/basic_auth.go"]}
+{"id":"m_212bfe00","text":"Fix typo in ContextTimeout middleware comment","files":["middleware/context_timeout.go"]}
+{"id":"m_b4ea9248","text":"Fix typo in SetParamValues comment","files":["context.go"]}
+{"id":"m_52d2bff1","text":"Modernize context.go by replacing interface{} with any (#2822)","files":["context.go"]}
+{"id":"m_f1ebc67c","text":"Enhance Logger Middleware Documentation with Detailed Configuration Examples","files":["middleware/logger.go"]}
+{"id":"m_2fb84197","text":"Fix DefaultBinder empty body handling for unknown ContentLength","files":["bind.go"]}
+{"id":"m_a92f4209","text":"Fix IP extraction fallback and improve Response.Flush error messages","files":["ip.go","response.go"]}
+{"id":"m_9acf5341","text":"refactor to use reflect.TypeFor (#2812)","files":["bind.go"]}
+{"id":"m_de44c53a","text":"Add support for TLS WebSocket proxy (#2762)","files":["middleware/proxy.go"]}
+{"id":"m_ee3e1297","text":"CORS: reject requests with 401 for non-preflight request with not matching origin header (#2732)","files":["middleware/cors.go"]}
+{"id":"m_45524e39","text":"Update golang.org/x/net dependency [GO-2024-3333](https://pkg.go.dev/vuln/GO-2024-3333) (#2722)","files":["echo.go"]}
+{"id":"m_0368ed87","text":"Add Conditions to Ensure Bind Succeeds with `Transfer-Encoding: chunked` (#2717)","files":["bind.go"]}
+{"id":"m_118c1632","text":"CORS middleware should compile allowOrigin regexp at creation.","files":["middleware/cors.go"]}
+{"id":"m_c4410fe0","text":"fix(bind body): content-length can be -1","files":["bind.go"]}
+{"id":"m_822d11a4","text":"Add TemplateRenderer struct to ease creating renderers for `html/template` and `text/template` packages.","files":["echo.go"]}
+{"id":"m_d5b32c6e","text":"Refactor work done by martinpasaribu <martin.yonathan305@gmail.com> (binding multipart files by using struct tags)","files":["bind.go"]}
+{"id":"m_fb769d71","text":": add some test case for multipart file","files":["bind.go"]}
+{"id":"m_d1ab8e85","text":"bind: add support of multipart multi files","files":["bind.go"]}

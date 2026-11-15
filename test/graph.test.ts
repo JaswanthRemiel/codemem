@@ -262,6 +262,19 @@ test('search adds graph neighbors as signature-only results with a reason', asyn
   expect(findUser?.detail).toBe('full');
   expect(findUser?.reasons).toContain('called by authenticateUser');
 
+  // Switches used by the benchmark ablations.
+  const noImports = {
+    ...TEST_CONFIG.retrieval,
+    edgeWeights: { exact: 0.5, import: 0, 'name-match': 0.2 },
+  };
+  expect(await search(store, 'authenticateUser', noImports, null, 1)).toHaveLength(1);
+  const uncompressed = { ...TEST_CONFIG.retrieval, compressNeighbors: false };
+  const full = await search(store, 'authenticateUser', uncompressed, null, 1);
+  expect(full.find((r) => r.chunk.symbol === 'findUser')).toMatchObject({ detail: 'full' });
+  expect(full.find((r) => r.chunk.symbol === 'findUser')?.chunk.content).toContain('USERS.get(id)');
+  const noKeyword = { ...TEST_CONFIG.retrieval, keywordLimit: 0 };
+  expect(await search(store, 'authenticateUser', noKeyword, null, 5)).toEqual([]);
+
   // The limits come from config: no seeds, no neighbors; a cap of one keeps the best.
   const off = { ...TEST_CONFIG.retrieval, graphTopN: 0 };
   expect(await search(store, 'authenticateUser', off, null, 1)).toHaveLength(1);

@@ -3,6 +3,7 @@ import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Command } from 'commander';
 import { processFile } from '../indexer/index.js';
+import { CodememError } from '../errors.js';
 import { MEMORY_KINDS, MemoryError } from '../memory/index.js';
 import { serve } from '../mcp/server.js';
 import {
@@ -143,6 +144,46 @@ export function buildProgram(): Command {
     .action(() => {
       console.log(runStats(process.cwd()));
     });
+
+  program
+    .command('bench')
+    .description('Run the benchmark (from a source checkout of codemem)')
+    .option('--mine', 'rebuild the task files from the pinned repositories instead of running')
+    .option(
+      '--repo <name>',
+      'run one repository only (repeatable)',
+      (v: string, all: string[]) => [...all, v],
+      [],
+    )
+    .option('--limit <n>', 'run only the first n tasks of each repository')
+    .option('--model <name>', 'embedding model to index with')
+    .option('--tune', 'also try the tuning configurations on the training split')
+    .option('--update-readme', 'paste the summary table into README.md')
+    .option('--compare <file>', 'check the run against an earlier results file, within a tolerance')
+    .option('--e2e', 'print the cost estimate for the end-to-end agent run (add --yes to run it)')
+    .option('--yes', 'with --e2e: actually run it, which costs money')
+    .option('--price-per-mtok <usd>', 'with --e2e: price per million input tokens for the estimate')
+    .action(
+      async (options: {
+        mine?: boolean;
+        repo: string[];
+        limit?: string;
+        model?: string;
+        tune?: boolean;
+        updateReadme?: boolean;
+        compare?: string;
+        e2e?: boolean;
+        yes?: boolean;
+        pricePerMtok?: string;
+      }) => {
+        // Loaded on demand: the benchmark is not part of the published package.
+        const { runBenchCommand } = await import('../bench/command.js').catch(() => {
+          throw new CodememError('The benchmark runs from a source checkout of codemem.');
+        });
+        const ok = await runBenchCommand(options, (line) => console.log(line));
+        if (!ok) process.exitCode = 1;
+      },
+    );
 
   program
     .command('search <query>')

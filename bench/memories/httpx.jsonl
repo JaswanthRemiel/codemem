@@ -1,0 +1,60 @@
+{"id":"m_c6907c22","text":"Remove unused type: ignore (#3038)","files":["httpx/_config.py","httpx/_multipart.py"]}
+{"id":"m_1a660147","text":"Add missing argument (#3023)","files":["httpx/_client.py"]}
+{"id":"m_08eff926","text":"Version 0.26.0 (#3009)","files":["httpx/__version__.py"]}
+{"id":"m_b4b27ff6","text":"Remove unused curio check (#3010)","files":["httpx/_utils.py"]}
+{"id":"m_a11fc384","text":"Cleanup URL percent-encoding behavior. (#2990)","files":["httpx/_urlparse.py"]}
+{"id":"m_3b9060ee","text":"Fix environment proxies (#2741)","files":["httpx/_utils.py"]}
+{"id":"m_2318fd82","text":"Enabling `ruff` C416 (#3001)","files":["httpx/_content.py","httpx/_utils.py"]}
+{"id":"m_1e110964","text":"Fixed `iter_text` adding an empty string (#2998)","files":["httpx/_decoders.py","httpx/_models.py"]}
+{"id":"m_90538a3b","text":"Ensure that ASGI 'raw_path' does not include query component of URL. (#2999)","files":["httpx/_transports/asgi.py"]}
+{"id":"m_b471f01d","text":"Allow URLs where username or password contains unescaped '@'. (#2986)","files":["httpx/_urlparse.py"]}
+{"id":"m_cc206cf2","text":"Version 0.25.2 (#2957)","files":["httpx/__version__.py"]}
+{"id":"m_1d73150c","text":"Cleanup response.json() method (#2911)","files":["httpx/_models.py","httpx/_utils.py"]}
+{"id":"m_ad06741d","text":"Lazily import 'netrc' module (#2910)","files":["httpx/_auth.py"]}
+{"id":"m_9751f761","text":"Drop unneccessary `binascii` import (#2909)","files":["httpx/_multipart.py"]}
+{"id":"m_e63b6594","text":"Fix encode host (#2886)","files":["httpx/_urlparse.py"]}
+{"id":"m_7c9db49f","text":"Add support for Python 3.12 (#2854)","files":["httpx/_compat.py","httpx/_config.py"]}
+{"id":"m_59df8190","text":"Raise ValueError on `Response.encoding` being set after `Response.text` has been accessed (#2852)","files":["httpx/_models.py"]}
+{"id":"m_88e84314","text":"Add cookies to the retried request when performing digest authentication. (#2846)","files":["httpx/_auth.py"]}
+{"id":"m_c3585a5c","text":"Version 0.25.0 (#2801)","files":["httpx/__version__.py"]}
+{"id":"m_a54ecccd","text":"HTTPS proxies support (#2845)","files":["httpx/_config.py","httpx/_transports/default.py"]}
+{"id":"m_adbcd0e0","text":"Change extensions type (#2803)","files":["httpx/_types.py"]}
+{"id":"m_e874351f","text":"Update _models.py (#2840)","files":["httpx/_models.py"]}
+{"id":"m_9415af64","text":"Make `raise_for_status` chainable (#2776)","files":["httpx/_models.py"]}
+{"id":"m_18d7721c","text":"Use Mozilla documentation instead of `httpstatuses.com` for HTTP error reference (#2768)","files":["httpx/_models.py"]}
+{"id":"m_920333ea","text":"Always encode forward slashes as `%2F` in query parameters (#2723)","files":["httpx/_urlparse.py"]}
+{"id":"m_301b8fb0","text":"Fix URLPattern examples (#2740)","files":["httpx/_utils.py"]}
+{"id":"m_73359503","text":"Add `socket_options` argument to `httpx.HTTPTransport` class (#2716)","files":["httpx/_transports/default.py"]}
+{"id":"m_a682f6f1","text":"Fix exception suppression in asgi transport (#2669)","files":["httpx/_transports/asgi.py"]}
+{"id":"m_abb994c0","text":"Ensure all WSGITransport environs have a SERVER_PROTOCOL (#2708)","files":["httpx/_transports/wsgi.py"]}
+{"id":"m_fcf1bc73","text":"Version 0.24.1 (#2702)","files":["httpx/__version__.py"]}
+{"id":"m_ee432c0d","text":"Fix for gen-delims escaping behaviour in path/query/fragment (#2701)","files":["httpx/_urlparse.py"]}
+{"id":"m_32e25497","text":"Fix ruff error and script (#2680)","files":["httpx/_utils.py"]}
+{"id":"m_472597fb","text":"More robust check for upload files in binary mode (#2630)","files":["httpx/_multipart.py"]}
+{"id":"m_26dc3921","text":"Additional context in InvalidURL exceptions (#2675)","files":["httpx/_urlparse.py"]}
+{"id":"m_9ae170a9","text":"Fix optional percent encoding behaviour. (#2671)","files":["httpx/_urlparse.py"]}
+{"id":"m_15d09a3b","text":"fix: NO_PROXY should support IPv4, IPv6 and localhost (#2659)","files":["httpx/_utils.py"]}
+{"id":"m_c1cc6b24","text":"Fixes #2666: None is the default value of file for httpx.NetRCAuth (#2667)","files":["httpx/_auth.py"]}
+{"id":"m_4b5a92e8","text":"set logging request lines to INFO level for async method also (#2656)","files":["httpx/_client.py"]}
+{"id":"m_579a3f2f","text":"Version 0.24.0 (#2652)","files":["httpx/__version__.py"]}
+{"id":"m_f1157dbc","text":"Use standard logging style (#2547)","files":["httpx/_client.py","httpx/_config.py","httpx/_utils.py"]}
+{"id":"m_85c5898d","text":"Change LineDecoder to match stdlib splitlines, resulting in significant speed up (#2423)","files":["httpx/_decoders.py"]}
+{"id":"m_c5e9c82c","text":"Add sslcontext to the asynclient docstring (#2609)","files":["httpx/_client.py"]}
+{"id":"m_a934c36a","text":"Drop private imports from test_urlparse.py (#2572)","files":["httpx/_urlparse.py"]}
+{"id":"m_f0fd9192","text":"fix type annotation for MockTransport (#2581)","files":["httpx/_transports/mock.py"]}
+{"id":"m_a6af45ed","text":"Use '%20' for encoding spaces in query parameters. (#2543)","files":["httpx/_urlparse.py","httpx/_urls.py"]}
+{"id":"m_57daabf6","text":"Drop `rfc3986` requirement. (#2252)","files":["httpx/_urls.py"]}
+{"id":"m_2ab73584","text":"Version 0.23.2 (#2510)","files":["httpx/__version__.py"]}
+{"id":"m_4cbf13ec","text":"Raise `TypeError` on invalid query params. (#2523)","files":["httpx/_utils.py"]}
+{"id":"m_b82fbe2c","text":"Drop private import of 'format_form_param' from tests (#2500)","files":["httpx/_utils.py"]}
+{"id":"m_b97c0594","text":"Streaming multipart support (#2382)","files":["httpx/_multipart.py"]}
+{"id":"m_a8dd079b","text":"Raise TypeError if content is passed a 'dict' instance. (#2495)","files":["httpx/_content.py"]}
+{"id":"m_40a0da09","text":"Add back in URL.raw with NamedTuple (#2481)","files":["httpx/_types.py","httpx/_urls.py"]}
+{"id":"m_57aa5b08","text":"Enable no_implicit_reexport (#2475)","files":["httpx/_compat.py","httpx/_config.py","httpx/_utils.py"]}
+{"id":"m_2d373218","text":"Typing: enable warn_return_any (#2477)","files":["httpx/_decoders.py","httpx/_main.py","httpx/_models.py","httpx/_urls.py","httpx/_utils.py"]}
+{"id":"m_0eb97fc9","text":"Use wsgi types from typeshed (#2478)","files":["httpx/_transports/wsgi.py"]}
+{"id":"m_1ff67ea4","text":"Typing: use wsgiref.types to validate types and fix issues uncovered (#2467)","files":["httpx/_transports/wsgi.py"]}
+{"id":"m_8327e134","text":"reuse the digest auth state to avoid unnecessary requests (#2463)","files":["httpx/_auth.py"]}
+{"id":"m_69e13cbc","text":"Remove and dissallow unused type ignores (#2470)","files":["httpx/_config.py","httpx/_content.py","httpx/_status_codes.py","httpx/_transports/mock.py"]}
+{"id":"m_75a13a15","text":"Remove typeshed iscoroutine workaround (#2466)","files":["httpx/_compat.py","httpx/_transports/mock.py"]}
+{"id":"m_1ba3e2ad","text":"Switch `extensions` from `Dict` to `Mapping`. (#2465)","files":["httpx/_client.py","httpx/_types.py"]}

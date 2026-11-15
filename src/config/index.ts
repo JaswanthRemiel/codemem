@@ -18,10 +18,10 @@ const EmbeddingSchema = z.strictObject({
 const RetrievalSchema = z.strictObject({
   /** Reciprocal rank fusion constant: larger values flatten the difference between ranks. */
   rrfK: z.number().positive().default(60),
-  /** Candidates taken from keyword search before fusion. */
-  keywordLimit: z.number().int().positive().default(50),
-  /** Candidates taken from vector search before fusion. */
-  vectorLimit: z.number().int().positive().default(50),
+  /** Candidates taken from keyword search before fusion. 0 turns keyword search off. */
+  keywordLimit: z.number().int().nonnegative().default(50),
+  /** Candidates taken from vector search before fusion. 0 turns vector search off. */
+  vectorLimit: z.number().int().nonnegative().default(50),
   /** BM25 column weights. */
   keywordWeights: z
     .strictObject({
@@ -30,22 +30,33 @@ const RetrievalSchema = z.strictObject({
       path: z.number().nonnegative().default(2),
     })
     .prefault({}),
+  /** The most chunks one file may contribute to the results. 0 means no limit. */
+  maxChunksPerFile: z.number().int().nonnegative().default(0),
+  /** Score multiplier for chunks of files that are not parsed as code (docs, config, data). */
+  textFileWeight: z.number().positive().max(1).default(0.25),
+  /** Share of the token budget kept free for the signature-only neighbors of the results. */
+  neighborBudgetShare: z.number().min(0).max(0.9).default(0),
   /** Results returned when the caller does not say how many. */
   defaultK: z.number().int().positive().default(10),
   defaultBudgetTokens: z.number().int().positive().default(4000),
   /** Results `get_context` considers before packing; the budget decides how many are shown. */
   contextK: z.number().int().positive().default(20),
-  /** The most project memories `get_context` adds from a search of the task text. */
+  /** The most project memories `get_context` adds from a search of the task text. 0 turns memories off. */
   memoryLimit: z.number().int().nonnegative().default(5),
   /** A memory found only by vector search needs at least this cosine similarity to the task. */
-  memoryMinSimilarity: z.number().min(0).max(1).default(0.3),
+  memoryMinSimilarity: z.number().min(0).max(1).default(0.4),
   /** A memory found only by keyword search must contain at least this share of the task's terms. */
   memoryMinKeywordMatch: z.number().min(0).max(1).default(0.5),
   /** Graph expansion: how many top results get their neighbors added. */
   graphTopN: z.number().int().nonnegative().default(10),
+  /** Graph expansion: show neighbors as signature and docstring only, not their full body. */
+  compressNeighbors: z.boolean().default(true),
   /** Graph expansion: the most neighbors added in total. */
   graphMaxNeighbors: z.number().int().nonnegative().default(20),
-  /** Graph expansion: neighbor score = parent score x the weight of the edge's confidence. */
+  /**
+   * Graph expansion: neighbor score = parent score x the weight of the edge's confidence.
+   * A weight of 0 leaves edges of that confidence out.
+   */
   edgeWeights: z
     .strictObject({
       exact: z.number().nonnegative().default(0.5),

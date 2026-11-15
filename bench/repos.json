@@ -1,0 +1,23 @@
+[
+  {
+    "name": "hono",
+    "url": "https://github.com/honojs/hono.git",
+    "license": "MIT",
+    "language": "typescript",
+    "commit": "f6fbaf0299c48eea9e656e03e2ffe7ac755e8823"
+  },
+  {
+    "name": "httpx",
+    "url": "https://github.com/encode/httpx.git",
+    "license": "BSD-3-Clause",
+    "language": "python",
+    "commit": "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+  },
+  {
+    "name": "echo",
+    "url": "https://github.com/labstack/echo.git",
+    "license": "MIT",
+    "language": "go",
+    "commit": "f275a6b1109ee90f288b51a5e2a6fcc617491255"
+  }
+]

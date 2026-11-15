@@ -88,12 +88,13 @@ export async function search(
   k: number = config.defaultK,
 ): Promise<SearchResult[]> {
   const match = ftsQuery(query);
-  const keyword = match
-    ? store.keywordSearch(match, config.keywordLimit, config.keywordWeights).map((hit) => hit.id)
-    : [];
+  const keyword =
+    match && config.keywordLimit > 0
+      ? store.keywordSearch(match, config.keywordLimit, config.keywordWeights).map((hit) => hit.id)
+      : [];
 
   let vector: number[] = [];
-  if (provider && query.trim() && store.embeddingModel() !== undefined) {
+  if (provider && config.vectorLimit > 0 && query.trim() && store.embeddingModel() !== undefined) {
     if (modelChanged(store, provider)) {
       throw new EmbeddingError(
         `The index holds vectors from ${store.embeddingModel()} but the configured model is ${provider.id}; run \`codemem index --full\` to rebuild them`,
@@ -105,11 +106,31 @@ export async function search(
 
   const scores = fuse([keyword, vector], config.rrfK);
   // An exact symbol name in the query outranks anything fusion can produce (at most 2 / k).
-  const exact = new Set(store.chunkIdsForSymbols(symbolCandidates(query)));
+  // The exact-name lookup is a keyword signal, so it is off when keyword search is.
+  const exact = new Set(
+    config.keywordLimit > 0 ? store.chunkIdsForSymbols(symbolCandidates(query)) : [],
+  );
   for (const id of exact) scores.set(id, 1 + (scores.get(id) ?? 0));
 
-  const ranked = [...scores.entries()].sort((a, b) => b[1] - a[1]).slice(0, k);
-  const chunks = new Map(store.getChunks(ranked.map(([id]) => id)).map((c) => [c.id, c]));
+  // Chunks are loaded for every candidate (at most the two limits), so that text files can
+  // be down-weighted and one file cannot take every slot.
+  const chunks = new Map(store.getChunks([...scores.keys()]).map((c) => [c.id, c]));
+  if (config.textFileWeight !== 1) {
+    for (const [id, score] of scores) {
+      if (chunks.get(id)?.language === null) scores.set(id, score * config.textFileWeight);
+    }
+  }
+  const perFile = new Map<string, number>();
+  const ranked = [...scores.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .filter(([id]) => {
+      if (config.maxChunksPerFile === 0) return true;
+      const path = chunks.get(id)?.path ?? '';
+      const count = (perFile.get(path) ?? 0) + 1;
+      perFile.set(path, count);
+      return count <= config.maxChunksPerFile;
+    })
+    .slice(0, k);
   const results = ranked.flatMap(([id, score]): SearchResult[] => {
     const chunk = chunks.get(id);
     if (!chunk) return [];
@@ -163,15 +184,17 @@ function expand(store: Store, results: SearchResult[], config: RetrievalConfig):
     const reason = `${relation} ${parent.chunk.symbol}`;
     const existing = bySymbol.get(n.id) ?? added.get(n.id);
     const weight = config.edgeWeights[n.confidence as keyof RetrievalConfig['edgeWeights']] ?? 0;
+    if (weight === 0) continue;
     const score = parent.score * weight;
     if (existing) {
       if (!existing.reasons.includes(reason)) existing.reasons.push(reason);
       if (added.has(n.id)) existing.score = Math.max(existing.score, score);
       continue;
     }
+    const body = config.compressNeighbors ? undefined : store.chunksOfSymbol(n.id)[0];
     added.set(n.id, {
       // Not a stored chunk: the neighbor's own signature, under a negative id.
-      chunk: {
+      chunk: body ?? {
         id: -n.id,
         symbolId: n.id,
         path: n.path,
@@ -188,7 +211,7 @@ function expand(store: Store, results: SearchResult[], config: RetrievalConfig):
       score,
       reasons: [reason],
       ranks: {},
-      detail: 'signature',
+      detail: body ? 'full' : 'signature',
     });
   }
   return [...added.values()].sort((a, b) => b.score - a.score).slice(0, config.graphMaxNeighbors);
