@@ -3,7 +3,14 @@ import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { expect, test } from 'vitest';
-import { runContext, runDoctor, runIndex, runStats, runWatch } from '../src/cli/commands.js';
+import {
+  runContext,
+  runDoctor,
+  runIndex,
+  runSearch,
+  runStats,
+  runWatch,
+} from '../src/cli/commands.js';
 import { indexRepo } from '../src/indexer/index.js';
 import { startWatch } from '../src/indexer/watch.js';
 import { createServer } from '../src/mcp/server.js';
@@ -97,6 +104,65 @@ test('the limit of a quick run: same size and an old timestamp is taken as uncha
   // ...and the default run, which hashes every file, does.
   expect(await indexRepo(root, store, TEST_CONFIG)).toMatchObject({ indexed: 1, unchanged: 2 });
   store.close();
+});
+
+test('a file modified within two seconds of the last scan is always hashed', async () => {
+  const { root, store } = await indexed('go-mod');
+  const path = join(root, 'store.go');
+  const sameSizeEdit = (from: string, to: string): void => {
+    const size = statSync(path).size;
+    writeFileSync(path, readFileSync(path, 'utf8').replace(from, to));
+    expect(statSync(path).size).toBe(size);
+  };
+  const setMtime = (offsetMs: number): void => {
+    const scannedAt = store.fileStates().get('store.go')?.indexedAt ?? 0;
+    const time = new Date(scannedAt + offsetMs);
+    utimesSync(path, time, time);
+  };
+
+  // Edited in the same second as the scan: same size, and a timestamp just before it.
+  sameSizeEdit('DefaultCapacity = 16', 'DefaultCapacity = 32');
+  setMtime(-900);
+  expect(await indexRepo(root, store, TEST_CONFIG, QUICK)).toMatchObject({ indexed: 1 });
+
+  // At the edge of the window, and just after the scan: still hashed.
+  sameSizeEdit('DefaultCapacity = 32', 'DefaultCapacity = 48');
+  setMtime(-1900);
+  expect(await indexRepo(root, store, TEST_CONFIG, QUICK)).toMatchObject({ indexed: 1 });
+  sameSizeEdit('DefaultCapacity = 48', 'DefaultCapacity = 64');
+  setMtime(300);
+  expect(await indexRepo(root, store, TEST_CONFIG, QUICK)).toMatchObject({ indexed: 1 });
+
+  // An unchanged file inside the window is hashed, found equal, and left alone.
+  setMtime(-500);
+  expect(await indexRepo(root, store, TEST_CONFIG, QUICK)).toMatchObject({
+    indexed: 0,
+    unchanged: 3,
+  });
+  store.close();
+});
+
+test('codemem search and codemem context pick up changed files before answering', async () => {
+  const root = copyFixture('py-pkg');
+  useKeywordOnly(root);
+  await runIndex(root, {});
+  writeFileSync(
+    join(root, 'shop/loyalty.py'),
+    'def award_points(order):\n    return len(order.items)\n',
+  );
+  // No `codemem index` in between.
+  expect(await runSearch(root, 'award_points', { k: 1 })).toContain(
+    '--- shop/loyalty.py:1-2 function award_points [exact-symbol, keyword]',
+  );
+  writeFileSync(
+    join(root, 'shop/loyalty.py'),
+    'def award_bonus(order):\n    return 2 * len(order.items)\n',
+  );
+  const context = await runContext(root, 'award_bonus', { budget: 300 });
+  expect(context).toContain('def award_bonus(order):');
+  expect(context).not.toContain('award_points');
+  rmSync(join(root, 'shop/loyalty.py'));
+  expect(await runSearch(root, 'award_bonus', { k: 3 })).not.toContain('shop/loyalty.py');
 });
 
 test('index --full prunes cached vectors that no chunk uses any more', async () => {

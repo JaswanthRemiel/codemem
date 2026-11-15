@@ -111,7 +111,11 @@ export async function pendingChanges(
   return result;
 }
 
-/** A modification time this close to the last look is not trusted: the content is hashed. */
+/**
+ * A file modified less than this long before the last look (or any time after it) is always
+ * hashed, never trusted: an edit in the same second as a scan can leave the size and, on a
+ * file system with coarse timestamps, the modification time looking untouched.
+ */
 const MTIME_MARGIN_MS = 2000;
 
 /**

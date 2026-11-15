@@ -308,6 +308,8 @@ Logs go to stderr, never stdout. Set `CODEMEM_LOG_LEVEL` to `error`, `warn` (def
 
 The MCP server checks for changed files before every tool call and re-indexes them first, so agents do not get stale code and there is no need to run `codemem index` by hand while a client is connected. The check compares file sizes and modification times, which takes a few milliseconds. If catching up takes longer than 2 seconds (after a branch switch, say), the tool answers from the index as it is and its last line says `(index refresh still running: results may not include your latest edits)`.
 
+`codemem search` and `codemem context` run the same check before answering. A file modified within 2 seconds of the last scan is always read and hashed, so an edit made in the same second as a scan is not skipped.
+
 Outside a client, `codemem watch` does the same continuously. Run in `/tmp/codemem-demo`:
 
 ```sh

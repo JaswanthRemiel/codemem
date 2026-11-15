@@ -103,6 +103,8 @@
 
 - Quick change detection: a file whose size is unchanged and whose modification time is older than the last look is taken as unchanged without reading it. `codemem index` still hashes every file; the quick mode serves tool calls and `watch`.
 - Auto-refresh: the MCP server runs a quick re-index before every tool call except `index_status`, waits at most 2 seconds, and otherwise answers from the current index with a note. A server with no index builds one on the first call.
+- `codemem search` and `codemem context` run the same quick check before answering, and wait for it to finish.
+- A file modified within 2 seconds before the last scan, or any time after it, is always hashed, so an edit in the same second as a scan is not skipped.
 - `codemem watch` (chokidar, debounced by `watch.debounceMs`) and `codemem stats` (queries, tokens served, estimated baseline, estimated saving, per tool).
 - `query_log` table: one row per tool call from the MCP server, `codemem context`, and `codemem memory`.
 - `codemem index --full` prunes cached vectors that no chunk uses.
@@ -120,6 +122,8 @@ Phase 8: benchmark (repos, tasks mined from history, baseline and codemem strate
 - Phase 8: the quantized embedding model gives slightly different vectors on different CPUs, so ranks can shift by a place. Either compare results with a tolerance or offer a full-precision model option, and say which in the README.
 - Phase 8: add an ablation for graph expansion with and without `name-match` edges. If recall does not drop without them, leave `name-match` out of expansion by default.
 - Phase 8: add an ablation with project memories on and off in `get_context`.
+- Phase 8: tune the memory thresholds (`retrieval.memoryMinKeywordMatch`, `retrieval.memoryMinSimilarity`) on the training split only.
+- Phase 8: re-measure the 20-file re-index on the largest benchmark repo.
 - Phase 8: before deciding on `tsconfig.json` path alias support, check whether the chosen TypeScript benchmark repo uses `paths`.
 
 ## Known issues
@@ -135,7 +139,6 @@ Phase 8: benchmark (repos, tasks mined from history, baseline and codemem strate
 - Quick change detection trusts size and modification time. A change that keeps both is missed until `codemem index` runs; this is the same trade git makes.
 - The 3-second re-index target was measured on nest, since the benchmark repos are chosen in Phase 8. Re-measure on the largest of them then.
 - The `stats` baseline assumes an agent would read in full every file a result body came from, so the saving it shows is an upper bound, not a measurement.
-- `codemem search` and `codemem context` do not re-index before answering; only the MCP server and `watch` do.
 - The MCP Inspector check and the manual run in Claude Code are documented in SETUP.md but were not run by the build agent; the same protocol paths are covered by automated tests.
 - `codemem index` creates `.codemem/` but only `codemem init` adds the index to `.gitignore`.
 - Only the tables in use exist so far. Edges, memories, and the query log arrive as migrations in the phases that use them.

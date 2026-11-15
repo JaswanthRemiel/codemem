@@ -49,13 +49,10 @@ export async function runSearch(
   const config = loadConfig(root);
   const store = new Store(dbPath(root));
   try {
-    const results = await search(
-      store,
-      query,
-      config.retrieval,
-      createProvider(config.embedding),
-      options.k,
-    );
+    const provider = createProvider(config.embedding);
+    // The same quick check the MCP server runs before a tool call: pick up changed files.
+    await indexRepo(root, store, config, { quick: true, provider });
+    const results = await search(store, query, config.retrieval, provider, options.k);
     const packed = pack(results, options.budget ?? config.retrieval.defaultBudgetTokens);
     if (!options.debug) return packed.text;
     const scores = results.map(({ chunk, score, ranks }, i) => {
@@ -80,6 +77,8 @@ export async function runContext(
   return withStore(root, async (store) => {
     const ctx = { root, config, store, provider: createProvider(config.embedding) };
     if (!getContext) return '';
+    // Unlike the server, a command cannot finish a refresh in the background: wait for it.
+    await indexRepo(root, store, config, { quick: true, provider: ctx.provider });
     return runTool(ctx, getContext, { task, budget_tokens: options.budget }, { refresh: false });
   });
 }
