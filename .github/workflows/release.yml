@@ -1,19 +1,22 @@
 name: Release
 
-# Started by hand only (see RELEASING.md). Publishes the checked-out ref to npm with
-# provenance. It needs the NPM_TOKEN secret, or trusted publishing set up on npmjs.com.
+# Started by hand only (see RELEASING.md). Publishes the checked-out ref to npm through
+# trusted publishing: npm accepts the publish because it comes from this workflow in this
+# repository, so no npm token is stored anywhere. Provenance is attached automatically.
+# The trusted publisher must be set up once on npmjs.com (RELEASING.md says how).
 on:
   workflow_dispatch:
 
 permissions:
   contents: read
-  id-token: write # lets npm attach a provenance statement
+  id-token: write # lets the runner prove to npm which workflow it is
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # Trusted publishing needs npm 11.5.1 or newer and Node.js 22.14 or newer.
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -24,6 +27,18 @@ jobs:
       - run: npm run typecheck
       - run: npm run check:chars
       - run: npm run coverage
-      - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: npm publish --access public
+      # npm shows a placeholder version for a minute or two while it processes a publish,
+      # so the run is only green once this exact version can be read back.
+      - name: Wait until this exact version is visible on npm
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          for attempt in $(seq 1 40); do
+            if [ "$(npm view "remimem@$VERSION" version 2>/dev/null)" = "$VERSION" ]; then
+              echo "remimem@$VERSION is live"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::remimem@$VERSION did not appear on npm within 10 minutes"
+          exit 1

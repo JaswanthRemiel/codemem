@@ -284,7 +284,8 @@ Each entry: context, options, decision, consequences.
 
 - **Context:** Phase 9 prepares a release without performing one.
 - **Decision:**
-  - Publishing is a workflow started by hand (`.github/workflows/release.yml`), because npm provenance can only be produced by a CI run. It publishes with `npm publish --provenance --access public` and needs either the `NPM_TOKEN` secret or trusted publishing.
+  - Publishing is a workflow started by hand (`.github/workflows/release.yml`), because npm provenance can only be produced by a CI run. Version 0.1.0 was published with `npm publish --provenance --access public` and an `NPM_TOKEN` secret. The workflow has since moved to trusted publishing: no stored token, provenance attached automatically, and a final step that waits until the exact version can be read back from npm.
+  - The order is publish, confirm the exact version is live, then tag and release. During the 0.1.0 release npm showed a placeholder version for about two minutes after the publish, and a check that accepted any version let the tag and release be created early.
   - Package contents were checked with `npm pack --dry-run`, which lists the same files as `npm publish --dry-run`, so that no form of `npm publish` was run by the build.
   - The demo is scripted for VHS in `docs/demo.tape` and recorded to `docs/demo.gif` once the owner allowed installing VHS on the build machine.
   - VS Code setup in the README shows the workspace-root `.mcp.json` with `mcpServers` first and `.vscode/mcp.json` as the older format, following VS Code's own documentation (decision 024).

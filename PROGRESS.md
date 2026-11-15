@@ -153,18 +153,21 @@ Release checklist:
 | `CONTRIBUTING.md` with how to add a language                                             | Done                                                                                                                                         |
 | Issue and pull request templates                                                         | Done                                                                                                                                         |
 | `CHANGELOG.md`, version 0.1.0                                                            | Done                                                                                                                                         |
-| Publish command with provenance, release notes, repo topics, in `RELEASING.md`           | Prepared, not performed                                                                                                                      |
+| Publish command with provenance, release notes, repo topics, in `RELEASING.md`           | Done, and performed for 0.1.0 on the owner's instruction                                                                                     |
 | Package contents                                                                         | Checked with `npm pack --dry-run`; `npm publish --dry-run` was not run by the build, to stay clear of the rule against running `npm publish` |
+
+### Release 0.1.0
+
+- Published to npm as `remimem` 0.1.0 on 2026-11-15 through the release workflow, with provenance; tagged `v0.1.0` and released on GitHub; repository topics set. `npx -y remimem init` was checked in a scratch repo against the published package.
+- After the release, the workflow was changed to trusted publishing (no npm token) and to wait for the exact version on npm, and `RELEASING.md` was rewritten to the order actually used: publish, confirm, then tag and release. The trusted publisher has to be set up once on npmjs.com before the next release; until then the workflow cannot publish.
 
 ## Next
 
-Release, by the repository owner: rename the GitHub repository, record the demo, then follow `RELEASING.md`. Nothing has been published, tagged, or released.
+Nothing scheduled. The roadmap after v1 is in the README.
 
 ## Notes for later phases
 
 ## Known issues
-
-- The GitHub repository is still named by the old working name; links in the docs point at the new name and resolve once the owner renames it.
 
 - The default embedding model is a small general-purpose model, not a code-trained one. On the benchmark the code-trained alternative did not find more files and indexed 5.5 times slower (decision 016, updated).
 - The OpenAI and Voyage providers are tested against a stubbed HTTP server only, not the live services (no API key was used).

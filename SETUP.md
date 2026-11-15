@@ -593,7 +593,7 @@ Run from a fresh clone, after `npm install`:
 | 2    | `npm pack --dry-run`                | 38 files: `package.json`, `README.md`, `LICENSE`, files under `dist/` (none under `dist/bench/`), and files under `grammars/`. `npm publish --dry-run` lists the same files           |
 | 3    | `npx . init` in a copy of a fixture | The printed client configuration uses the server name `remimem`                                                                                                                       |
 | 4    | Read `README.md` top to bottom      | Pitch, benchmark, install, client configuration (VS Code shows the workspace-root `.mcp.json` first), how it works, tools, configuration, privacy, limitations, roadmap, contributing |
-| 5    | Read `RELEASING.md`                 | The tag, publish, and release commands are listed and none has been run: `git tag` prints nothing, and `npm view remimem` returns a 404                                               |
+| 5    | Read `RELEASING.md`                 | The order is publish, wait for the exact version on npm, then tag and release. `npm view remimem version` prints the released version, and `git tag` lists a tag for it               |
 
 ## Troubleshooting
 
