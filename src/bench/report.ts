@@ -1,7 +1,8 @@
 import { readFileSync, writeFileSync } from 'node:fs';
-import type { StrategyResult } from './evaluate.js';
+import { BASELINE_CAP, type StrategyResult } from './evaluate.js';
 import {
   BUDGETS,
+  INSPECTED_TASKS,
   MAIN_BUDGET,
   MAIN_STRATEGY,
   type BenchResults,
@@ -14,8 +15,14 @@ export const README_END = '<!-- bench:end -->';
 export interface Summary {
   tasks: number;
   fileRecall: number;
+  /** File recall when only a full body counts, not a signature-only block. */
+  strictFileRecall: number;
   /** Over tasks that have ground-truth symbols. */
   symbolRecall: number;
+  strictSymbolRecall: number;
+  /** Mean share of a task's ground-truth files among the ten best-ranked files. */
+  recallAt10: number;
+  /** Share of tasks with at least one ground-truth file among the ten best-ranked files. */
   hitAt10: number;
   mrr: number;
   /** Share of tasks in which a ground-truth file was reached at all. */
@@ -24,6 +31,8 @@ export interface Summary {
   firstHitTokens: number;
   /** Mean tokens returned or read. */
   tokens: number;
+  /** Mean tokens when a task whose ground-truth files were not all returned costs the cap. */
+  tokensAtCap: number;
   latencyP50: number;
   latencyP95: number;
   /** Memory ablation: relevant share of attached memories, and share of tasks served. */
@@ -38,20 +47,25 @@ function quantile(xs: number[], q: number): number {
   const sorted = [...xs].sort((a, b) => a - b);
   return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))] as number;
 }
+const defined = (xs: (number | null)[]): number[] => xs.flatMap((x) => (x === null ? [] : [x]));
 
 /** Aggregates one strategy over a set of tasks. */
 export function summarize(tasks: TaskResult[], strategy: string): Summary {
   const rows = tasks.flatMap((t) => t.strategies[strategy] ?? []) as StrategyResult[];
-  const hits = rows.flatMap((r) => (r.firstHitTokens === null ? [] : [r.firstHitTokens]));
+  const hits = defined(rows.map((r) => r.firstHitTokens));
   const summary: Summary = {
     tasks: rows.length,
     fileRecall: mean(rows.map((r) => r.fileRecall)),
-    symbolRecall: mean(rows.flatMap((r) => (r.symbolRecall === null ? [] : [r.symbolRecall]))),
+    strictFileRecall: mean(rows.map((r) => r.strictFileRecall)),
+    symbolRecall: mean(defined(rows.map((r) => r.symbolRecall))),
+    strictSymbolRecall: mean(defined(rows.map((r) => r.strictSymbolRecall))),
+    recallAt10: mean(rows.map((r) => r.recallAt10)),
     hitAt10: mean(rows.map((r) => (r.hitAt10 ? 1 : 0))),
     mrr: mean(rows.map((r) => r.reciprocalRank)),
     reached: rows.length ? hits.length / rows.length : 0,
     firstHitTokens: quantile(hits, 0.5),
     tokens: mean(rows.map((r) => r.tokens)),
+    tokensAtCap: mean(rows.map((r) => (r.fileRecall < 1 ? BASELINE_CAP : r.tokens))),
     latencyP50: quantile(
       rows.map((r) => r.latencyMs),
       0.5,
@@ -76,14 +90,21 @@ export function summarize(tasks: TaskResult[], strategy: string): Summary {
 
 const pct = (x: number): string => `${Math.round(x * 100)}%`;
 const num = (x: number): string => Math.round(x).toLocaleString('en-US');
+const fewer = (ours: number, theirs: number): string =>
+  theirs <= 0
+    ? 'not comparable'
+    : ours <= theirs
+      ? `${pct(1 - ours / theirs)} fewer`
+      : `${pct(ours / theirs - 1)} more`;
 
-function row(label: string, s: Summary): string {
-  return `| ${label} | ${pct(s.fileRecall)} | ${pct(s.symbolRecall)} | ${pct(s.hitAt10)} | ${s.mrr.toFixed(2)} | ${pct(s.reached)} | ${num(s.firstHitTokens)} | ${num(s.tokens)} | ${num(s.latencyP50)} / ${num(s.latencyP95)} ms |`;
+/** One table row. The baseline's token figure counts its misses at the cap. */
+function row(label: string, s: Summary, baseline = false): string {
+  return `| ${label} | ${num(baseline ? s.tokensAtCap : s.tokens)} | ${pct(s.fileRecall)} | ${pct(s.strictFileRecall)} | ${pct(s.symbolRecall)} | ${s.recallAt10.toFixed(2)} | ${s.mrr.toFixed(2)} | ${pct(s.reached)} | ${num(s.firstHitTokens)} | ${num(s.latencyP50)} / ${num(s.latencyP95)} ms |`;
 }
 
 const HEADER = [
-  '| Strategy | File recall | Symbol recall | Hit@10 | MRR | Reached | Tokens to first hit | Tokens used | Latency p50 / p95 |',
-  '| --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+  '| Strategy | Tokens per task | File recall | File recall, full body only | Symbol recall | Recall@10 | MRR | Reached | Tokens to first hit | Latency p50 / p95 |',
+  '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
 ];
 
 const strategyNames = (results: BenchResults, prefix: string): string[] =>
@@ -91,37 +112,42 @@ const strategyNames = (results: BenchResults, prefix: string): string[] =>
     name.startsWith(prefix),
   );
 
+/** The headline sentences for one set of tasks: tokens, recall@10, and file recall. */
+function headline(tasks: TaskResult[]): string {
+  const b = summarize(tasks, 'baseline');
+  const c = summarize(tasks, MAIN_STRATEGY);
+  return [
+    `Tokens: codemem serves ${num(c.tokens)} per call on average; the baseline reads ${num(b.tokensAtCap)} per task on average, with each task where it did not read every ground-truth file counted at its ${num(BASELINE_CAP)}-token cap. That is ${fewer(c.tokens, b.tokensAtCap)} (target: at least 40% fewer). Charging codemem the same cap for each task where its answer lacks a ground-truth file gives ${num(c.tokensAtCap)}, ${fewer(c.tokensAtCap, b.tokensAtCap)}.`,
+    `Recall@10: on average ${c.recallAt10.toFixed(2)} of a task's ground-truth files are among the ten best-ranked files (baseline ${b.recallAt10.toFixed(2)}; target 0.80).`,
+    `File recall in the answer: ${pct(c.fileRecall)} (baseline ${pct(b.fileRecall)}); counting a file only when a full body from it is shown, not a signature-only block: ${pct(c.strictFileRecall)}.`,
+  ].join(' ');
+}
+
 /** The Markdown that goes into the README: headline, tables, ablations, worst misses. */
 export function renderSummary(results: BenchResults, otherModels: BenchResults[] = []): string {
   const test = results.tasks.filter((t) => t.split === 'test');
   const baseline = summarize(test, 'baseline');
   const main = summarize(test, MAIN_STRATEGY);
-  // Tokens to the first ground-truth file, on the tasks where both strategies reached one.
-  const both = test.flatMap((t) => {
-    const b = t.strategies['baseline']?.firstHitTokens;
-    const c = t.strategies[MAIN_STRATEGY]?.firstHitTokens;
-    return b != null && c != null ? [{ b, c }] : [];
-  });
-  const pairedBaseline = quantile(
-    both.map((x) => x.b),
-    0.5,
-  );
-  const pairedMain = quantile(
-    both.map((x) => x.c),
-    0.5,
-  );
-  const comparable = both.length > 0 && pairedBaseline > 0;
-  const saving = comparable ? 1 - pairedMain / pairedBaseline : 0;
   const m = results.machine;
   const out: string[] = [];
 
   out.push(
-    `Measured on ${results.date} with codemem \`${results.gitSha}\` on ${m.cpu} (${m.cores} cores, ${m.memoryGb} GB, ${m.os}, Node.js ${m.node}), embedding model \`${results.embeddingModel}\`. Test split: ${test.length} of ${results.tasks.length} tasks, held out from tuning. Token counts are approximate.`,
+    `Measured on ${results.date} with codemem \`${results.gitSha}\` on ${m.cpu} (${m.cores} cores, ${m.memoryGb} GB, ${m.os}, Node.js ${m.node}), embedding model \`${results.embeddingModel}\`. Test split: ${test.length} of ${results.tasks.length} tasks, held out from tuning. Ground-truth files are the non-test source files a task's commit changed. Token counts are approximate.`,
     '',
-    `**Headline (test split, \`${MAIN_STRATEGY}\` against the grep baseline):** the right file is in the answer for ${pct(main.fileRecall)} of ground-truth files (baseline ${pct(baseline.fileRecall)}), a ground-truth file is among the ten best-ranked files in ${pct(main.hitAt10)} of tasks (baseline ${pct(baseline.hitAt10)}), and on the ${both.length} tasks where both reached a ground-truth file, the median tokens to get there are ${num(pairedMain)} against ${num(pairedBaseline)} (${!comparable ? 'not comparable' : saving >= 0 ? `${pct(saving)} fewer` : `${pct(-saving)} more`}).`,
+    `**Headline (test split, ${test.length} tasks, \`${MAIN_STRATEGY}\` against the grep baseline).** ${headline(test)}`,
+  );
+  const clean = test.filter((t) => !INSPECTED_TASKS.includes(t.id));
+  if (clean.length < test.length) {
+    const inspected = test.filter((t) => INSPECTED_TASKS.includes(t.id));
+    out.push(
+      '',
+      `**The same without ${inspected.map((t) => `${t.repo} \`${t.id}\``).join(', ')}** (${clean.length} tasks), a test task that was inspected while the harness was being debugged, before tuning: ${headline(clean)}`,
+    );
+  }
+  out.push(
     '',
     ...HEADER,
-    row('baseline: grep and read whole files, 40,000-token cap', baseline),
+    row(`baseline: grep and read whole files, ${num(BASELINE_CAP)}-token cap`, baseline, true),
     ...BUDGETS.map((b) =>
       row(`\`search_code\` at ${num(b)} tokens`, summarize(test, `search_code@${b}`)),
     ),
@@ -129,7 +155,7 @@ export function renderSummary(results: BenchResults, otherModels: BenchResults[]
       row(`\`get_context\` at ${num(b)} tokens`, summarize(test, `get_context@${b}`)),
     ),
     '',
-    'Columns: *file recall* and *symbol recall* are the share of ground-truth files and symbols present in what was returned (for the baseline, in the files it read). *Hit@10* is the share of tasks with a ground-truth file among the ten best-ranked files, and *MRR* the mean reciprocal rank of the first one. *Reached* is the share of tasks in which a ground-truth file was returned at all; *tokens to first hit* is the median over those tasks. *Tokens used* is the mean size of the answer (for the baseline, of everything it read).',
+    `Columns: *tokens per task* is the mean size of the answer; for the baseline it is what it read, with a task counted at the ${num(BASELINE_CAP)}-token cap when it did not read every ground-truth file. *File recall* and *symbol recall* are the share of ground-truth files and symbols present in what was returned (for the baseline, in the files it read); *full body only* does not count a file that appears only as a signature. *Recall@10* is the share of a task's ground-truth files among the ten best-ranked files, averaged over tasks, and *MRR* the mean reciprocal rank of the first one. *Reached* is the share of tasks in which any ground-truth file was returned, and *tokens to first hit* the median over those tasks.`,
     '',
     `Ablations of \`get_context\` at ${num(MAIN_BUDGET)} tokens (test split):`,
     '',
@@ -151,15 +177,15 @@ export function renderSummary(results: BenchResults, otherModels: BenchResults[]
     '',
     'Per repository (test split):',
     '',
-    '| Repository | Language | Lines | Tasks | Baseline file recall | `get_context` file recall | Baseline tokens to first hit | `get_context` tokens to first hit |',
-    '| --- | --- | --- | --- | --- | --- | --- | --- |',
+    '| Repository | Language | Lines | Tasks | Baseline tokens per task | `get_context` tokens per task | Baseline recall@10 | `get_context` recall@10 | Baseline file recall | `get_context` file recall |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
   );
   for (const repo of results.repos) {
     const tasks = test.filter((t) => t.repo === repo.name);
     const b = summarize(tasks, 'baseline');
     const c = summarize(tasks, MAIN_STRATEGY);
     out.push(
-      `| [${repo.name}](${repo.url.replace(/\.git$/, '')}) at \`${repo.commit.slice(0, 10)}\` (${repo.license}) | ${repo.language} | ${num(repo.lines)} | ${tasks.length} | ${pct(b.fileRecall)} | ${pct(c.fileRecall)} | ${num(b.firstHitTokens)} | ${num(c.firstHitTokens)} |`,
+      `| [${repo.name}](${repo.url.replace(/\.git$/, '')}) at \`${repo.commit.slice(0, 10)}\` (${repo.license}) | ${repo.language} | ${num(repo.lines)} | ${tasks.length} | ${num(b.tokensAtCap)} | ${num(c.tokens)} | ${b.recallAt10.toFixed(2)} | ${c.recallAt10.toFixed(2)} | ${pct(b.fileRecall)} | ${pct(c.fileRecall)} |`,
     );
   }
 
@@ -187,8 +213,8 @@ export function renderSummary(results: BenchResults, otherModels: BenchResults[]
       '',
       `Embedding models compared (\`${MAIN_STRATEGY}\`, test split):`,
       '',
-      '| Model | File recall | Symbol recall | Hit@10 | MRR | Latency p50 / p95 | First full index of all repos |',
-      '| --- | --- | --- | --- | --- | --- | --- |',
+      '| Model | Tokens per task | File recall | File recall, full body only | Symbol recall | Recall@10 | MRR | Latency p50 / p95 | First full index of all repos |',
+      '| --- | --- | --- | --- | --- | --- | --- | --- | --- |',
     );
     for (const r of [results, ...otherModels]) {
       const s = summarize(
@@ -197,7 +223,7 @@ export function renderSummary(results: BenchResults, otherModels: BenchResults[]
       );
       const seconds = r.repos.reduce((n, repo) => n + repo.indexSeconds, 0);
       out.push(
-        `| \`${r.embeddingModel}\` | ${pct(s.fileRecall)} | ${pct(s.symbolRecall)} | ${pct(s.hitAt10)} | ${s.mrr.toFixed(2)} | ${num(s.latencyP50)} / ${num(s.latencyP95)} ms | ${seconds > 0 ? `${num(seconds)}s` : 'not measured (index was cached)'} |`,
+        `| \`${r.embeddingModel}\` | ${num(s.tokens)} | ${pct(s.fileRecall)} | ${pct(s.strictFileRecall)} | ${pct(s.symbolRecall)} | ${s.recallAt10.toFixed(2)} | ${s.mrr.toFixed(2)} | ${num(s.latencyP50)} / ${num(s.latencyP95)} ms | ${seconds > 0 ? `${num(seconds)}s` : 'not measured (index was cached)'} |`,
       );
     }
   }
@@ -222,7 +248,7 @@ export function renderTuning(results: BenchResults): string {
   const out = [
     `Tuning on the training split (${train.length} tasks), \`get_context\` at ${num(MAIN_BUDGET)} tokens:`,
     '',
-    '| Configuration | File recall | Symbol recall | Hit@10 | MRR | Memory precision | Memory recall | Memories per task |',
+    '| Configuration | File recall | Symbol recall | Recall@10 | MRR | Memory precision | Memory recall | Memories per task |',
     '| --- | --- | --- | --- | --- | --- | --- | --- |',
   ];
   for (const name of [
@@ -237,7 +263,7 @@ export function renderTuning(results: BenchResults): string {
         ? '| | |'
         : `${pct(s.memoryPrecision)} | ${pct(s.memoryRecall ?? 0)} | ${s.memoriesPerTask?.toFixed(1)}`;
     out.push(
-      `| ${name.replace('tune: ', '')} | ${(s.fileRecall * 100).toFixed(1)}% | ${(s.symbolRecall * 100).toFixed(1)}% | ${(s.hitAt10 * 100).toFixed(1)}% | ${s.mrr.toFixed(3)} | ${memory} |`,
+      `| ${name.replace('tune: ', '')} | ${(s.fileRecall * 100).toFixed(1)}% | ${(s.symbolRecall * 100).toFixed(1)}% | ${s.recallAt10.toFixed(3)} | ${s.mrr.toFixed(3)} | ${memory} |`,
     );
   }
   return out.join('\n');
@@ -271,15 +297,17 @@ export function compareResults(
   for (const strategy of ['baseline', MAIN_STRATEGY]) {
     const a = summarize(test(expected), strategy);
     const b = summarize(test(actual), strategy);
+    const tokens = (x: Summary): number => (strategy === 'baseline' ? x.tokensAtCap : x.tokens);
+    const close = (want: number, got: number): boolean => Math.abs(want - got) <= 0.05;
     const checks: [string, number, number, boolean][] = [
-      ['file recall', a.fileRecall, b.fileRecall, Math.abs(a.fileRecall - b.fileRecall) <= 0.05],
-      ['hit@10', a.hitAt10, b.hitAt10, Math.abs(a.hitAt10 - b.hitAt10) <= 0.05],
-      ['MRR', a.mrr, b.mrr, Math.abs(a.mrr - b.mrr) <= 0.05],
+      ['file recall', a.fileRecall, b.fileRecall, close(a.fileRecall, b.fileRecall)],
+      ['recall@10', a.recallAt10, b.recallAt10, close(a.recallAt10, b.recallAt10)],
+      ['MRR', a.mrr, b.mrr, close(a.mrr, b.mrr)],
       [
-        'tokens to first hit',
-        a.firstHitTokens,
-        b.firstHitTokens,
-        Math.abs(a.firstHitTokens - b.firstHitTokens) <= 0.15 * Math.max(a.firstHitTokens, 1),
+        'tokens per task',
+        tokens(a),
+        tokens(b),
+        Math.abs(tokens(a) - tokens(b)) <= 0.15 * Math.max(tokens(a), 1),
       ],
     ];
     for (const [label, want, got, within] of checks) {

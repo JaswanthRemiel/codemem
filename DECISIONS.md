@@ -257,7 +257,7 @@ Each entry: context, options, decision, consequences.
   - New setting `retrieval.textFileWeight`, default 0.25: chunks of files that are not parsed as code score a quarter. Changelogs and docs were taking most of the top results for commit-message queries. Training file recall 81.5% to 89.4%, symbol recall 69.5% to 73.9%.
   - `retrieval.memoryMinSimilarity` 0.3 to 0.4: memory precision 29% to 38%, memory recall 74% to 60%, the best balance of the two in the grid.
   - Tried and left at their defaults, because the differences were about one task either way: `rrfK` (20, 120), symbol weight (2, 10), `contextK` (10, 40). `neighborBudgetShare` (a share of the budget kept for neighbor signatures) helped before the text weight was added and not after, so it defaults to 0. `maxChunksPerFile` at 2 raised file recall to 92.4% but lowered symbol recall to 69.2%, so it defaults to off.
-  - Name-match edges stay in graph expansion: removing them lowered training file recall from 89.4% to 88.1%.
+  - Name-match edges: no evidence either way. Removing them changed training file recall by one task (89.4% to 88.1%) and nothing on test file recall. The weight stays at the spec's 0.2; this is not a finding that they help.
 - **Consequences:** Three settings exist mainly so the benchmark can vary them. One test-split task (httpx `cabd1c095e`) was inspected while the harness was being debugged, before any tuning; it is what pointed at changelog chunks. The setting was then chosen on the training split, but that task is not a clean test case.
 
 ## 034: The memory ablation

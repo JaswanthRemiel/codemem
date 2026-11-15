@@ -33,6 +33,12 @@ export const BUDGETS = [2000, 4000, 8000];
 export const MAIN_BUDGET = 4000;
 export const MAIN_STRATEGY = `get_context@${MAIN_BUDGET}`;
 
+/**
+ * Test-split tasks that were looked at before tuning, so they are not clean test cases.
+ * The report gives the headline with and without them.
+ */
+export const INSPECTED_TASKS = ['cabd1c095e'];
+
 const context = (name: string, extra: Partial<Strategy> = {}): Strategy => ({
   name,
   tool: 'get_context',

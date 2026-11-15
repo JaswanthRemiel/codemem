@@ -12,6 +12,7 @@ import {
 } from '../src/bench/evaluate.js';
 import {
   benchDir,
+  INSPECTED_TASKS,
   MAIN_STRATEGY,
   readRepos,
   strategies,
@@ -43,6 +44,9 @@ import { indexed, TEST_CONFIG } from './helpers.js';
 const result = (over: Partial<StrategyResult> = {}): StrategyResult => ({
   fileRecall: 1,
   symbolRecall: 1,
+  recallAt10: 1,
+  strictFileRecall: 1,
+  strictSymbolRecall: 1,
   firstHitTokens: 1000,
   tokens: 3000,
   reciprocalRank: 1,
@@ -68,6 +72,9 @@ function fakeResults(main: Partial<StrategyResult> = {}): BenchResults {
   const miss = result({
     fileRecall: 0,
     symbolRecall: 0,
+    recallAt10: 0,
+    strictFileRecall: 0,
+    strictSymbolRecall: 0,
     firstHitTokens: null,
     reciprocalRank: 0,
     hitAt10: false,
@@ -101,7 +108,12 @@ function fakeResults(main: Partial<StrategyResult> = {}): BenchResults {
       }),
       taskResult('t2', 'test', {
         baseline: miss,
-        [MAIN_STRATEGY]: result({ fileRecall: 0.5, reciprocalRank: 0.5 }),
+        [MAIN_STRATEGY]: result({
+          fileRecall: 0.5,
+          recallAt10: 0.5,
+          strictFileRecall: 0,
+          reciprocalRank: 0.5,
+        }),
         'ablation: with memories': result({ memory: { attached: 2, relevant: 0, available: 0 } }),
       }),
       taskResult('t3', 'train', {
@@ -226,8 +238,12 @@ test('keywords put identifiers first, and the grep baseline reads whole files in
     return { path, content, tokens: countTokens(content) };
   });
   const scored = grepBaseline(files, TASK);
-  expect(scored.fileRecall).toBe(1);
-  expect(scored.symbolRecall).toBe(1);
+  expect(scored).toMatchObject({
+    fileRecall: 1,
+    symbolRecall: 1,
+    strictFileRecall: 1,
+    recallAt10: 1,
+  });
   expect(scored.hitAt10).toBe(true);
   // It stops once the ground-truth file is read, and counts every token read on the way.
   expect(scored.firstHitTokens).toBe(scored.tokens);
@@ -236,7 +252,13 @@ test('keywords put identifiers first, and the grep baseline reads whole files in
   );
   // With a cap too small for anything, the right file is ranked but never read.
   const capped = grepBaseline(files, TASK, 0);
-  expect(capped).toMatchObject({ fileRecall: 0, firstHitTokens: null, tokens: 0, hitAt10: true });
+  expect(capped).toMatchObject({
+    fileRecall: 0,
+    firstHitTokens: null,
+    tokens: 0,
+    hitAt10: true,
+    recallAt10: 1,
+  });
   // A task whose words appear nowhere finds nothing.
   expect(grepBaseline(files, { ...TASK, text: 'zzzqqq xyzzyplugh' })).toMatchObject({
     fileRecall: 0,
@@ -252,9 +274,26 @@ test('a codemem answer is scored by the blocks an agent would read', async () =>
   expect(scored).toMatchObject({
     fileRecall: 1,
     symbolRecall: 1,
+    recallAt10: 1,
+    strictFileRecall: 1,
+    strictSymbolRecall: 1,
     reciprocalRank: 1,
     hitAt10: true,
   });
+  // A file that appears only as a signature counts for recall, but not for the strict figure.
+  const pointer = await evaluateQuery(
+    ctx,
+    { ...TASK, text: 'authenticateUser', files: ['src/hash.ts'], symbols: [] },
+    { k: 1, budget: 2000 },
+  );
+  expect(pointer).toMatchObject({ fileRecall: 1, strictFileRecall: 0 });
+  // Two files wanted, one of them ranked: recall@10 is the share, not a yes or no.
+  const half = await evaluateQuery(
+    ctx,
+    { ...TASK, files: ['src/auth.ts', 'src/nope.ts'], symbols: [] },
+    { k: 20, budget: 2000 },
+  );
+  expect(half).toMatchObject({ recallAt10: 0.5, hitAt10: true });
   expect(scored.tokens).toBeLessThanOrEqual(2000);
   expect(scored.firstHitTokens).toBeGreaterThan(0);
   expect(scored.firstHitTokens).toBeLessThanOrEqual(scored.tokens);
@@ -278,9 +317,12 @@ test('a codemem answer is scored by the blocks an agent would read', async () =>
 
   const text =
     '--- a.ts:1-3 function a [keyword]\nx\n\n--- b.ts:10-20 function b [vector]\ny\n\n~20 tokens | 2 results';
-  expect(parseBlocks(text).map((b) => [b.path, b.startLine, b.endLine])).toEqual([
-    ['a.ts', 1, 3],
-    ['b.ts', 10, 20],
+  const withPointer = text.replace('[vector]', '[calls a] (signature only)');
+  expect(
+    parseBlocks(withPointer).map((b) => [b.path, b.startLine, b.endLine, b.signatureOnly]),
+  ).toEqual([
+    ['a.ts', 1, 3, false],
+    ['b.ts', 10, 20, true],
   ]);
   store.close();
 });
@@ -311,17 +353,23 @@ test('strategies cover the baseline comparison, three budgets, and every ablatio
 test('summaries aggregate the test split, and the report names the machine and the misses', () => {
   const results = fakeResults();
   const test = results.tasks.filter((t) => t.split === 'test');
+  // Task t2 returns half of its files, and that half only as a signature.
   expect(summarize(test, MAIN_STRATEGY)).toMatchObject({
     tasks: 2,
     fileRecall: 0.75,
+    strictFileRecall: 0.5,
+    recallAt10: 0.75,
     hitAt10: 1,
     mrr: 0.75,
-    reached: 1,
+    tokens: 3000,
+    // t2 is incomplete, so it costs the cap when misses are charged: (3,000 + 40,000) / 2.
+    tokensAtCap: 21500,
   });
+  // The baseline read 30,000 on t1 and missed t2, which counts as 40,000.
   expect(summarize(test, 'baseline')).toMatchObject({
     fileRecall: 0.5,
-    reached: 0.5,
-    firstHitTokens: 20000,
+    recallAt10: 0.5,
+    tokensAtCap: 35000,
   });
   expect(summarize(test, 'ablation: with memories')).toMatchObject({
     memoryPrecision: 0.25,
@@ -334,11 +382,24 @@ test('summaries aggregate the test split, and the report names the machine and t
     'on Test CPU (8 cores, 16 GB, linux 6, Node.js v22.13.0), embedding model `local:test-model`',
   );
   expect(report).toContain('Test split: 2 of 3 tasks');
-  // Tokens are compared only on the task both strategies solved: 1,000 against 20,000.
   expect(report).toContain(
-    'on the 1 tasks where both reached a ground-truth file, the median tokens to get there are 1,000 against 20,000 (95% fewer)',
+    '**Headline (test split, 2 tasks, `get_context@4000` against the grep baseline).**',
   );
-  expect(report).toContain('| baseline: grep and read whole files, 40,000-token cap | 50% |');
+  // Tokens over every test task, the baseline's misses at the cap.
+  expect(report).toContain(
+    'Tokens: codemem serves 3,000 per call on average; the baseline reads 35,000 per task on average, with each task where it did not read every ground-truth file counted at its 40,000-token cap. That is 91% fewer (target: at least 40% fewer). Charging codemem the same cap for each task where its answer lacks a ground-truth file gives 21,500, 39% fewer.',
+  );
+  // Recall@10 is a share of files averaged over tasks, compared with the target.
+  expect(report).toContain(
+    "Recall@10: on average 0.75 of a task's ground-truth files are among the ten best-ranked files (baseline 0.50; target 0.80).",
+  );
+  expect(report).toContain(
+    'File recall in the answer: 75% (baseline 50%); counting a file only when a full body from it is shown, not a signature-only block: 50%.',
+  );
+  expect(report).not.toContain('where both reached');
+  expect(report).toContain(
+    '| baseline: grep and read whole files, 40,000-token cap | 35,000 | 50% | 50% |',
+  );
   expect(report).toContain(
     '- demo `t2`: "fix: task t2" wanted `src/a.ts`; file recall 50%, first ground-truth file ranked 2.',
   );
@@ -346,6 +407,16 @@ test('summaries aggregate the test split, and the report names the machine and t
   expect(renderTuning(results)).toContain('| rrfK=20 | 50.0% |');
   const withOther = renderSummary(results, [{ ...results, embeddingModel: 'local:other-model' }]);
   expect(withOther).toContain('| `local:other-model` |');
+});
+
+test('the headline is also given without a test task that was inspected before tuning', () => {
+  const results = fakeResults();
+  expect(renderSummary(results)).not.toContain('The same without');
+  (results.tasks[1] as TaskResult).id = INSPECTED_TASKS[0] as string;
+  const report = renderSummary(results);
+  expect(report).toContain(`**The same without demo \`${INSPECTED_TASKS[0]}\`** (1 tasks)`);
+  // Without the incomplete task, the figures on the remaining one are perfect.
+  expect(report).toContain("Recall@10: on average 1.00 of a task's ground-truth files");
 });
 
 test('a rerun is compared with a tolerance, and the README section is replaced in place', () => {

@@ -17,6 +17,12 @@ export interface StrategyResult {
   reciprocalRank: number;
   /** True when a ground-truth file is among the ten best-ranked files. */
   hitAt10: boolean;
+  /** Share of the ground-truth files among the ten best-ranked files. */
+  recallAt10: number;
+  /** File recall when only a full body counts, not a signature-only block. */
+  strictFileRecall: number;
+  /** Symbol recall when only a full body counts; null when the task has no symbols. */
+  strictSymbolRecall: number | null;
   latencyMs: number;
   /** Memory ablation only: memories attached, how many were relevant, how many relevant existed. */
   memory?: { attached: number; relevant: number; available: number };
@@ -58,7 +64,14 @@ export function extractKeywords(text: string): string[] {
  * used. The search is done in process and matches what `rg --ignore-case --word-regexp`
  * would count.
  */
-export function grepBaseline(files: FileText[], task: BenchTask, cap = 40_000): StrategyResult {
+/** The most tokens the baseline may read on one task. */
+export const BASELINE_CAP = 40_000;
+
+export function grepBaseline(
+  files: FileText[],
+  task: BenchTask,
+  cap = BASELINE_CAP,
+): StrategyResult {
   const started = performance.now();
   const patterns = extractKeywords(task.text).map(
     (word) => new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi'),
@@ -90,13 +103,20 @@ export function grepBaseline(files: FileText[], task: BenchTask, cap = 40_000): 
     if (firstHitTokens === null && truth.has(file.path)) firstHitTokens = tokens;
   }
   const rank = ranked.findIndex(({ file }) => truth.has(file.path)) + 1;
+  const top10 = new Set(ranked.slice(0, 10).map(({ file }) => file.path));
+  const fileRecall = task.files.filter((path) => read.has(path)).length / task.files.length;
+  // Reading a whole file brings every symbol in it.
+  const symbolRecall =
+    task.symbols.length === 0
+      ? null
+      : task.symbols.filter((s) => read.has(s.path)).length / task.symbols.length;
   return {
-    fileRecall: task.files.filter((path) => read.has(path)).length / task.files.length,
-    // Reading a whole file brings every symbol in it.
-    symbolRecall:
-      task.symbols.length === 0
-        ? null
-        : task.symbols.filter((s) => read.has(s.path)).length / task.symbols.length,
+    fileRecall,
+    symbolRecall,
+    recallAt10: task.files.filter((path) => top10.has(path)).length / task.files.length,
+    // The baseline only ever reads whole files, so the strict figures are the same.
+    strictFileRecall: fileRecall,
+    strictSymbolRecall: symbolRecall,
     firstHitTokens,
     tokens,
     reciprocalRank: rank ? 1 / rank : 0,
@@ -111,11 +131,13 @@ interface Block {
   endLine: number;
   /** Tokens of the output up to the end of this block. */
   tokensThrough: number;
+  /** True for a block that shows a signature and docstring instead of the code. */
+  signatureOnly: boolean;
 }
 
 /** The code blocks of a packed answer, in reading order. */
 export function parseBlocks(text: string): Block[] {
-  const headers = [...text.matchAll(/^--- (.+?):(\d+)-(\d+) /gm)];
+  const headers = [...text.matchAll(/^--- (.+?):(\d+)-(\d+) .*$/gm)];
   return headers.map((match, i) => {
     const next = headers[i + 1]?.index ?? text.length;
     return {
@@ -123,6 +145,7 @@ export function parseBlocks(text: string): Block[] {
       startLine: Number(match[2]),
       endLine: Number(match[3]),
       tokensThrough: countTokens(text.slice(0, next)),
+      signatureOnly: match[0].endsWith('(signature only)'),
     };
   });
 }
@@ -139,18 +162,31 @@ export async function evaluateQuery(
   const latencyMs = performance.now() - started;
   const blocks = parseBlocks(result.text);
   const truth = new Set(task.files);
-  const present = new Set(blocks.map((b) => b.path));
   const rank = (result.rankedFiles ?? []).findIndex((path) => truth.has(path)) + 1;
-  const scored: StrategyResult = {
-    fileRecall: task.files.filter((path) => present.has(path)).length / task.files.length,
-    symbolRecall:
+  const top10 = new Set((result.rankedFiles ?? []).slice(0, 10));
+  /** Recall over the blocks that pass `counts`: files, then symbols by overlapping lines. */
+  const recall = (counts: (b: Block) => boolean): [number, number | null] => {
+    const kept = blocks.filter(counts);
+    const present = new Set(kept.map((b) => b.path));
+    return [
+      task.files.filter((path) => present.has(path)).length / task.files.length,
       task.symbols.length === 0
         ? null
         : task.symbols.filter((s) =>
-            blocks.some(
+            kept.some(
               (b) => b.path === s.path && b.startLine <= s.endLine && b.endLine >= s.startLine,
             ),
           ).length / task.symbols.length,
+    ];
+  };
+  const [fileRecall, symbolRecall] = recall(() => true);
+  const [strictFileRecall, strictSymbolRecall] = recall((b) => !b.signatureOnly);
+  const scored: StrategyResult = {
+    fileRecall,
+    symbolRecall,
+    recallAt10: task.files.filter((path) => top10.has(path)).length / task.files.length,
+    strictFileRecall,
+    strictSymbolRecall,
     firstHitTokens: blocks.find((b) => truth.has(b.path))?.tokensThrough ?? null,
     tokens: countTokens(result.text),
     reciprocalRank: rank ? 1 / rank : 0,
