@@ -1,6 +1,6 @@
 # The README demo, about 20 seconds. Regenerate with: vhs docs/demo.tape
 # Needs VHS (https://github.com/charmbracelet/vhs) and a built checkout (npm run build).
-# Run it from the repository root. This script has not been run yet: check the recording.
+# Run it from the repository root. It needs the embedding model, so run `npx . doctor` once first.
 
 Output docs/demo.gif
 
@@ -15,7 +15,7 @@ Set Padding 20
 
 # Work on a throwaway copy of a fixture, with the build on the PATH as `remimem`.
 Hide
-Type "export DEMO=$(mktemp -d) && cp -R test/fixtures/ts-app/. $DEMO && alias remimem=\"node $PWD/dist/cli/index.js\" && cd $DEMO && clear"
+Type `export DEMO=$(mktemp -d) && cp -R test/fixtures/ts-app/. $DEMO && alias remimem="node $PWD/dist/cli/index.js" && cd $DEMO && clear`
 Enter
 Sleep 1s
 Show

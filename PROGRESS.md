@@ -144,17 +144,17 @@ Success metrics from the spec, as measured:
 
 Release checklist:
 
-| Item                                                                                     | State                                                                                                                                                                  |
-| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| README sections in order                                                                 | Done                                                                                                                                                                   |
-| Demo GIF                                                                                 | Not done: the recorder (VHS) is not installed on the build machine. The script is `docs/demo.tape`; `RELEASING.md` says how to record it and where the image line goes |
-| Install in one line, client configurations                                               | Done                                                                                                                                                                   |
-| How it works, tool reference, configuration, privacy, limitations, roadmap, contributing | Done                                                                                                                                                                   |
-| `CONTRIBUTING.md` with how to add a language                                             | Done                                                                                                                                                                   |
-| Issue and pull request templates                                                         | Done                                                                                                                                                                   |
-| `CHANGELOG.md`, version 0.1.0                                                            | Done                                                                                                                                                                   |
-| Publish command with provenance, release notes, repo topics, in `RELEASING.md`           | Prepared, not performed                                                                                                                                                |
-| Package contents                                                                         | Checked with `npm pack --dry-run`; `npm publish --dry-run` was not run by the build, to stay clear of the rule against running `npm publish`                           |
+| Item                                                                                     | State                                                                                                                                        |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| README sections in order                                                                 | Done                                                                                                                                         |
+| Demo GIF                                                                                 | Done: `docs/demo.gif`, 26 seconds, recorded from `docs/demo.tape` with VHS 0.12.1 on 2026-11-15                                              |
+| Install in one line, client configurations                                               | Done                                                                                                                                         |
+| How it works, tool reference, configuration, privacy, limitations, roadmap, contributing | Done                                                                                                                                         |
+| `CONTRIBUTING.md` with how to add a language                                             | Done                                                                                                                                         |
+| Issue and pull request templates                                                         | Done                                                                                                                                         |
+| `CHANGELOG.md`, version 0.1.0                                                            | Done                                                                                                                                         |
+| Publish command with provenance, release notes, repo topics, in `RELEASING.md`           | Prepared, not performed                                                                                                                      |
+| Package contents                                                                         | Checked with `npm pack --dry-run`; `npm publish --dry-run` was not run by the build, to stay clear of the rule against running `npm publish` |
 
 ## Next
 
@@ -165,7 +165,6 @@ Release, by the repository owner: rename the GitHub repository, record the demo,
 ## Known issues
 
 - The GitHub repository is still named by the old working name; links in the docs point at the new name and resolve once the owner renames it.
-- The demo GIF does not exist yet, and neither `docs/demo.tape` nor the release workflow has been run.
 
 - The default embedding model is a small general-purpose model, not a code-trained one. On the benchmark the code-trained alternative did not find more files and indexed 5.5 times slower (decision 016, updated).
 - The OpenAI and Voyage providers are tested against a stubbed HTTP server only, not the live services (no API key was used).

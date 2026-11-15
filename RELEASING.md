@@ -18,20 +18,14 @@ How to publish a version. Nothing in this file has been run: the commands are pr
 
    Expected: a 404 error. If it prints a package, stop: the name has been taken.
 
-3. **Record the demo.** The README has no demo yet because the recorder was not installed on the build machine. Install [VHS](https://github.com/charmbracelet/vhs) (`brew install vhs`), then:
+3. **Re-record the demo if the output changed.** `docs/demo.gif` is generated from `docs/demo.tape` with [VHS](https://github.com/charmbracelet/vhs) (`brew install vhs`):
 
    ```sh
    npm run build
    vhs docs/demo.tape
    ```
 
-   That writes `docs/demo.gif` (about 20 seconds). Add this line to the README under the pitch and commit both files:
-
-   ```markdown
-   ![remimem answering a question in the terminal](docs/demo.gif)
-   ```
-
-   The tape script has not been run, so check the recording before committing it.
+   Check that the recording shows the `context` answer in full before committing it.
 
 4. **Give npm a way to trust the publish.** Either add an npm access token as the repository secret `NPM_TOKEN` (Settings, Secrets and variables, Actions), or set up trusted publishing for this repository and the `release.yml` workflow in the package settings on npmjs.com once the package exists.
 

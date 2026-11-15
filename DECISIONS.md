@@ -286,6 +286,6 @@ Each entry: context, options, decision, consequences.
 - **Decision:**
   - Publishing is a workflow started by hand (`.github/workflows/release.yml`), because npm provenance can only be produced by a CI run. It publishes with `npm publish --provenance --access public` and needs either the `NPM_TOKEN` secret or trusted publishing.
   - Package contents were checked with `npm pack --dry-run`, which lists the same files as `npm publish --dry-run`, so that no form of `npm publish` was run by the build.
-  - The demo is scripted for VHS in `docs/demo.tape`. The GIF was not recorded, since VHS is not installed on the build machine and installing software there was not asked for; the README does not reference an image that does not exist.
+  - The demo is scripted for VHS in `docs/demo.tape` and recorded to `docs/demo.gif` once the owner allowed installing VHS on the build machine.
   - VS Code setup in the README shows the workspace-root `.mcp.json` with `mcpServers` first and `.vscode/mcp.json` as the older format, following VS Code's own documentation (decision 024).
-- **Consequences:** Three things in the repository have never been executed: the release workflow, the demo script, and the end-to-end benchmark hook. Each says so where it lives.
+- **Consequences:** The end-to-end benchmark hook has never been executed, and says so where it lives.
