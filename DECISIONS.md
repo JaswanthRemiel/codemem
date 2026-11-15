@@ -115,7 +115,7 @@ Each entry: context, options, decision, consequences.
 
 - **Decision:** Default to `Xenova/all-MiniLM-L6-v2`. The jina model is a documented config option.
 - **Consequences:** The default is not code-aware, which the spec asked for. On the fixtures it still finds functions from descriptions that share no keywords. The Phase 8 benchmark should run both models so the choice rests on measured recall.
-- **Update, 2026-11-15:** The benchmark ran both on the test split with `get_context` at 4,000 tokens. MiniLM: file recall 93%, symbol recall 74%, MRR 0.61, 63s to index the three repos. Jina: 92%, 74%, 0.65, 346s. The code-trained model ranks the first right file a little higher but finds no more of them, so the default stays.
+- **Update, 2026-11-15:** The benchmark ran both on the test split with `get_context` at 4,000 tokens. MiniLM: file recall 93%, symbol recall 74%, recall@10 0.93, MRR 0.61, 62s to index the three repos. Jina: 92%, 74%, 0.93, 0.65, 324s. The code-trained model ranks the first right file a little higher but finds no more of them, so the default stays.
 
 ## 017: Vector storage and the embedding cache
 
@@ -245,8 +245,10 @@ Each entry: context, options, decision, consequences.
 
 - **Decision:**
   - A file or symbol counts as present when a block of the answer comes from that file or overlaps the symbol's lines, including signature-only blocks. For the baseline, every file it read and every symbol in those files.
-  - Tokens to first hit is measured in reading order, through the end of the first block from a ground-truth file. The headline compares medians only on tasks where both strategies reached one, because the baseline reaches fewer.
-  - Hit@10 and MRR use the ranking before packing: distinct files by best score.
+  - The token headline compares, over every test task, the mean tokens codemem serves per call with the mean the baseline reads, where a task on which the baseline did not read every ground-truth file counts as its full 40,000-token cap. A second figure charges codemem the same cap for each answer that lacks a ground-truth file. Tokens to first hit (reading order, through the first block from a ground-truth file) is kept as a table column, not a headline: it is a median over the tasks each strategy solved, which are different sets.
+  - Recall@10 is the share of a task's ground-truth files among the ten best-ranked files, averaged over tasks. Hit@10 (any one of them) is recorded but not reported as recall.
+  - A strict column counts a file only when a full body from it is shown.
+  - Recall@10 and MRR use the ranking before packing: distinct files by best score.
   - Results record the machine. `--compare` allows 0.05 on recall figures and 15% on tokens, because the quantized embedding model gives slightly different vectors on different CPU types.
 - **Consequences:** Counting a signature-only block as present is generous to codemem on file recall; symbol recall and the no-compression ablation show the other side.
 

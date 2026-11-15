@@ -59,6 +59,13 @@ Worst misses of `get_context@4000` on the test split (3 shown):
 - httpx `9fd6f0ca66`: "Ensure JSON representation is compact. #3363 (#3367)" wanted `httpx/_content.py`; file recall 0%, first ground-truth file ranked nowhere.
 - echo `8d1ae9d336`: "fix(static): reject encoded path separators that bypass route-level middleware (#3009)" wanted `echo.go`, `middleware/static.go`; file recall 50%, first ground-truth file ranked 1.
 
+Embedding models compared (`get_context@4000`, test split):
+
+| Model | Tokens per task | File recall | File recall, full body only | Symbol recall | Recall@10 | MRR | Latency p50 / p95 | First full index of all repos |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `local:Xenova/all-MiniLM-L6-v2` | 3,827 | 93% | 92% | 74% | 0.93 | 0.61 | 20 / 30 ms | 62s |
+| `local:jinaai/jina-embeddings-v2-base-code` | 3,769 | 92% | 92% | 74% | 0.93 | 0.65 | 35 / 83 ms | 324s |
+
 Re-indexing after a 20-file change on hono: 0.57s.
 
 Reproduce with `npm install && npx . bench` from a clone. Results vary slightly between CPU types, because the quantized embedding model rounds differently; `npx . bench --compare <results file>` reruns and checks each headline figure against a tolerance.

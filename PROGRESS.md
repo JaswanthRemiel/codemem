@@ -115,23 +115,24 @@
 ### Phase 8
 
 - Benchmark harness (`codemem bench`): three pinned repos (hono, httpx, echo), 108 tasks mined from real commits (72 training, 36 test), a grep-and-read baseline, `search_code` and `get_context` at three budgets, seven ablations, tuning on the training split, a results file per run, and a generated README section. `--compare` checks a rerun against a results file within a tolerance; `--e2e` is the opt-in agent run and has never been executed.
-- Test split, `get_context` at 4,000 tokens against the baseline (2026-11-15, Apple M5, 16 GB, Node.js 24.20.0, results file `bench/results/2026-11-15-952f39e.json`): file recall 93% against 60%, symbol recall 74% against 57%, hit@10 94% against 81%, MRR 0.61 against 0.40. On the 22 tasks where both reached a ground-truth file, the median tokens to get there are 719 against 16,374.
+- Test split (36 tasks), `get_context` at 4,000 tokens against the baseline (2026-11-15, Apple M5, 16 GB, Node.js 24.20.0, results file `bench/results/2026-11-15-9e63d69.json`). Tokens: 3,827 served per call on average against 27,529 read by the baseline, with the baseline's misses counted at its 40,000-token cap (86% fewer); charging codemem the same cap for its own incomplete answers gives 6,854 (75% fewer). Recall@10, the share of a task's ground-truth files among the ten best-ranked files: 0.93 against 0.79. File recall in the answer: 93% against 60%, and 92% when only a full body counts. Symbol recall 74% against 57%, MRR 0.61 against 0.40.
+- Without httpx `cabd1c095e`, the test task inspected before tuning (35 tasks): 3,823 against 27,535 tokens (86% fewer; 6,937 and 75% with codemem's misses at the cap), recall@10 0.93 against 0.79, file recall 93% against 59%, full-body file recall 92%.
 - Settings changed by tuning on the training split: `retrieval.textFileWeight` 0.25 (new; file recall 81.5% to 89.4% on training) and `retrieval.memoryMinSimilarity` 0.4 (was 0.3). Left unchanged because the differences were within about one task: `rrfK`, the symbol weight, `contextK`, `maxChunksPerFile`, `neighborBudgetShare`.
 - Name-match edges: the ablation does not show that they help. Removing them changed training file recall by one task (89.4% to 88.1%) and left test file recall unchanged, which is within noise for sets this small. They remain at the spec's weight of 0.2 pending a decision.
-- Embedding models on the test split: `Xenova/all-MiniLM-L6-v2` 93% file recall, MRR 0.61, 63s to index all three repos; `jinaai/jina-embeddings-v2-base-code` 92%, MRR 0.65, 346s. The default stays MiniLM.
-- Memory ablation (60 unlinked memories per repo, from older commit subjects): 2.4 attached per task on the test split, 25% of them relevant, 54% of tasks with a relevant memory get one; code recall is unchanged with memories on.
+- Embedding models on the test split: `Xenova/all-MiniLM-L6-v2` 93% file recall, recall@10 0.93, MRR 0.61, 62s to index all three repos; `jinaai/jina-embeddings-v2-base-code` 92%, 0.93, MRR 0.65, 324s. The default stays MiniLM.
+- Memory ablation (60 unlinked memories per repo, from older commit subjects): 2.4 attached per task on the test split, 25% of them relevant, 54% of tasks with a relevant memory get one; file recall is unchanged with memories on (full-body file recall 90% against 92%).
 - hono's TypeScript config has no `paths` or `baseUrl`, so path alias support was not added.
 
 Success metrics from the spec, as measured:
 
-| Metric                                               | Target             | Measured                                                                 |
-| ---------------------------------------------------- | ------------------ | ------------------------------------------------------------------------ |
-| Tokens to reach the right code, against the baseline | at least 40% fewer | 96% fewer (median 719 against 16,374, on the 22 test tasks both reached) |
-| Retrieval recall@10                                  | at least 0.80      | 0.94 of test tasks have a ground-truth file in the ten best-ranked files |
-| Full index of a 100k-line repo, local embeddings     | under 3 minutes    | 38s (hono, 99k lines)                                                    |
-| Incremental re-index after a change under 20 files   | under 3 seconds    | 0.97s on hono from the command line, 2.0s on nest (277k lines)           |
-| Query latency p95, warm index                        | under 300 ms       | 35 ms in the benchmark; 65 ms on nest including the change check         |
-| Install to first answer                              | under 2 minutes    | 26s from empty caches                                                    |
+| Metric                                               | Target             | Measured                                                                                                                                           |
+| ---------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tokens to reach the right code, against the baseline | at least 40% fewer | 86% fewer per task (3,827 served against 27,529, baseline misses at its cap); 75% fewer when codemem's incomplete answers are also charged the cap |
+| Retrieval recall@10                                  | at least 0.80      | 0.93 (share of a task's ground-truth files in the ten best-ranked files, mean over 36 test tasks; baseline 0.79)                                   |
+| Full index of a 100k-line repo, local embeddings     | under 3 minutes    | 38s (hono, 99k lines)                                                                                                                              |
+| Incremental re-index after a change under 20 files   | under 3 seconds    | 0.97s on hono from the command line, 2.0s on nest (277k lines)                                                                                     |
+| Query latency p95, warm index                        | under 300 ms       | 35 ms in the benchmark; 65 ms on nest including the change check                                                                                   |
+| Install to first answer                              | under 2 minutes    | 26s from empty caches                                                                                                                              |
 
 ## Next
 
@@ -149,7 +150,6 @@ Phase 9: release prep (README, CONTRIBUTING, CHANGELOG, templates, RELEASING.md)
 - `sqlite-vec` has no prebuilt extension for Windows on ARM.
 - Benchmark limits: task text is the commit message, written after the change; the test split has 36 tasks; the baseline is a simulation. One test task was inspected while debugging the harness, before tuning.
 - In the memory ablation only a quarter of attached memories were relevant. The keyword threshold made no difference there, because commit subjects are short; it is untested on longer memories.
-- The second model's results file is named `-dirty` because the first run had just rewritten README.md; the code was the same commit.
 - httpx is the weakest repo (83% file recall): its two total misses are tasks whose message names nothing found in the changed files.
 - `memory.json` has one memory per line, sorted by id, so most concurrent additions merge cleanly. Two additions that land next to each other, or after the last line, can still conflict; a broken file is refused rather than loaded.
 - Quick change detection trusts size and modification time. A change that keeps both is missed until `codemem index` runs; this is the same trade git makes.
