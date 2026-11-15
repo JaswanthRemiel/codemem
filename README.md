@@ -13,56 +13,51 @@ How much context does codemem save, and does it find the right code? Each task i
 <!-- prettier-ignore-start -->
 <!-- bench:start -->
 
-Measured on 2026-11-15 with codemem `952f39e` on Apple M5 (10 cores, 16 GB, darwin 27.2.0, Node.js v24.20.0), embedding model `local:Xenova/all-MiniLM-L6-v2`. Test split: 36 of 108 tasks, held out from tuning. Token counts are approximate.
+Measured on 2026-11-15 with codemem `9e63d69` on Apple M5 (10 cores, 16 GB, darwin 27.2.0, Node.js v24.20.0), embedding model `local:Xenova/all-MiniLM-L6-v2`. Test split: 36 of 108 tasks, held out from tuning. Ground-truth files are the non-test source files a task's commit changed. Token counts are approximate.
 
-**Headline (test split, `get_context@4000` against the grep baseline):** the right file is in the answer for 93% of ground-truth files (baseline 60%), a ground-truth file is among the ten best-ranked files in 94% of tasks (baseline 81%), and on the 22 tasks where both reached a ground-truth file, the median tokens to get there are 719 against 16,374 (96% fewer).
+**Headline (test split, 36 tasks, `get_context@4000` against the grep baseline).** Tokens: codemem serves 3,827 per call on average; the baseline reads 27,529 per task on average, with each task where it did not read every ground-truth file counted at its 40,000-token cap. That is 86% fewer (target: at least 40% fewer). Charging codemem the same cap for each task where its answer lacks a ground-truth file gives 6,854, 75% fewer. Recall@10: on average 0.93 of a task's ground-truth files are among the ten best-ranked files (baseline 0.79; target 0.80). File recall in the answer: 93% (baseline 60%); counting a file only when a full body from it is shown, not a signature-only block: 92%.
 
-| Strategy | File recall | Symbol recall | Hit@10 | MRR | Reached | Tokens to first hit | Tokens used | Latency p50 / p95 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| baseline: grep and read whole files, 40,000-token cap | 60% | 57% | 81% | 0.40 | 61% | 16,374 | 27,678 | 5 / 10 ms |
-| `search_code` at 2,000 tokens | 83% | 73% | 89% | 0.60 | 86% | 534 | 1,895 | 14 / 30 ms |
-| `search_code` at 4,000 tokens | 85% | 74% | 89% | 0.60 | 89% | 1,126 | 3,353 | 19 / 32 ms |
-| `search_code` at 8,000 tokens | 85% | 77% | 89% | 0.60 | 89% | 953 | 3,913 | 22 / 30 ms |
-| `get_context` at 2,000 tokens | 87% | 67% | 94% | 0.61 | 89% | 630 | 1,943 | 16 / 33 ms |
-| `get_context` at 4,000 tokens | 93% | 74% | 94% | 0.61 | 94% | 1,228 | 3,827 | 22 / 35 ms |
-| `get_context` at 8,000 tokens | 93% | 78% | 94% | 0.61 | 94% | 1,232 | 6,218 | 29 / 42 ms |
+**The same without httpx `cabd1c095e`** (35 tasks), a test task that was inspected while the harness was being debugged, before tuning: Tokens: codemem serves 3,823 per call on average; the baseline reads 27,535 per task on average, with each task where it did not read every ground-truth file counted at its 40,000-token cap. That is 86% fewer (target: at least 40% fewer). Charging codemem the same cap for each task where its answer lacks a ground-truth file gives 6,937, 75% fewer. Recall@10: on average 0.93 of a task's ground-truth files are among the ten best-ranked files (baseline 0.79; target 0.80). File recall in the answer: 93% (baseline 59%); counting a file only when a full body from it is shown, not a signature-only block: 92%.
 
-Columns: *file recall* and *symbol recall* are the share of ground-truth files and symbols present in what was returned (for the baseline, in the files it read). *Hit@10* is the share of tasks with a ground-truth file among the ten best-ranked files, and *MRR* the mean reciprocal rank of the first one. *Reached* is the share of tasks in which a ground-truth file was returned at all; *tokens to first hit* is the median over those tasks. *Tokens used* is the mean size of the answer (for the baseline, of everything it read).
+| Strategy | Tokens per task | File recall | File recall, full body only | Symbol recall | Recall@10 | MRR | Reached | Tokens to first hit | Latency p50 / p95 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| baseline: grep and read whole files, 40,000-token cap | 27,529 | 60% | 60% | 57% | 0.79 | 0.40 | 61% | 16,374 | 5 / 9 ms |
+| `search_code` at 2,000 tokens | 1,895 | 83% | 80% | 73% | 0.85 | 0.60 | 86% | 534 | 14 / 28 ms |
+| `search_code` at 4,000 tokens | 3,353 | 85% | 85% | 74% | 0.85 | 0.60 | 89% | 1,126 | 18 / 30 ms |
+| `search_code` at 8,000 tokens | 3,913 | 85% | 85% | 77% | 0.85 | 0.60 | 89% | 953 | 20 / 30 ms |
+| `get_context` at 2,000 tokens | 1,943 | 87% | 81% | 67% | 0.93 | 0.61 | 89% | 630 | 15 / 28 ms |
+| `get_context` at 4,000 tokens | 3,827 | 93% | 92% | 74% | 0.93 | 0.61 | 94% | 1,228 | 20 / 30 ms |
+| `get_context` at 8,000 tokens | 6,218 | 93% | 93% | 78% | 0.93 | 0.61 | 94% | 1,232 | 27 / 43 ms |
+
+Columns: *tokens per task* is the mean size of the answer; for the baseline it is what it read, with a task counted at the 40,000-token cap when it did not read every ground-truth file. *File recall* and *symbol recall* are the share of ground-truth files and symbols present in what was returned (for the baseline, in the files it read); *full body only* does not count a file that appears only as a signature. *Recall@10* is the share of a task's ground-truth files among the ten best-ranked files, averaged over tasks, and *MRR* the mean reciprocal rank of the first one. *Reached* is the share of tasks in which any ground-truth file was returned, and *tokens to first hit* the median over those tasks.
 
 Ablations of `get_context` at 4,000 tokens (test split):
 
-| Strategy | File recall | Symbol recall | Hit@10 | MRR | Reached | Tokens to first hit | Tokens used | Latency p50 / p95 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| full | 93% | 74% | 94% | 0.61 | 94% | 1,228 | 3,827 | 22 / 35 ms |
-| keyword only | 80% | 68% | 89% | 0.54 | 81% | 1,022 | 3,824 | 16 / 23 ms |
-| vector only | 79% | 50% | 89% | 0.53 | 83% | 800 | 3,690 | 19 / 27 ms |
-| no graph expansion | 92% | 67% | 94% | 0.62 | 94% | 1,212 | 3,594 | 19 / 33 ms |
-| no signature compression | 90% | 67% | 94% | 0.61 | 92% | 1,228 | 3,896 | 22 / 36 ms |
-| no name-match edges | 93% | 71% | 94% | 0.61 | 94% | 1,228 | 3,794 | 20 / 35 ms |
-| with memories | 93% | 74% | 94% | 0.61 | 94% | 1,272 | 3,829 | 27 / 49 ms |
+| Strategy | Tokens per task | File recall | File recall, full body only | Symbol recall | Recall@10 | MRR | Reached | Tokens to first hit | Latency p50 / p95 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| full | 3,827 | 93% | 92% | 74% | 0.93 | 0.61 | 94% | 1,228 | 20 / 30 ms |
+| keyword only | 3,824 | 80% | 77% | 68% | 0.88 | 0.54 | 81% | 1,022 | 16 / 23 ms |
+| vector only | 3,690 | 79% | 76% | 50% | 0.85 | 0.53 | 83% | 800 | 18 / 29 ms |
+| no graph expansion | 3,594 | 92% | 92% | 67% | 0.93 | 0.62 | 94% | 1,212 | 18 / 30 ms |
+| no signature compression | 3,896 | 90% | 90% | 67% | 0.93 | 0.61 | 92% | 1,228 | 22 / 32 ms |
+| no name-match edges | 3,794 | 93% | 92% | 71% | 0.93 | 0.61 | 94% | 1,228 | 19 / 30 ms |
+| with memories | 3,829 | 93% | 90% | 74% | 0.93 | 0.61 | 94% | 1,272 | 26 / 42 ms |
 
 Memory ablation: each repo gets 60 memories made from older commit subjects, unlinked, so they have to match the task text. With memories on, 2.4 are attached per task; 25% of attached memories come from a commit that touched a ground-truth file, and 54% of the tasks that have such a memory get at least one.
 
 Per repository (test split):
 
-| Repository | Language | Lines | Tasks | Baseline file recall | `get_context` file recall | Baseline tokens to first hit | `get_context` tokens to first hit |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| [hono](https://github.com/honojs/hono) at `f6fbaf0299` (MIT) | typescript | 99,158 | 12 | 58% | 100% | 14,067 | 1,718 |
-| [httpx](https://github.com/encode/httpx) at `b5addb64f0` (BSD-3-Clause) | python | 33,460 | 12 | 71% | 83% | 23,928 | 719 |
-| [echo](https://github.com/labstack/echo) at `f275a6b110` (MIT) | go | 49,731 | 12 | 50% | 96% | 9,890 | 1,232 |
+| Repository | Language | Lines | Tasks | Baseline tokens per task | `get_context` tokens per task | Baseline recall@10 | `get_context` recall@10 | Baseline file recall | `get_context` file recall |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [hono](https://github.com/honojs/hono) at `f6fbaf0299` (MIT) | typescript | 99,158 | 12 | 27,622 | 3,866 | 0.67 | 1.00 | 58% | 100% |
+| [httpx](https://github.com/encode/httpx) at `b5addb64f0` (BSD-3-Clause) | python | 33,460 | 12 | 28,072 | 3,773 | 0.71 | 0.83 | 71% | 83% |
+| [echo](https://github.com/labstack/echo) at `f275a6b110` (MIT) | go | 49,731 | 12 | 26,892 | 3,842 | 1.00 | 0.96 | 50% | 96% |
 
 Worst misses of `get_context@4000` on the test split (3 shown):
 
 - httpx `609df7ecc0`: "Reintroduce `URLTypes`. (#3288)" wanted `httpx/__version__.py`, `httpx/_types.py`; file recall 0%, first ground-truth file ranked nowhere.
 - httpx `9fd6f0ca66`: "Ensure JSON representation is compact. #3363 (#3367)" wanted `httpx/_content.py`; file recall 0%, first ground-truth file ranked nowhere.
 - echo `8d1ae9d336`: "fix(static): reject encoded path separators that bypass route-level middleware (#3009)" wanted `echo.go`, `middleware/static.go`; file recall 50%, first ground-truth file ranked 1.
-
-Embedding models compared (`get_context@4000`, test split):
-
-| Model | File recall | Symbol recall | Hit@10 | MRR | Latency p50 / p95 | First full index of all repos |
-| --- | --- | --- | --- | --- | --- | --- |
-| `local:Xenova/all-MiniLM-L6-v2` | 93% | 74% | 94% | 0.61 | 22 / 35 ms | 63s |
-| `local:jinaai/jina-embeddings-v2-base-code` | 92% | 74% | 94% | 0.65 | 33 / 91 ms | 346s |
 
 Re-indexing after a 20-file change on hono: 0.57s.
 
