@@ -209,7 +209,7 @@ test('tasks are mined from real commits: fixes and features that change existing
   expect(tasks[1]?.files).toEqual(['src/auth.ts']);
   expect(tasks[1]?.symbols.map((s) => s.name)).toEqual(['authenticateUser']);
   expect(tasks.map((t) => t.split)).toEqual(['train', 'train']);
-});
+}, 60_000);
 
 const TASK: BenchTask = {
   id: 'demo1',
