@@ -42,7 +42,7 @@ npm test
 npm run coverage
 ```
 
-Expected: every command exits with code 0. `npm run check:chars` prints `check-chars: N tracked files clean`. `npm test` builds first, then ends with `Test Files  14 passed (14)`. `npm run coverage` runs the same tests, prints a coverage table, and fails if line coverage of `src/parser`, `src/chunker`, `src/retriever`, `src/packer`, `src/graph`, or `src/memory` drops below 80%.
+Expected: every command exits with code 0. `npm run check:chars` prints `check-chars: N tracked files clean`. `npm test` builds first, then ends with `Test Files  15 passed (15)`. `npm run coverage` runs the same tests, prints a coverage table, and fails if line coverage of `src/parser`, `src/chunker`, `src/retriever`, `src/packer`, `src/graph`, or `src/memory` drops below 80%.
 
 ## Run the CLI
 
@@ -179,6 +179,7 @@ Optional settings go in `.codemem/config.json`. Every field has a default; this 
 
 - `embedding.provider`: `local` (default, nothing leaves the machine), `none` (keyword search only), or `openai` and `voyage`, which send your code to that service and read the key from `OPENAI_API_KEY` or `VOYAGE_API_KEY`.
 - `embedding.model`: for a slower, code-trained local model use `jinaai/jina-embeddings-v2-base-code` (163 MB download), then run `codemem index --full`.
+- `retrieval.textFileWeight` (default 0.25): how much a result from a file that is not parsed as code (Markdown, JSON, SQL) counts against one from code. Set it to 1 to rank documentation equally.
 - `retrieval`: also `keywordWeights`, `defaultK`, and the graph settings `graphTopN` (how many top results get neighbors, 0 turns expansion off), `graphMaxNeighbors`, and `edgeWeights`.
 
 ## Inspect the call graph
@@ -398,7 +399,41 @@ Other commands: `memory list "<query>"` searches, `memory list --kind todo` filt
 
 ## Run the benchmark
 
-Not available yet. The benchmark arrives in Phase 8.
+The benchmark runs from a checkout of this repo, with one command. It needs network access the first time, to clone three repositories (about 150 MB) and download the embedding model, and no API key. It takes 5 to 10 minutes.
+
+```sh
+npx . bench
+```
+
+What it does:
+
+1. Clones the repositories pinned in `bench/repos.json` into `~/.cache/codemem/bench` (set `CODEMEM_CACHE_DIR` to move it): hono (TypeScript), httpx (Python), and echo (Go).
+2. For each of the 108 tasks in `bench/tasks/*.jsonl`, checks out the commit before the task's commit, brings the index up to date, and runs every strategy.
+3. Prints a summary and writes `bench/results/<date>-<commit>.json` (every task's raw result) and a matching `.md` file.
+
+Expected: a progress line per task (`hono 1/36 c3053ccf14 (train)`), then the summary that is also in the README: a headline, a table of the grep baseline against `search_code` and `get_context` at 2,000, 4,000, and 8,000 tokens, the ablations, a per-repository table, the worst misses, and the time to re-index after a 20-file change. The figures should be close to the README's; they differ slightly between CPU types because the quantized embedding model rounds differently. To check a run against a results file within a tolerance (0.05 on recall figures, 15% on tokens):
+
+```sh
+npx . bench --compare bench/results/<file>.json
+```
+
+Expected: a list of `ok` lines and exit code 0; a `DIFF` line and exit code 1 mean a headline figure moved by more than the tolerance.
+
+Other options:
+
+| Option            | What it does                                                                                                                                                            |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--repo <name>`   | Run one repository (repeatable).                                                                                                                                        |
+| `--limit <n>`     | Run only the first n tasks of each repository, for a quick try.                                                                                                         |
+| `--update-readme` | Paste the summary into `README.md` between the `bench:start` and `bench:end` markers.                                                                                   |
+| `--tune`          | Also run the tuning configurations on the training split and print that table.                                                                                          |
+| `--model <name>`  | Index with another embedding model, for example `jinaai/jina-embeddings-v2-base-code`. The README then shows both models.                                               |
+| `--mine`          | Rebuild `bench/tasks` and `bench/memories` from the pinned commits. Not needed to reproduce the results: the task files are committed.                                  |
+| `--e2e`           | Print the cost estimate for a run with a real coding agent, with and without codemem. Nothing runs without `--yes`, and that costs money. This path has never been run. |
+
+How a task is built: each one is a real commit that fixes a bug or adds a feature, touches at most eight files, and changes at least one existing source file. The task text is the commit message. The ground truth is the set of non-test source files the commit changed and the symbols whose lines it changed. One task in three (by commit order) is in the test split; settings are tuned on the other two thirds only, and the README reports the test split.
+
+How the baseline works: it takes up to eight keywords from the task text, ranks files by how many of them each contains, and reads whole files in that order until it has read every ground-truth file or used 40,000 tokens.
 
 ## Per-phase verification checklist
 
@@ -535,6 +570,19 @@ time node "$CODEMEM/dist/cli/index.js" index
 
 Expected: the second `index` prints `Indexed 20 of 2797 files` (the total changes as that repo changes) and `time` reports under 3 seconds. Measured on 2026-11-14 on an Apple M5: 2.0 seconds, of which reading and parsing 0.8s, rebuilding the graph 0.6s, and embedding the new chunks 0.5s. The first `index` of that repo takes about 2 minutes because it embeds every chunk.
 
+### Phase 8
+
+Run from a fresh clone, after `npm install`:
+
+| Step | Command                                                                | Correct result                                                                                                 |
+| ---- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 1    | `npm run coverage`                                                     | `Test Files  15 passed (15)` and no threshold error                                                            |
+| 2    | `npx vitest run test/bench.test.ts`                                    | 9 tests pass, including `the benchmark data in this repo is complete, and the README shows the latest results` |
+| 3    | `npx . bench --limit 2`                                                | Six progress lines, then a summary with all tables; finishes in about a minute after the clones                |
+| 4    | `npx . bench`                                                          | The full summary; the headline figures are close to the README's                                               |
+| 5    | `npx . bench --compare bench/results/<newest default-model file>.json` | Every line starts with `ok`, exit code 0                                                                       |
+| 6    | `npx . bench --e2e`                                                    | Three lines: the number of agent runs, an estimated cost, and `Nothing was run.`                               |
+
 ## Troubleshooting
 
 - **`npx .` says "Permission denied" or "command not found".** `dist/` is missing or stale. Run `npm run build`.
@@ -556,5 +604,8 @@ Expected: the second `index` prints `Indexed 20 of 2797 files` (the total change
 - **A memory is marked STALE.** Code it is linked to changed after it was written. If it is still true, delete it and add it again to link it to the current code; if not, `codemem memory rm <id>`. A memory that arrived through git can also show as stale when your checkout differs from the author's.
 - **A tool answers with stale code.** The server re-indexes changed files before each tool call, judging by size and modification time. A file whose content changed while both stayed the same is missed: run `codemem index`, which hashes every file. If answers end with `(index refresh still running ...)`, a large re-index is in progress; ask again shortly.
 - **`codemem watch` does not notice changes.** Files under excluded directories (`node_modules`, `dist`, `vendor`, and so on) are not watched. On Linux, a large repo can exceed the inotify watch limit; raise `fs.inotify.max_user_watches`.
+- **`codemem bench` says it runs from a source checkout.** The benchmark is not part of the npm package. Clone the repo, run `npm install`, and use `npx . bench`.
+- **`codemem bench` fails while cloning or checking out.** Delete the affected directory under `~/.cache/codemem/bench` and run it again; the clone is repeated.
+- **Benchmark figures differ from the README.** Small differences between CPU types are expected; use `--compare` to see whether they are within the tolerance. Larger differences usually mean the task files or the pinned commits were changed.
 - **A caller or callee is missing from `debug symbol`.** Resolution is best effort and never guesses across an import that leads outside the repo. A call on a value whose type is unknown (`user.save()`) resolves only when one symbol in the repo has that name. Calls to library functions have no edge.
 - **Indexing is slow.** Embedding is the slow stage: about 160 chunks per second with the default model on an Apple M5 laptop, so a 277k-line repo takes about 106 seconds. It runs once; later runs embed only changed chunks.

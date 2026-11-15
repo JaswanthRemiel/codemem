@@ -10,7 +10,7 @@
 - [x] Phase 5: MCP server and init
 - [x] Phase 6: Memory
 - [x] Phase 7: Incremental indexing, watch, stats
-- [ ] Phase 8: Benchmark
+- [x] Phase 8: Benchmark
 - [ ] Phase 9: Release prep
 
 ## Done
@@ -112,32 +112,47 @@
 - Config: `watch.debounceMs` and `telemetry` (always `false`).
 - Measured on nest (277k lines, 2,797 files, Apple M5, 2026-11-14): a 20-file change re-indexes in 2.0s end to end (target under 3s); the quick check with nothing changed takes about 30 ms; `get_context` including that check runs at p50 56 ms and p95 65 ms.
 
+### Phase 8
+
+- Benchmark harness (`codemem bench`): three pinned repos (hono, httpx, echo), 108 tasks mined from real commits (72 training, 36 test), a grep-and-read baseline, `search_code` and `get_context` at three budgets, seven ablations, tuning on the training split, a results file per run, and a generated README section. `--compare` checks a rerun against a results file within a tolerance; `--e2e` is the opt-in agent run and has never been executed.
+- Test split, `get_context` at 4,000 tokens against the baseline (2026-11-15, Apple M5, 16 GB, Node.js 24.20.0, results file `bench/results/2026-11-15-952f39e.json`): file recall 93% against 60%, symbol recall 74% against 57%, hit@10 94% against 81%, MRR 0.61 against 0.40. On the 22 tasks where both reached a ground-truth file, the median tokens to get there are 719 against 16,374.
+- Settings changed by tuning on the training split: `retrieval.textFileWeight` 0.25 (new; file recall 81.5% to 89.4% on training) and `retrieval.memoryMinSimilarity` 0.4 (was 0.3). Left unchanged because the differences were within about one task: `rrfK`, the symbol weight, `contextK`, `maxChunksPerFile`, `neighborBudgetShare`.
+- Name-match edges stay in graph expansion: without them training file recall drops from 89.4% to 88.1% and test symbol recall from 74% to 71%.
+- Embedding models on the test split: `Xenova/all-MiniLM-L6-v2` 93% file recall, MRR 0.61, 63s to index all three repos; `jinaai/jina-embeddings-v2-base-code` 92%, MRR 0.65, 346s. The default stays MiniLM.
+- Memory ablation (60 unlinked memories per repo, from older commit subjects): 2.4 attached per task on the test split, 25% of them relevant, 54% of tasks with a relevant memory get one; code recall is unchanged with memories on.
+- hono's TypeScript config has no `paths` or `baseUrl`, so path alias support was not added.
+
+Success metrics from the spec, as measured:
+
+| Metric                                               | Target             | Measured                                                                 |
+| ---------------------------------------------------- | ------------------ | ------------------------------------------------------------------------ |
+| Tokens to reach the right code, against the baseline | at least 40% fewer | 96% fewer (median 719 against 16,374, on the 22 test tasks both reached) |
+| Retrieval recall@10                                  | at least 0.80      | 0.94 of test tasks have a ground-truth file in the ten best-ranked files |
+| Full index of a 100k-line repo, local embeddings     | under 3 minutes    | 38s (hono, 99k lines)                                                    |
+| Incremental re-index after a change under 20 files   | under 3 seconds    | 0.97s on hono from the command line, 2.0s on nest (277k lines)           |
+| Query latency p95, warm index                        | under 300 ms       | 35 ms in the benchmark; 65 ms on nest including the change check         |
+| Install to first answer                              | under 2 minutes    | 26s from empty caches                                                    |
+
 ## Next
 
-Phase 8: benchmark (repos, tasks mined from history, baseline and codemem strategies, ablations, metrics, README table).
+Phase 9: release prep (README, CONTRIBUTING, CHANGELOG, templates, RELEASING.md). No publish.
 
 ## Notes for later phases
 
-- Phase 8: record the machine the benchmark ran on (CPU, memory, OS, Node.js version) in the results file and the README.
-- Phase 8: the quantized embedding model gives slightly different vectors on different CPUs, so ranks can shift by a place. Either compare results with a tolerance or offer a full-precision model option, and say which in the README.
-- Phase 8: add an ablation for graph expansion with and without `name-match` edges. If recall does not drop without them, leave `name-match` out of expansion by default.
-- Phase 8: add an ablation with project memories on and off in `get_context`.
-- Phase 8: tune the memory thresholds (`retrieval.memoryMinKeywordMatch`, `retrieval.memoryMinSimilarity`) on the training split only.
-- Phase 8: re-measure the 20-file re-index on the largest benchmark repo.
-- Phase 8: before deciding on `tsconfig.json` path alias support, check whether the chosen TypeScript benchmark repo uses `paths`.
-
 ## Known issues
 
-- The default embedding model is a small general-purpose model, not a code-trained one (see decision 016). The benchmark in Phase 8 should compare it with `jinaai/jina-embeddings-v2-base-code`.
+- The default embedding model is a small general-purpose model, not a code-trained one. On the benchmark the code-trained alternative did not find more files and indexed 5.5 times slower (decision 016, updated).
 - The OpenAI and Voyage providers are tested against a stubbed HTTP server only, not the live services (no API key was used).
 - Install size: `@huggingface/transformers` brings about 430 MB of ONNX runtime files into `node_modules`.
 - Cached vectors of chunks that were edited away are pruned only by `codemem index --full`.
 - Each vector is stored twice (search table and cache), which adds about 1.5 KB per chunk.
 - `sqlite-vec` has no prebuilt extension for Windows on ARM.
-- The memory match thresholds (half of the query terms, or cosine similarity 0.3) are first guesses; Phase 8 should check them with the memories ablation.
+- Benchmark limits: task text is the commit message, written after the change; the test split has 36 tasks; the baseline is a simulation. One test task was inspected while debugging the harness, before tuning.
+- In the memory ablation only a quarter of attached memories were relevant. The keyword threshold made no difference there, because commit subjects are short; it is untested on longer memories.
+- The second model's results file is named `-dirty` because the first run had just rewritten README.md; the code was the same commit.
+- httpx is the weakest repo (83% file recall): its two total misses are tasks whose message names nothing found in the changed files.
 - `memory.json` has one memory per line, sorted by id, so most concurrent additions merge cleanly. Two additions that land next to each other, or after the last line, can still conflict; a broken file is refused rather than loaded.
 - Quick change detection trusts size and modification time. A change that keeps both is missed until `codemem index` runs; this is the same trade git makes.
-- The 3-second re-index target was measured on nest, since the benchmark repos are chosen in Phase 8. Re-measure on the largest of them then.
 - The `stats` baseline assumes an agent would read in full every file a result body came from, so the saving it shows is an upper bound, not a measurement.
 - The MCP Inspector check and the manual run in Claude Code are documented in SETUP.md but were not run by the build agent; the same protocol paths are covered by automated tests.
 - `codemem index` creates `.codemem/` but only `codemem init` adds the index to `.gitignore`.

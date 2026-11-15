@@ -115,6 +115,7 @@ Each entry: context, options, decision, consequences.
 
 - **Decision:** Default to `Xenova/all-MiniLM-L6-v2`. The jina model is a documented config option.
 - **Consequences:** The default is not code-aware, which the spec asked for. On the fixtures it still finds functions from descriptions that share no keywords. The Phase 8 benchmark should run both models so the choice rests on measured recall.
+- **Update, 2026-11-15:** The benchmark ran both on the test split with `get_context` at 4,000 tokens. MiniLM: file recall 93%, symbol recall 74%, MRR 0.61, 63s to index the three repos. Jina: 92%, 74%, 0.65, 346s. The code-trained model ranks the first right file a little higher but finds no more of them, so the default stays.
 
 ## 017: Vector storage and the embedding cache
 
@@ -227,3 +228,45 @@ Each entry: context, options, decision, consequences.
 - **Context:** chokidar 6 requires Node.js 22.22 or newer; the project minimum is 22.13.
 - **Decision:** Use chokidar 5 (Node.js 20.19 or newer).
 - **Consequences:** One major behind. Move to 6 if the minimum Node.js version is raised.
+
+## 030: Benchmark repositories and tasks
+
+- **Context:** The spec asks for one permissively licensed repo each in TypeScript, Python, and Go, 20k to 200k lines, with 25 to 40 tasks each taken from real history.
+- **Decision:** hono (MIT, 99k lines), httpx (BSD-3-Clause, 33k), and echo (MIT, 50k), pinned in `bench/repos.json`. Six candidates were mined; these three had dense, descriptive first-parent history. Each task is one of the 36 most recent commits that is not by a bot, does not look like a chore, docs, CI, test, or release commit, touches at most eight files, and modifies at least one existing non-test source file. Task text is the commit message with trailers removed; em dashes and emojis are replaced because this repo bans them in tracked files. Ground truth is the modified non-test source files, plus the symbols of the parent tree whose lines the commit changed. Every third task in commit order is in the test split.
+- **Consequences:** Tasks need no network API and are frozen in `bench/tasks`. Commit messages are written after the change and sometimes name the changed code, which makes tasks easier than bug reports. Files a commit adds are not ground truth, since they do not exist in the tree being searched. hono has no `paths` in its TypeScript config, so path alias support was not needed.
+
+## 031: The baseline is simulated in process
+
+- **Context:** The spec's baseline extracts keywords, runs ripgrep, and reads whole matching files in rank order up to 40,000 tokens.
+- **Decision:** The same procedure, done in process instead of by calling `rg`: up to eight keywords (identifier-like words first, then the longest), a case-insensitive whole-word count per file, files ranked by distinct keywords matched and then by total matches, read in full until every ground-truth file is read or the cap is reached. It searches the same file set codemem indexes.
+- **Consequences:** No ripgrep install is needed and the result is deterministic. It is a model of an agent, not an agent.
+
+## 032: Benchmark metrics
+
+- **Decision:**
+  - A file or symbol counts as present when a block of the answer comes from that file or overlaps the symbol's lines, including signature-only blocks. For the baseline, every file it read and every symbol in those files.
+  - Tokens to first hit is measured in reading order, through the end of the first block from a ground-truth file. The headline compares medians only on tasks where both strategies reached one, because the baseline reaches fewer.
+  - Hit@10 and MRR use the ranking before packing: distinct files by best score.
+  - Results record the machine. `--compare` allows 0.05 on recall figures and 15% on tokens, because the quantized embedding model gives slightly different vectors on different CPU types.
+- **Consequences:** Counting a signature-only block as present is generous to codemem on file recall; symbol recall and the no-compression ablation show the other side.
+
+## 033: What tuning changed
+
+- **Context:** Settings were tried one at a time on the 72 training tasks with `get_context` at 4,000 tokens, in three rounds.
+- **Decision:**
+  - New setting `retrieval.textFileWeight`, default 0.25: chunks of files that are not parsed as code score a quarter. Changelogs and docs were taking most of the top results for commit-message queries. Training file recall 81.5% to 89.4%, symbol recall 69.5% to 73.9%.
+  - `retrieval.memoryMinSimilarity` 0.3 to 0.4: memory precision 29% to 38%, memory recall 74% to 60%, the best balance of the two in the grid.
+  - Tried and left at their defaults, because the differences were about one task either way: `rrfK` (20, 120), symbol weight (2, 10), `contextK` (10, 40). `neighborBudgetShare` (a share of the budget kept for neighbor signatures) helped before the text weight was added and not after, so it defaults to 0. `maxChunksPerFile` at 2 raised file recall to 92.4% but lowered symbol recall to 69.2%, so it defaults to off.
+  - Name-match edges stay in graph expansion: removing them lowered training file recall from 89.4% to 88.1%.
+- **Consequences:** Three settings exist mainly so the benchmark can vary them. One test-split task (httpx `cabd1c095e`) was inspected while the harness was being debugged, before any tuning; it is what pointed at changelog chunks. The setting was then chosen on the training split, but that task is not a clean test case.
+
+## 034: The memory ablation
+
+- **Context:** The benchmark repos have no project memories.
+- **Decision:** For each repo, the 60 qualifying commits older than its tasks become memories whose text is the commit subject. They are stored without links, so they must match the task on their own. A memory counts as relevant to a task when its commit touched one of the task's ground-truth files.
+- **Consequences:** On the test split 25% of attached memories are relevant and code recall is unchanged. Commit subjects stand in for real decisions and conventions, so this measures the matching rule, not the value of memory.
+
+## 035: Where the benchmark code lives
+
+- **Decision:** `src/bench/` is compiled with everything else and left out of the npm package by a `!dist/bench` entry in `files`. The data (`repos.json`, tasks, memories, results) is in the top-level `bench/` directory, which is not packaged either. `codemem bench` loads the code on demand and explains itself when it is absent.
+- **Consequences:** One build, no second compiler config. The published CLI has a `bench` command that only works from a checkout.
