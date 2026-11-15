@@ -81,7 +81,7 @@ Each entry: context, options, decision, consequences.
 
 - **Context:** The spec ranks a symbol first when a query token equals its name. On a real repo, an ordinary word such as `resolve` in a sentence pulled in every symbol with that name ahead of better matches.
 - **Decision:** A token is looked up as a symbol name only if it is shaped like an identifier (camelCase, snake_case, a dotted path, or containing a digit) or if it is the whole query.
-- **Consequences:** `codemem search normalize` still returns the function first; "how to resolve a route" relies on keyword ranking instead.
+- **Consequences:** `remimem search normalize` still returns the function first; "how to resolve a route" relies on keyword ranking instead.
 
 ## 013: Schema built up by migrations, one phase at a time
 
@@ -120,7 +120,7 @@ Each entry: context, options, decision, consequences.
 ## 017: Vector storage and the embedding cache
 
 - **Context:** A `sqlite-vec` table has a fixed dimension, and the spec forbids mixing models.
-- **Decision:** `chunk_vectors` is created when the first vector arrives, with that vector's dimension, and `meta` records the model. A different configured model makes `index` and `search` fail with an instruction to run `codemem index --full`, which drops and rebuilds the table. Embedding runs after chunks are written and only for chunks that lack a vector, so an interrupted run resumes. The embedded text is the path, the signature, the docstring, and then the body, in that order, with the doc comment and signature removed from the body so nothing is repeated; a model that cuts its input therefore only loses the end of the body. The cache table is keyed by a hash of that text and the model id.
+- **Decision:** `chunk_vectors` is created when the first vector arrives, with that vector's dimension, and `meta` records the model. A different configured model makes `index` and `search` fail with an instruction to run `remimem index --full`, which drops and rebuilds the table. Embedding runs after chunks are written and only for chunks that lack a vector, so an interrupted run resumes. The embedded text is the path, the signature, the docstring, and then the body, in that order, with the doc comment and signature removed from the body so nothing is repeated; a model that cuts its input therefore only loses the end of the body. The cache table is keyed by a hash of that text and the model id.
 - **Consequences:** Keyword search works while embedding is still running or after it fails. Vectors are stored twice. Cached vectors of chunks that were edited away are not pruned yet.
 
 ## 018: Packer rules
@@ -177,8 +177,8 @@ Each entry: context, options, decision, consequences.
 
 ## 024: Client configuration formats
 
-- **Context:** `codemem init` prints copy-paste configuration. Checked against each client's documentation on 2026-11-14.
-- **Decision:** Claude Code: `claude mcp add codemem -- <command>` or a project `.mcp.json` with `mcpServers`. Cursor: `.cursor/mcp.json` with `mcpServers`. VS Code: workspace-root `.mcp.json` with `mcpServers` and `"type": "stdio"`, which its documentation now names as the format to use; the older `.vscode/mcp.json` with a `servers` key is printed as well for versions that predate it. The command is `npx -y codemem serve` when codemem runs from an installed package and `node <path>/dist/cli/index.js serve` from a source checkout.
+- **Context:** `remimem init` prints copy-paste configuration. Checked against each client's documentation on 2026-11-14.
+- **Decision:** Claude Code: `claude mcp add remimem -- <command>` or a project `.mcp.json` with `mcpServers`. Cursor: `.cursor/mcp.json` with `mcpServers`. VS Code: workspace-root `.mcp.json` with `mcpServers` and `"type": "stdio"`, which its documentation now names as the format to use; the older `.vscode/mcp.json` with a `servers` key is printed as well for versions that predate it. The command is `npx -y remimem serve` when remimem runs from an installed package and `node <path>/dist/cli/index.js serve` from a source checkout.
 - **Consequences:** One `.mcp.json` serves both Claude Code and VS Code. The printed command contains an absolute path when run from a checkout, so that file should not be committed in that case.
 
 ## 025: Server behavior
@@ -197,7 +197,7 @@ Each entry: context, options, decision, consequences.
 - **Context:** The spec gives the tables, the tools, the JSON mirror, and staleness by content hash. Open points: ids, which side wins when file and database differ, what a link hashes, and how memories enter `get_context`.
 - **Decision:**
   - Ids are random text (`m_` plus eight hex digits), not integers, so memories written on two machines do not collide when the file is merged.
-  - `.codemem/memory.json` is the source of truth. Every command that touches memory first compares the file's hash with the one recorded in `meta` and reloads the file when it differs. A file that does not parse or validate is refused and the database is left alone.
+  - `.remimem/memory.json` is the source of truth. Every command that touches memory first compares the file's hash with the one recorded in `meta` and reloads the file when it differs. A file that does not parse or validate is refused and the database is left alone.
   - A symbol link stores a hash of the symbol's chunk text; a file link stores the file's content hash. Staleness is recomputed after every index run and is not written to the file, since it depends on the checkout.
   - Memory vectors live in a column of `memories` and are compared in JavaScript: there are few memories, so no vector table is needed.
   - Matching a memory to a query uses the same keyword and vector fusion as code search, with a minimum on at least one side: the memory contains at least `retrieval.memoryMinKeywordMatch` (default half) of the query's terms, or its cosine similarity is at least `retrieval.memoryMinSimilarity` (default 0.3). Rank fusion alone has no notion of "not relevant", so without the minimum any shared word made a match.
@@ -210,7 +210,7 @@ Each entry: context, options, decision, consequences.
 
 - **Context:** The spec asks for a hash diff with `git diff --name-only` as a fast path, and for a re-index check before every tool call. Measured on nest (2,797 files, warm disk cache): listing files through git 21 ms; `lstat` of every file 3 ms; reading and hashing every file 57 ms; `git diff --name-only HEAD` 61 ms, before the extra commands needed for untracked files and for commits since the last index.
 - **Options:** (a) `git diff` fast path, (b) compare each file's size and modification time with what the index recorded, and hash only files that differ.
-- **Decision:** (b). It is faster than `git diff` at this size, works outside git, and needs no bookkeeping about commits, dirty files, or rebases. A file modified within 2 seconds of the last look is hashed rather than trusted, to cover coarse timestamps. `codemem index` keeps hashing every file, so the exhaustive check is one command away.
+- **Decision:** (b). It is faster than `git diff` at this size, works outside git, and needs no bookkeeping about commits, dirty files, or rebases. A file modified within 2 seconds of the last look is hashed rather than trusted, to cover coarse timestamps. `remimem index` keeps hashing every file, so the exhaustive check is one command away.
 - **Consequences:** The quick check costs about 30 ms on a 277k-line repo. A change that keeps both size and modification time is missed by the quick check, as it would be by git's own index. `git diff` is not used at all, which departs from the spec.
 
 ## 028: Auto-refresh and the query log
@@ -221,7 +221,7 @@ Each entry: context, options, decision, consequences.
   - `index_status` does not refresh, so it can report pending changes.
   - The baseline of a query is the token count of every whole file that a full result body came from. Files that contributed only a signature do not count, and tools that return no code (references, memory, status) log a baseline equal to what they served.
   - The query text is stored (up to 500 characters) in the local index only.
-- **Consequences:** The saving in `codemem stats` is an upper-bound estimate with a stated definition; the measured numbers come from `codemem bench`.
+- **Consequences:** The saving in `remimem stats` is an upper-bound estimate with a stated definition; the measured numbers come from `remimem bench`.
 
 ## 029: chokidar 5, not 6
 
@@ -238,19 +238,19 @@ Each entry: context, options, decision, consequences.
 ## 031: The baseline is simulated in process
 
 - **Context:** The spec's baseline extracts keywords, runs ripgrep, and reads whole matching files in rank order up to 40,000 tokens.
-- **Decision:** The same procedure, done in process instead of by calling `rg`: up to eight keywords (identifier-like words first, then the longest), a case-insensitive whole-word count per file, files ranked by distinct keywords matched and then by total matches, read in full until every ground-truth file is read or the cap is reached. It searches the same file set codemem indexes.
+- **Decision:** The same procedure, done in process instead of by calling `rg`: up to eight keywords (identifier-like words first, then the longest), a case-insensitive whole-word count per file, files ranked by distinct keywords matched and then by total matches, read in full until every ground-truth file is read or the cap is reached. It searches the same file set remimem indexes.
 - **Consequences:** No ripgrep install is needed and the result is deterministic. It is a model of an agent, not an agent.
 
 ## 032: Benchmark metrics
 
 - **Decision:**
   - A file or symbol counts as present when a block of the answer comes from that file or overlaps the symbol's lines, including signature-only blocks. For the baseline, every file it read and every symbol in those files.
-  - The token headline compares, over every test task, the mean tokens codemem serves per call with the mean the baseline reads, where a task on which the baseline did not read every ground-truth file counts as its full 40,000-token cap. A second figure charges codemem the same cap for each answer that lacks a ground-truth file. Tokens to first hit (reading order, through the first block from a ground-truth file) is kept as a table column, not a headline: it is a median over the tasks each strategy solved, which are different sets.
+  - The token headline compares, over every test task, the mean tokens remimem serves per call with the mean the baseline reads, where a task on which the baseline did not read every ground-truth file counts as its full 40,000-token cap. A second figure charges remimem the same cap for each answer that lacks a ground-truth file. Tokens to first hit (reading order, through the first block from a ground-truth file) is kept as a table column, not a headline: it is a median over the tasks each strategy solved, which are different sets.
   - Recall@10 is the share of a task's ground-truth files among the ten best-ranked files, averaged over tasks. Hit@10 (any one of them) is recorded but not reported as recall.
   - A strict column counts a file only when a full body from it is shown.
   - Recall@10 and MRR use the ranking before packing: distinct files by best score.
   - Results record the machine. `--compare` allows 0.05 on recall figures and 15% on tokens, because the quantized embedding model gives slightly different vectors on different CPU types.
-- **Consequences:** Counting a signature-only block as present is generous to codemem on file recall; symbol recall and the no-compression ablation show the other side.
+- **Consequences:** Counting a signature-only block as present is generous to remimem on file recall; symbol recall and the no-compression ablation show the other side.
 
 ## 033: What tuning changed
 
@@ -270,5 +270,12 @@ Each entry: context, options, decision, consequences.
 
 ## 035: Where the benchmark code lives
 
-- **Decision:** `src/bench/` is compiled with everything else and left out of the npm package by a `!dist/bench` entry in `files`. The data (`repos.json`, tasks, memories, results) is in the top-level `bench/` directory, which is not packaged either. `codemem bench` loads the code on demand and explains itself when it is absent.
+- **Decision:** `src/bench/` is compiled with everything else and left out of the npm package by a `!dist/bench` entry in `files`. The data (`repos.json`, tasks, memories, results) is in the top-level `bench/` directory, which is not packaged either. `remimem bench` loads the code on demand and explains itself when it is absent.
 - **Consequences:** One build, no second compiler config. The published CLI has a `bench` command that only works from a checkout.
+
+## 036: The project is named remimem
+
+- **Context:** The project was built under the working name codemem. Before release prep, `npm view codemem` showed that name is taken on npm by an unrelated, active package with a similar purpose. The setup command would have printed `npx -y codemem serve`, which would have run that other package.
+- **Options:** (a) publish under a suffixed name and keep the project name, (b) rename everything.
+- **Decision:** (b), by owner decision on 2026-11-15: remimem. The package, the binary, the `.remimem/` directory, the `REMIMEM_*` environment variables, the MCP server name, the `remimem://overview` resource, the model and benchmark cache under `~/.cache/remimem`, the docs, and the repository links all use the new name. `remimem` was free on npm on that date.
+- **Consequences:** Earlier entries in this file were written under the old name and have been updated to the new one. An index made before the rename, in a `.codemem/` directory, is not picked up; run `remimem init` again. The GitHub repository has to be renamed by its owner for the links to resolve.

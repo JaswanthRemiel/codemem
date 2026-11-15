@@ -97,7 +97,7 @@ export async function search(
   if (provider && config.vectorLimit > 0 && query.trim() && store.embeddingModel() !== undefined) {
     if (modelChanged(store, provider)) {
       throw new EmbeddingError(
-        `The index holds vectors from ${store.embeddingModel()} but the configured model is ${provider.id}; run \`codemem index --full\` to rebuild them`,
+        `The index holds vectors from ${store.embeddingModel()} but the configured model is ${provider.id}; run \`remimem index --full\` to rebuild them`,
       );
     }
     const [embedding] = await provider.embed([query], 'query');

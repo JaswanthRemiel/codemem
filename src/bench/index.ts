@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseConfig, type Config } from '../config/index.js';
 import { createProvider } from '../embedder/index.js';
-import { CodememError } from '../errors.js';
+import { RemimemError } from '../errors.js';
 import { indexRepo } from '../indexer/index.js';
 import type { ToolContext } from '../mcp/tools.js';
 import { scan } from '../scanner/index.js';
@@ -15,7 +15,7 @@ import { countTokens } from '../tokens.js';
 import { evaluateQuery, grepBaseline, type FileText, type StrategyResult } from './evaluate.js';
 import { mineTasks, type BenchMemory, type BenchRepo, type BenchTask } from './mine.js';
 
-export class BenchError extends CodememError {}
+export class BenchError extends RemimemError {}
 
 type Retrieval = Config['retrieval'];
 
@@ -128,7 +128,7 @@ export interface TaskResult {
 
 export interface BenchResults {
   date: string;
-  /** Commit of codemem that produced the results. */
+  /** Commit of remimem that produced the results. */
   gitSha: string;
   machine: { cpu: string; cores: number; memoryGb: number; os: string; node: string };
   embeddingModel: string;
@@ -168,15 +168,15 @@ export function benchDir(): string {
   const dir = fileURLToPath(new URL('../../bench/', import.meta.url));
   if (!existsSync(join(dir, 'repos.json'))) {
     throw new BenchError(
-      'The benchmark runs from a source checkout of codemem: bench/repos.json was not found.',
+      'The benchmark runs from a source checkout of remimem: bench/repos.json was not found.',
     );
   }
   return dir;
 }
 
-/** Where benchmark clones and indexes are kept. Override with CODEMEM_CACHE_DIR. */
+/** Where benchmark clones and indexes are kept. Override with REMIMEM_CACHE_DIR. */
 export function benchCacheDir(): string {
-  return join(process.env['CODEMEM_CACHE_DIR'] ?? join(homedir(), '.cache', 'codemem'), 'bench');
+  return join(process.env['REMIMEM_CACHE_DIR'] ?? join(homedir(), '.cache', 'remimem'), 'bench');
 }
 
 export const readRepos = (): BenchRepo[] =>
@@ -209,7 +209,7 @@ export function ensureClone(repo: BenchRepo, log: (line: string) => void): strin
   return dir;
 }
 
-/** `codemem bench --mine`: writes bench/tasks and bench/memories from each repo's history. */
+/** `remimem bench --mine`: writes bench/tasks and bench/memories from each repo's history. */
 export async function mine(log: (line: string) => void): Promise<void> {
   for (const repo of readRepos()) {
     const dir = ensureClone(repo, log);
@@ -222,7 +222,7 @@ export async function mine(log: (line: string) => void): Promise<void> {
   }
 }
 
-function codememSha(): string {
+function remimemSha(): string {
   const root = join(benchDir(), '..');
   try {
     const sha = git(root, ['rev-parse', '--short', 'HEAD']).trim();
@@ -253,7 +253,7 @@ async function measureReindex(dir: string, ctx: ToolContext): Promise<number> {
     .filter((path) => /\.(ts|py|go)$/.test(path))
     .slice(0, 20);
   try {
-    for (const path of targets) appendFileSync(join(dir, path), '\n// codemem benchmark probe\n');
+    for (const path of targets) appendFileSync(join(dir, path), '\n// remimem benchmark probe\n');
     const started = performance.now();
     await indexRepo(dir, ctx.store, ctx.config, { quick: true, provider: ctx.provider });
     return (performance.now() - started) / 1000;
@@ -272,7 +272,7 @@ export async function runBench(options: BenchOptions = {}): Promise<BenchResults
   const cpu = cpus();
   const results: BenchResults = {
     date: new Date().toISOString().slice(0, 10),
-    gitSha: codememSha(),
+    gitSha: remimemSha(),
     machine: {
       cpu: cpu[0]?.model ?? 'unknown',
       cores: cpu.length,
@@ -295,7 +295,7 @@ export async function runBench(options: BenchOptions = {}): Promise<BenchResults
     );
     const memories = readJsonl<BenchMemory>(join(benchDir(), 'memories', `${repo.name}.jsonl`));
     if (tasks.length === 0)
-      throw new BenchError(`No tasks for ${repo.name}; run \`codemem bench --mine\`.`);
+      throw new BenchError(`No tasks for ${repo.name}; run \`remimem bench --mine\`.`);
     const slug = (provider?.id ?? 'none').replace(/[^a-z0-9]+/gi, '-');
     const store = new Store(join(benchCacheDir(), `${repo.name}-${slug}.db`));
     try {

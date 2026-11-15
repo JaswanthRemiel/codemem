@@ -32,7 +32,7 @@ const FILES: Record<string, string | Buffer> = {
 const KEPT = ['docs/notes.md', 'src/app.ts'];
 
 function makeRepo(): string {
-  const root = mkdtempSync(join(tmpdir(), 'codemem-scan-'));
+  const root = mkdtempSync(join(tmpdir(), 'remimem-scan-'));
   for (const [path, content] of Object.entries(FILES)) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), content);
@@ -90,7 +90,7 @@ test('resolveInRoot rejects paths that leave the root, including through symlink
   expect(resolveInRoot(root, 'src/app.ts')).toMatch(/app\.ts$/);
   expect(() => resolveInRoot(root, '../outside.txt')).toThrow(PathError);
   expect(() => resolveInRoot(root, join(tmpdir(), 'elsewhere.txt'))).toThrow(PathError);
-  const outside = mkdtempSync(join(tmpdir(), 'codemem-outside-'));
+  const outside = mkdtempSync(join(tmpdir(), 'remimem-outside-'));
   writeFileSync(join(outside, 'secret.txt'), 'secret\n');
   try {
     symlinkSync(join(outside, 'secret.txt'), join(root, 'link.txt'));

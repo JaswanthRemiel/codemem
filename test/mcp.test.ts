@@ -43,8 +43,8 @@ async function call(client: Client, name: string, args: Record<string, unknown> 
 }
 
 function useKeywordOnly(root: string): void {
-  mkdirSync(join(root, '.codemem'), { recursive: true });
-  writeFileSync(join(root, '.codemem/config.json'), '{ "embedding": { "provider": "none" } }');
+  mkdirSync(join(root, '.remimem'), { recursive: true });
+  writeFileSync(join(root, '.remimem/config.json'), '{ "embedding": { "provider": "none" } }');
 }
 
 test('the server lists all nine tools with valid schemas and short descriptions', async () => {
@@ -148,7 +148,7 @@ test('index_status reports counts, pending changes, and the embedding model', as
   writeFileSync(join(root, 'extra.go'), 'package kv\n\nfunc Extra() {}\n');
   writeFileSync(join(root, 'go.mod'), 'module example.com/kv\n\ngo 1.23\n');
   const after = (await call(client, 'index_status')).text;
-  expect(after).toContain('Pending changes: 1 changed, 1 new, 0 deleted (run `codemem index`)');
+  expect(after).toContain('Pending changes: 1 changed, 1 new, 0 deleted (run `remimem index`)');
 });
 
 test('the overview resource is a directory map with the most-referenced symbols', async () => {
@@ -186,7 +186,7 @@ test('the overview stays under 1,500 tokens on a wide and deep repo', async () =
 
 test('a failing tool call is an error result, and the server keeps answering', async () => {
   // A directory with nothing to index: there is no index to answer from.
-  const root = mkdtempSync(join(tmpdir(), 'codemem-empty-'));
+  const root = mkdtempSync(join(tmpdir(), 'remimem-empty-'));
   const store = new Store(join(root, 'index.db'));
   const server = createServer({ root, config: TEST_CONFIG, store, provider: null });
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
@@ -195,7 +195,7 @@ test('a failing tool call is an error result, and the server keeps answering', a
 
   const empty = await call(client, 'get_context', { task: 'anything' });
   expect(empty).toEqual({
-    text: 'Error: The index is empty. Run `codemem index` (or `codemem init`) in the project first.',
+    text: 'Error: The index is empty. Run `remimem index` (or `remimem init`) in the project first.',
     isError: true,
   });
   // Arguments that break the schema are rejected without reaching the handler.
@@ -215,7 +215,7 @@ test('serve writes nothing but protocol messages to stdout', async () => {
   await runIndex(root, {});
   // Debug logging is on, so there is log output: it must all land on stderr.
   const child = spawn(process.execPath, ['dist/cli/index.js', 'serve', '--root', root], {
-    env: { ...process.env, CODEMEM_LOG_LEVEL: 'debug' },
+    env: { ...process.env, REMIMEM_LOG_LEVEL: 'debug' },
   });
   let stdout = '';
   let stderr = '';
@@ -266,21 +266,21 @@ test('serve writes nothing but protocol messages to stdout', async () => {
       .map((m) => [m.id, m]),
   );
   expect(byId.get(3)?.result?.content[0]?.text).toContain('def charge(amount, token):');
-  expect(stderr).toMatch(/codemem debug: get_context answered in \d+ ms/);
+  expect(stderr).toMatch(/remimem debug: get_context answered in \d+ ms/);
 }, 60_000);
 
 test('init writes config and .gitignore once, indexes, and prints client configs', async () => {
   const root = copyFixture('py-pkg');
   writeFileSync(join(root, '.gitignore'), 'node_modules/');
   const first = await runInit(root, {});
-  expect(first).toContain('Created .codemem/config.json');
-  expect(first).toContain('Added .codemem/index.db* to .gitignore.');
+  expect(first).toContain('Created .remimem/config.json');
+  expect(first).toContain('Added .remimem/index.db* to .gitignore.');
   expect(first).toContain('Privacy: everything runs on this machine. No code leaves it');
   expect(first).toMatch(/Indexed 4 of 4 files/);
   expect(readFileSync(join(root, '.gitignore'), 'utf8')).toBe(
-    'node_modules/\n.codemem/index.db*\n',
+    'node_modules/\n.remimem/index.db*\n',
   );
-  expect(readFileSync(join(root, '.codemem/config.json'), 'utf8')).toBe('{}\n');
+  expect(readFileSync(join(root, '.remimem/config.json'), 'utf8')).toBe('{}\n');
 
   // A second run changes nothing and keeps an edited config.
   useKeywordOnly(root);
@@ -289,29 +289,29 @@ test('init writes config and .gitignore once, indexes, and prints client configs
   expect(second).not.toContain('Added');
   expect(second).toContain('Embeddings are off.');
   expect(readFileSync(join(root, '.gitignore'), 'utf8')).toBe(
-    'node_modules/\n.codemem/index.db*\n',
+    'node_modules/\n.remimem/index.db*\n',
   );
 }, 180_000);
 
 test('client configs are valid JSON that starts this build of the server', () => {
   const text = clientConfigs();
-  expect(text).toMatch(/claude mcp add codemem -- node .*index\.js serve/);
+  expect(text).toMatch(/claude mcp add remimem -- node .*index\.js serve/);
   const blocks = text.split('\n\n').flatMap((part) => {
     const start = part.indexOf('{');
     return start === -1 ? [] : [part.slice(start)];
   });
   expect(blocks.length).toBeGreaterThanOrEqual(3);
   const claude = JSON.parse(blocks[0] as string) as {
-    mcpServers: { codemem: { command: string; args: string[] } };
+    mcpServers: { remimem: { command: string; args: string[] } };
   };
-  expect(claude.mcpServers.codemem.command).toBe('node');
-  expect(claude.mcpServers.codemem.args.at(-1)).toBe('serve');
+  expect(claude.mcpServers.remimem.command).toBe('node');
+  expect(claude.mcpServers.remimem.args.at(-1)).toBe('serve');
   expect(text).toContain('"type": "stdio"');
 });
 
-test('codemem context prints what get_context returns', async () => {
+test('remimem context prints what get_context returns', async () => {
   const root = copyFixture('go-mod');
-  await expect(runContext(root, 'x', {})).rejects.toThrow(/codemem index/);
+  await expect(runContext(root, 'x', {})).rejects.toThrow(/remimem index/);
   useKeywordOnly(root);
   await runIndex(root, {});
   const out = await runContext(root, 'normalize a key', { budget: 300 });

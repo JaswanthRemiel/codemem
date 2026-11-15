@@ -151,7 +151,7 @@ test('diff hunks, source files, and task text are read as the miner expects', ()
 });
 
 test('tasks are mined from real commits: fixes and features that change existing source', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'codemem-mine-'));
+  const dir = mkdtempSync(join(tmpdir(), 'remimem-mine-'));
   cpSync('test/fixtures/ts-app', dir, { recursive: true });
   const git = (...args: string[]): string =>
     execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', ...args], {
@@ -267,7 +267,7 @@ test('keywords put identifiers first, and the grep baseline reads whole files in
   });
 });
 
-test('a codemem answer is scored by the blocks an agent would read', async () => {
+test('a remimem answer is scored by the blocks an agent would read', async () => {
   const { root, store } = await indexed('ts-app');
   const ctx = { root, config: TEST_CONFIG, store, provider: null };
   const scored = await evaluateQuery(ctx, TASK, { k: 20, budget: 2000 });
@@ -387,7 +387,7 @@ test('summaries aggregate the test split, and the report names the machine and t
   );
   // Tokens over every test task, the baseline's misses at the cap.
   expect(report).toContain(
-    'Tokens: codemem serves 3,000 per call on average; the baseline reads 35,000 per task on average, with each task where it did not read every ground-truth file counted at its 40,000-token cap. That is 91% fewer (target: at least 40% fewer). Charging codemem the same cap for each task where its answer lacks a ground-truth file gives 21,500, 39% fewer.',
+    'Tokens: remimem serves 3,000 per call on average; the baseline reads 35,000 per task on average, with each task where it did not read every ground-truth file counted at its 40,000-token cap. That is 91% fewer (target: at least 40% fewer). Charging remimem the same cap for each task where its answer lacks a ground-truth file gives 21,500, 39% fewer.',
   );
   // Recall@10 is a share of files averaged over tasks, compared with the target.
   expect(report).toContain(
@@ -429,7 +429,7 @@ test('a rerun is compared with a tolerance, and the README section is replaced i
   expect(worse.ok).toBe(false);
   expect(worse.lines.filter((line) => line.startsWith('DIFF')).length).toBeGreaterThan(0);
 
-  const readme = join(mkdtempSync(join(tmpdir(), 'codemem-readme-')), 'README.md');
+  const readme = join(mkdtempSync(join(tmpdir(), 'remimem-readme-')), 'README.md');
   writeFileSync(readme, `# Title\n\n${README_START}\nold numbers\n${README_END}\n\nAfter.\n`);
   updateReadme(readme, 'new numbers');
   expect(readFileSync(readme, 'utf8')).toBe(
@@ -473,7 +473,7 @@ test('the end-to-end hook prints its cost estimate and runs nothing without --ye
   const lines: string[] = [];
   runE2e({ tasks: 3, pricePerMillion: 3, yes: false }, (line) => lines.push(line));
   expect(lines).toEqual([
-    'End-to-end run: 3 test tasks in each of 3 repositories, each with and without codemem: 18 agent runs.',
+    'End-to-end run: 3 test tasks in each of 3 repositories, each with and without remimem: 18 agent runs.',
     "Estimated cost: about 3.6 million input tokens (assuming 200,000 per run), about $11 at $3 per million. Both figures are assumptions; check your model's price.",
     'Nothing was run. Add --yes to start. This uses your Claude Code account and costs money.',
   ]);

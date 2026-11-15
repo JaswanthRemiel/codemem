@@ -4,18 +4,18 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import { CONFIG_DIR } from '../config/index.js';
 import type { EmbeddingProvider } from '../embedder/index.js';
-import { CodememError } from '../errors.js';
+import { RemimemError } from '../errors.js';
 import { ftsQuery, fuse, queryTokens, type RetrievalConfig } from '../retriever/index.js';
 import { expandTerms } from '../store/fts.js';
 import type { MemoryLink, MemoryRow, Store } from '../store/index.js';
 
-export class MemoryError extends CodememError {}
+export class MemoryError extends RemimemError {}
 
 export const MEMORY_KINDS = ['decision', 'convention', 'gotcha', 'todo'] as const;
 export type MemoryKind = (typeof MEMORY_KINDS)[number];
 export type Memory = MemoryRow;
 
-/** The committable mirror of the memory tables: `.codemem/memory.json`. */
+/** The committable mirror of the memory tables: `.remimem/memory.json`. */
 const FileSchema = z.object({
   version: z.literal(1),
   memories: z.array(
@@ -43,7 +43,7 @@ const mirrorPath = (root: string): string => join(root, CONFIG_DIR, 'memory.json
 const hashOf = (text: string): string => createHash('sha256').update(text).digest('hex');
 
 /**
- * Brings the database in line with `.codemem/memory.json` when the file has changed since
+ * Brings the database in line with `.remimem/memory.json` when the file has changed since
  * the last look: after a `git pull`, a hand edit, or a deleted index. The file is the
  * source of truth, so a team shares memories by committing it.
  */

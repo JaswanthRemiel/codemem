@@ -22,7 +22,7 @@ import { countTokens } from '../src/tokens.js';
 import { fakeProvider, indexed, TEST_CONFIG } from './helpers.js';
 
 const T = TEST_CONFIG.retrieval;
-const mirror = (root: string): string => join(root, '.codemem/memory.json');
+const mirror = (root: string): string => join(root, '.remimem/memory.json');
 const readMirror = (root: string) =>
   JSON.parse(readFileSync(mirror(root), 'utf8')) as {
     version: number;
@@ -244,7 +244,7 @@ test('editing a linked function marks its memory stale, and reverting clears it'
   store.close();
 });
 
-test('a memory.json changed outside codemem is picked up, and a broken one is refused', async () => {
+test('a memory.json changed outside remimem is picked up, and a broken one is refused', async () => {
   const { root, store } = await indexed('py-pkg');
   const mine = remember(root, store, {
     text: 'Orders are validated before charging.',
@@ -494,11 +494,11 @@ test('the server offers nine tools; remember, recall, and forget work through th
   store.close();
 });
 
-test('codemem memory add, list, and rm work without a prior index', async () => {
+test('remimem memory add, list, and rm work without a prior index', async () => {
   const { root, store } = await indexed('py-pkg');
   store.close();
-  mkdirSync(join(root, '.codemem'), { recursive: true });
-  writeFileSync(join(root, '.codemem/config.json'), '{ "embedding": { "provider": "none" } }');
+  mkdirSync(join(root, '.remimem'), { recursive: true });
+  writeFileSync(join(root, '.remimem/config.json'), '{ "embedding": { "provider": "none" } }');
   const added = await runMemory(root, 'add', {
     text: 'Ship on Fridays only after review.',
     kind: 'convention',

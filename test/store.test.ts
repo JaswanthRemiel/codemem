@@ -13,8 +13,8 @@ import { copyFixture, indexed, names, TEST_CONFIG } from './helpers.js';
 const EMBEDDINGS_OFF = '"embedding": { "provider": "none" }';
 
 function writeConfig(root: string, json: string): void {
-  mkdirSync(join(root, '.codemem'), { recursive: true });
-  writeFileSync(join(root, '.codemem/config.json'), json);
+  mkdirSync(join(root, '.remimem'), { recursive: true });
+  writeFileSync(join(root, '.remimem/config.json'), json);
 }
 
 test('identifiers are split on camelCase, acronyms, digits, and underscores', () => {
@@ -195,7 +195,7 @@ test('config file: include and exclude globs change what is indexed', async () =
 
 test('CLI search prints packed results, scores with --debug, and explains a missing index', async () => {
   const root = copyFixture('py-pkg');
-  await expect(runSearch(root, 'charge', {})).rejects.toThrow(/codemem index/);
+  await expect(runSearch(root, 'charge', {})).rejects.toThrow(/remimem index/);
   writeConfig(root, `{ ${EMBEDDINGS_OFF} }`);
   await runIndex(root, {});
   const out = (await runSearch(root, 'charge', { k: 2 })).split('\n');

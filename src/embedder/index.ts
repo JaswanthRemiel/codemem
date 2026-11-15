@@ -2,10 +2,10 @@ import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Config } from '../config/index.js';
-import { CodememError, ConfigError } from '../errors.js';
+import { RemimemError, ConfigError } from '../errors.js';
 import type { EmbeddingInput, Store } from '../store/index.js';
 
-export class EmbeddingError extends CodememError {}
+export class EmbeddingError extends RemimemError {}
 
 export interface EmbeddingProvider {
   /** `provider:model`, stored with the vectors so a model change is detected. */
@@ -29,9 +29,9 @@ const REMOTE = {
   voyage: { url: 'https://api.voyageai.com/v1/embeddings', keyEnv: 'VOYAGE_API_KEY' },
 } as const;
 
-/** Where downloaded models are kept. Override with CODEMEM_CACHE_DIR. */
+/** Where downloaded models are kept. Override with REMIMEM_CACHE_DIR. */
 export function modelCacheDir(): string {
-  return join(process.env['CODEMEM_CACHE_DIR'] ?? join(homedir(), '.cache', 'codemem'), 'models');
+  return join(process.env['REMIMEM_CACHE_DIR'] ?? join(homedir(), '.cache', 'remimem'), 'models');
 }
 
 function normalize(vector: Float32Array): Float32Array {
@@ -67,7 +67,7 @@ function localProvider(model: string, maxTokens: number): EmbeddingProvider {
       ready ??= load().catch((cause: unknown) => {
         ready = undefined;
         throw new EmbeddingError(
-          `Embedding model ${model} failed to load (the first run downloads it); run \`codemem doctor\``,
+          `Embedding model ${model} failed to load (the first run downloads it); run \`remimem doctor\``,
           { cause },
         );
       });
@@ -188,7 +188,7 @@ export async function embedMissing(
 ): Promise<EmbedStats> {
   if (modelChanged(store, provider)) {
     throw new EmbeddingError(
-      `The index holds vectors from ${store.embeddingModel()} but the configured model is ${provider.id}; run \`codemem index --full\` to rebuild them`,
+      `The index holds vectors from ${store.embeddingModel()} but the configured model is ${provider.id}; run \`remimem index --full\` to rebuild them`,
     );
   }
   const stats: EmbedStats = { embedded: 0, cached: 0, hashes: new Set() };

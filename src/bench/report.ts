@@ -117,7 +117,7 @@ function headline(tasks: TaskResult[]): string {
   const b = summarize(tasks, 'baseline');
   const c = summarize(tasks, MAIN_STRATEGY);
   return [
-    `Tokens: codemem serves ${num(c.tokens)} per call on average; the baseline reads ${num(b.tokensAtCap)} per task on average, with each task where it did not read every ground-truth file counted at its ${num(BASELINE_CAP)}-token cap. That is ${fewer(c.tokens, b.tokensAtCap)} (target: at least 40% fewer). Charging codemem the same cap for each task where its answer lacks a ground-truth file gives ${num(c.tokensAtCap)}, ${fewer(c.tokensAtCap, b.tokensAtCap)}.`,
+    `Tokens: remimem serves ${num(c.tokens)} per call on average; the baseline reads ${num(b.tokensAtCap)} per task on average, with each task where it did not read every ground-truth file counted at its ${num(BASELINE_CAP)}-token cap. That is ${fewer(c.tokens, b.tokensAtCap)} (target: at least 40% fewer). Charging remimem the same cap for each task where its answer lacks a ground-truth file gives ${num(c.tokensAtCap)}, ${fewer(c.tokensAtCap, b.tokensAtCap)}.`,
     `Recall@10: on average ${c.recallAt10.toFixed(2)} of a task's ground-truth files are among the ten best-ranked files (baseline ${b.recallAt10.toFixed(2)}; target 0.80).`,
     `File recall in the answer: ${pct(c.fileRecall)} (baseline ${pct(b.fileRecall)}); counting a file only when a full body from it is shown, not a signature-only block: ${pct(c.strictFileRecall)}.`,
   ].join(' ');
@@ -132,7 +132,7 @@ export function renderSummary(results: BenchResults, otherModels: BenchResults[]
   const out: string[] = [];
 
   out.push(
-    `Measured on ${results.date} with codemem \`${results.gitSha}\` on ${m.cpu} (${m.cores} cores, ${m.memoryGb} GB, ${m.os}, Node.js ${m.node}), embedding model \`${results.embeddingModel}\`. Test split: ${test.length} of ${results.tasks.length} tasks, held out from tuning. Ground-truth files are the non-test source files a task's commit changed. Token counts are approximate.`,
+    `Measured on ${results.date} with remimem \`${results.gitSha}\` on ${m.cpu} (${m.cores} cores, ${m.memoryGb} GB, ${m.os}, Node.js ${m.node}), embedding model \`${results.embeddingModel}\`. Test split: ${test.length} of ${results.tasks.length} tasks, held out from tuning. Ground-truth files are the non-test source files a task's commit changed. Token counts are approximate.`,
     '',
     `**Headline (test split, ${test.length} tasks, \`${MAIN_STRATEGY}\` against the grep baseline).** ${headline(test)}`,
   );

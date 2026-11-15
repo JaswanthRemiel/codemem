@@ -3,7 +3,7 @@ import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Command } from 'commander';
 import { processFile } from '../indexer/index.js';
-import { CodememError } from '../errors.js';
+import { RemimemError } from '../errors.js';
 import { MEMORY_KINDS, MemoryError } from '../memory/index.js';
 import { serve } from '../mcp/server.js';
 import {
@@ -23,13 +23,13 @@ import { resolveInRoot, scan } from '../scanner/index.js';
 const pkg = createRequire(import.meta.url)('../../package.json') as { version: string };
 
 export function buildProgram(): Command {
-  const program = new Command('codemem')
+  const program = new Command('remimem')
     .description('Local-first code context and project memory for coding agents')
     .version(pkg.version);
 
   program
     .command('doctor')
-    .description('Check that this machine can run codemem')
+    .description('Check that this machine can run remimem')
     .action(async () => {
       const { lines, ok } = await runDoctor(process.cwd());
       console.log(lines.join('\n'));
@@ -51,7 +51,7 @@ export function buildProgram(): Command {
 
   program
     .command('init')
-    .description('Set up codemem in the current directory and print MCP client configuration')
+    .description('Set up remimem in the current directory and print MCP client configuration')
     .action(async () => {
       const report = await runInit(process.cwd(), { onEmbedProgress });
       clearProgress();
@@ -147,7 +147,7 @@ export function buildProgram(): Command {
 
   program
     .command('bench')
-    .description('Run the benchmark (from a source checkout of codemem)')
+    .description('Run the benchmark (from a source checkout of remimem)')
     .option('--mine', 'rebuild the task files from the pinned repositories instead of running')
     .option(
       '--repo <name>',
@@ -178,7 +178,7 @@ export function buildProgram(): Command {
       }) => {
         // Loaded on demand: the benchmark is not part of the published package.
         const { runBenchCommand } = await import('../bench/command.js').catch(() => {
-          throw new CodememError('The benchmark runs from a source checkout of codemem.');
+          throw new RemimemError('The benchmark runs from a source checkout of remimem.');
         });
         const ok = await runBenchCommand(options, (line) => console.log(line));
         if (!ok) process.exitCode = 1;

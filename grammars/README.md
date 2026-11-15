@@ -1,6 +1,6 @@
 # Grammars
 
-Prebuilt tree-sitter grammars (`.wasm`) and the symbol queries codemem runs on them (`.scm`).
+Prebuilt tree-sitter grammars (`.wasm`) and the symbol queries remimem runs on them (`.scm`).
 
 | File              | Source                                                                          | Version |
 | ----------------- | ------------------------------------------------------------------------------- | ------- |

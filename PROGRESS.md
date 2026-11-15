@@ -18,7 +18,7 @@
 ### Phase 0
 
 - Strict TypeScript, ESLint, Prettier, vitest.
-- `codemem --version` and a `codemem doctor` stub (Node.js version check only).
+- `remimem --version` and a `remimem doctor` stub (Node.js version check only).
 - Em dash and emoji check in `npm run check:chars`, the pre-commit hook, and CI.
 - CI matrix: Ubuntu, macOS, Windows with Node 22 and 24.
 - MIT license, `DECISIONS.md`, `PROGRESS.md`, `SETUP.md`.
@@ -29,16 +29,16 @@
 - Parser: web-tree-sitter with WASM grammars and `.scm` queries for TypeScript, TSX, JavaScript, Python, and Go. Extracts symbols, call sites, and imports.
 - Chunker: one chunk per function, method, interface, type, and enum; a header chunk per class; oversized symbols split at statement boundaries; line windows for everything else.
 - Three fixture repos with golden files, plus hand-written assertions for the tricky cases.
-- Hidden `codemem debug chunks <path>`; `codemem doctor` now checks the grammars.
+- Hidden `remimem debug chunks <path>`; `remimem doctor` now checks the grammars.
 - Speed: 277k to 1.1M-line repos scan and chunk in 1.7 to 3.7 seconds on one thread.
 
 ### Phase 2
 
 - Store: one SQLite file with numbered migrations, WAL mode, and an FTS5 index. Only `src/store/` contains SQL.
 - Identifier-aware keyword search: identifiers are indexed whole and by their camelCase and snake_case parts.
-- `codemem index [--full]`: skips files whose content hash is unchanged and removes files that disappeared.
-- `codemem search "<query>" [-k N] [--debug]`: BM25 keyword search with exact symbol names ranked first.
-- Config file `.codemem/config.json` (`include`, `exclude`, `maxFileSizeKb`), validated with zod.
+- `remimem index [--full]`: skips files whose content hash is unchanged and removes files that disappeared.
+- `remimem search "<query>" [-k N] [--debug]`: BM25 keyword search with exact symbol names ranked first.
+- Config file `.remimem/config.json` (`include`, `exclude`, `maxFileSizeKb`), validated with zod.
 - Approximate token counts stored per chunk.
 - Coverage is measured in CI: 80% line threshold on `parser`, `chunker`, and `retriever` (currently 99% to 100%).
 - Speed: nest (277k lines) indexes in 3.6s; a second run with nothing changed takes 0.3s.
@@ -46,11 +46,11 @@
 ### Phase 3
 
 - Embedder: provider interface with a local default model (`Xenova/all-MiniLM-L6-v2`, 384 dimensions), optional OpenAI and Voyage providers, batching, retries, and a cache keyed by text hash and model.
-- Vectors in `sqlite-vec`; a model change is detected and requires `codemem index --full`.
+- Vectors in `sqlite-vec`; a model change is detected and requires `remimem index --full`.
 - Hybrid retrieval: keyword and vector lists fused with reciprocal rank fusion, exact symbol names on top, a reason on every result.
 - Packer: token-budgeted output grouped by file in line order, joined adjacent chunks, signature-only blocks, and a footer. A seeded property test checks the output never exceeds the budget.
 - Config: `embedding` and `retrieval` blocks with every weight and limit.
-- `codemem search --budget N --debug`; `codemem doctor` checks SQLite, sqlite-vec, and the embedding model.
+- `remimem search --budget N --debug`; `remimem doctor` checks SQLite, sqlite-vec, and the embedding model.
 - Measured on nest (277k lines, 17,008 chunks, Apple M5): full index with embeddings 106s, warm query p50 15 ms and p95 18 ms, index file 121 MB.
 
 - Embedding input order: path, signature, docstring, then body, so the model's 256-token cut only removes the end of the body.
@@ -62,7 +62,7 @@
 - Graph: references are resolved to symbols in the order same file, imports, unique name, each with a confidence of `exact`, `import`, or `name-match`. Module paths are resolved for TypeScript and JavaScript (relative paths, index files), Python (relative and absolute modules), and Go (through `go.mod`).
 - All 37 hand-listed call edges of the three fixtures resolve to the right symbol with the expected confidence, and no other call edge is produced.
 - Retrieval adds the direct neighbors of the top results as signature-only blocks with a reason (`calls X`, `called by Y`, `extends X`, `type used by X`, `contains X`).
-- `describeSymbol` and `findReferences` (the future `get_symbol` and `find_references` tools), reachable now through hidden `codemem debug symbol` and `codemem debug refs`.
+- `describeSymbol` and `findReferences` (the future `get_symbol` and `find_references` tools), reachable now through hidden `remimem debug symbol` and `remimem debug refs`.
 - Coverage threshold now includes `graph`.
 - Measured on nest (commit 4410584, 277k lines, Apple M5): 107,851 call sites, of which 19,366 resolve (8,820 exact, 5,483 import, 5,063 name-match); the rest target libraries, test helpers, or values of unknown type. Rebuilding the whole graph takes 0.6s. Warm query p50 19 ms, p95 27 ms.
 - Hand-check of resolved call edges on nest, 2026-11-14: a seeded random sample of 30 (22 name-match, 4 import, 4 exact), each judged by reading the call site and the target.
@@ -80,43 +80,43 @@
 
 ### Phase 5
 
-- MCP server over stdio (`codemem serve [--root <dir>]`) with six tools: `get_context`, `search_code`, `get_symbol`, `get_file_outline`, `find_references`, `index_status`. Inputs are zod schemas; results are plain text with a token footer; a failing call returns an error result and the server keeps running.
-- Resource `codemem://overview`: a directory map to depth 3 with the most-referenced symbols per directory, rebuilt at index time and capped at 1,500 tokens.
-- `codemem init` (config, `.gitignore` entry, first index with a progress bar, privacy statement, client configurations) and `codemem context "<task>"`.
-- All logging goes to stderr at the level set by `CODEMEM_LOG_LEVEL`; a test fails if `serve` writes anything but protocol messages to stdout.
+- MCP server over stdio (`remimem serve [--root <dir>]`) with six tools: `get_context`, `search_code`, `get_symbol`, `get_file_outline`, `find_references`, `index_status`. Inputs are zod schemas; results are plain text with a token footer; a failing call returns an error result and the server keeps running.
+- Resource `remimem://overview`: a directory map to depth 3 with the most-referenced symbols per directory, rebuilt at index time and capped at 1,500 tokens.
+- `remimem init` (config, `.gitignore` entry, first index with a progress bar, privacy statement, client configurations) and `remimem context "<task>"`.
+- All logging goes to stderr at the level set by `REMIMEM_LOG_LEVEL`; a test fails if `serve` writes anything but protocol messages to stdout.
 - Tool descriptions are under 80 tokens each.
 
 ### Phase 6
 
 - Memory module: `remember`, `recall`, `forget` for decisions, conventions, gotchas, and todos, linked to files and symbols.
-- Mirror at `.codemem/memory.json`, written on every change and treated as the source of truth: a changed file is loaded on the next command, and a deleted index is rebuilt from it.
+- Mirror at `.remimem/memory.json`, written on every change and treated as the source of truth: a changed file is loaded on the next command, and a deleted index is rebuilt from it.
 - Staleness: each link stores a hash of the linked code; after every index run a memory whose linked file or symbol changed or disappeared is marked stale, and unmarked if the code returns to what it was.
 - Recall fuses keyword and vector ranks like code search. Memories that arrive through the file are embedded on first recall.
 - `get_context` starts with a project memory section, within a quarter of the budget, stale ones marked. A memory is attached automatically when it is linked to a result's file as a whole or to a symbol that is in the results; any other memory has to match the task.
 - Matching needs a minimum on at least one side: half of the query's terms (`retrieval.memoryMinKeywordMatch`) or cosine similarity 0.3 (`retrieval.memoryMinSimilarity`). One shared word is not a match. The same rule applies to the `recall` tool.
 - `memory.json` is written sorted by id with one memory per line.
-- The three memory tools are registered, so the server offers nine tools. `codemem memory list/add/rm` do the same from the command line.
+- The three memory tools are registered, so the server offers nine tools. `remimem memory list/add/rm` do the same from the command line.
 - Acceptance added by the owner on 2026-11-14: the MCP Inspector lists all nine tools. An automated test asserts the same list through the protocol; the Inspector itself is run by the owner.
 - Coverage threshold now includes `memory`.
 
 ### Phase 7
 
-- Quick change detection: a file whose size is unchanged and whose modification time is older than the last look is taken as unchanged without reading it. `codemem index` still hashes every file; the quick mode serves tool calls and `watch`.
+- Quick change detection: a file whose size is unchanged and whose modification time is older than the last look is taken as unchanged without reading it. `remimem index` still hashes every file; the quick mode serves tool calls and `watch`.
 - Auto-refresh: the MCP server runs a quick re-index before every tool call except `index_status`, waits at most 2 seconds, and otherwise answers from the current index with a note. A server with no index builds one on the first call.
-- `codemem search` and `codemem context` run the same quick check before answering, and wait for it to finish.
+- `remimem search` and `remimem context` run the same quick check before answering, and wait for it to finish.
 - A file modified within 2 seconds before the last scan, or any time after it, is always hashed, so an edit in the same second as a scan is not skipped.
-- `codemem watch` (chokidar, debounced by `watch.debounceMs`) and `codemem stats` (queries, tokens served, estimated baseline, estimated saving, per tool).
-- `query_log` table: one row per tool call from the MCP server, `codemem context`, and `codemem memory`.
-- `codemem index --full` prunes cached vectors that no chunk uses.
-- `codemem doctor` reports index health: files, chunks, pending changes, chunks without a vector.
+- `remimem watch` (chokidar, debounced by `watch.debounceMs`) and `remimem stats` (queries, tokens served, estimated baseline, estimated saving, per tool).
+- `query_log` table: one row per tool call from the MCP server, `remimem context`, and `remimem memory`.
+- `remimem index --full` prunes cached vectors that no chunk uses.
+- `remimem doctor` reports index health: files, chunks, pending changes, chunks without a vector.
 - Config: `watch.debounceMs` and `telemetry` (always `false`).
 - Measured on nest (277k lines, 2,797 files, Apple M5, 2026-11-14): a 20-file change re-indexes in 2.0s end to end (target under 3s); the quick check with nothing changed takes about 30 ms; `get_context` including that check runs at p50 56 ms and p95 65 ms.
 
 ### Phase 8
 
-- Benchmark harness (`codemem bench`): three pinned repos (hono, httpx, echo), 108 tasks mined from real commits (72 training, 36 test), a grep-and-read baseline, `search_code` and `get_context` at three budgets, seven ablations, tuning on the training split, a results file per run, and a generated README section. `--compare` checks a rerun against a results file within a tolerance; `--e2e` is the opt-in agent run and has never been executed.
-- Test split (36 tasks), `get_context` at 4,000 tokens against the baseline (2026-11-15, Apple M5, 16 GB, Node.js 24.20.0, results file `bench/results/2026-11-15-9e63d69.json`). Tokens: 3,827 served per call on average against 27,529 read by the baseline, with the baseline's misses counted at its 40,000-token cap (86% fewer); charging codemem the same cap for its own incomplete answers gives 6,854 (75% fewer). Recall@10, the share of a task's ground-truth files among the ten best-ranked files: 0.93 against 0.79. File recall in the answer: 93% against 60%, and 92% when only a full body counts. Symbol recall 74% against 57%, MRR 0.61 against 0.40.
-- Without httpx `cabd1c095e`, the test task inspected before tuning (35 tasks): 3,823 against 27,535 tokens (86% fewer; 6,937 and 75% with codemem's misses at the cap), recall@10 0.93 against 0.79, file recall 93% against 59%, full-body file recall 92%.
+- Benchmark harness (`remimem bench`): three pinned repos (hono, httpx, echo), 108 tasks mined from real commits (72 training, 36 test), a grep-and-read baseline, `search_code` and `get_context` at three budgets, seven ablations, tuning on the training split, a results file per run, and a generated README section. `--compare` checks a rerun against a results file within a tolerance; `--e2e` is the opt-in agent run and has never been executed.
+- Test split (36 tasks), `get_context` at 4,000 tokens against the baseline (2026-11-15, Apple M5, 16 GB, Node.js 24.20.0, results file `bench/results/2026-11-15-9e63d69.json`). Tokens: 3,827 served per call on average against 27,529 read by the baseline, with the baseline's misses counted at its 40,000-token cap (86% fewer); charging remimem the same cap for its own incomplete answers gives 6,854 (75% fewer). Recall@10, the share of a task's ground-truth files among the ten best-ranked files: 0.93 against 0.79. File recall in the answer: 93% against 60%, and 92% when only a full body counts. Symbol recall 74% against 57%, MRR 0.61 against 0.40.
+- Without httpx `cabd1c095e`, the test task inspected before tuning (35 tasks): 3,823 against 27,535 tokens (86% fewer; 6,937 and 75% with remimem's misses at the cap), recall@10 0.93 against 0.79, file recall 93% against 59%, full-body file recall 92%.
 - Settings changed by tuning on the training split: `retrieval.textFileWeight` 0.25 (new; file recall 81.5% to 89.4% on training) and `retrieval.memoryMinSimilarity` 0.4 (was 0.3). Left unchanged because the differences were within about one task: `rrfK`, the symbol weight, `contextK`, `maxChunksPerFile`, `neighborBudgetShare`.
 - Name-match edges: the ablation does not show that they help. Removing them changed training file recall by one task (89.4% to 88.1%) and left test file recall unchanged, which is within noise for sets this small. They remain at the spec's weight of 0.2 pending a decision.
 - Embedding models on the test split: `Xenova/all-MiniLM-L6-v2` 93% file recall, recall@10 0.93, MRR 0.61, 62s to index all three repos; `jinaai/jina-embeddings-v2-base-code` 92%, 0.93, MRR 0.65, 324s. The default stays MiniLM.
@@ -127,7 +127,7 @@ Success metrics from the spec, as measured:
 
 | Metric                                               | Target             | Measured                                                                                                                                           |
 | ---------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tokens to reach the right code, against the baseline | at least 40% fewer | 86% fewer per task (3,827 served against 27,529, baseline misses at its cap); 75% fewer when codemem's incomplete answers are also charged the cap |
+| Tokens to reach the right code, against the baseline | at least 40% fewer | 86% fewer per task (3,827 served against 27,529, baseline misses at its cap); 75% fewer when remimem's incomplete answers are also charged the cap |
 | Retrieval recall@10                                  | at least 0.80      | 0.93 (share of a task's ground-truth files in the ten best-ranked files, mean over 36 test tasks; baseline 0.79)                                   |
 | Full index of a 100k-line repo, local embeddings     | under 3 minutes    | 38s (hono, 99k lines)                                                                                                                              |
 | Incremental re-index after a change under 20 files   | under 3 seconds    | 0.97s on hono from the command line, 2.0s on nest (277k lines)                                                                                     |
@@ -145,17 +145,17 @@ Phase 9: release prep (README, CONTRIBUTING, CHANGELOG, templates, RELEASING.md)
 - The default embedding model is a small general-purpose model, not a code-trained one. On the benchmark the code-trained alternative did not find more files and indexed 5.5 times slower (decision 016, updated).
 - The OpenAI and Voyage providers are tested against a stubbed HTTP server only, not the live services (no API key was used).
 - Install size: `@huggingface/transformers` brings about 430 MB of ONNX runtime files into `node_modules`.
-- Cached vectors of chunks that were edited away are pruned only by `codemem index --full`.
+- Cached vectors of chunks that were edited away are pruned only by `remimem index --full`.
 - Each vector is stored twice (search table and cache), which adds about 1.5 KB per chunk.
 - `sqlite-vec` has no prebuilt extension for Windows on ARM.
 - Benchmark limits: task text is the commit message, written after the change; the test split has 36 tasks; the baseline is a simulation. One test task was inspected while debugging the harness, before tuning.
 - In the memory ablation only a quarter of attached memories were relevant. The keyword threshold made no difference there, because commit subjects are short; it is untested on longer memories.
 - httpx is the weakest repo (83% file recall): its two total misses are tasks whose message names nothing found in the changed files.
 - `memory.json` has one memory per line, sorted by id, so most concurrent additions merge cleanly. Two additions that land next to each other, or after the last line, can still conflict; a broken file is refused rather than loaded.
-- Quick change detection trusts size and modification time. A change that keeps both is missed until `codemem index` runs; this is the same trade git makes.
+- Quick change detection trusts size and modification time. A change that keeps both is missed until `remimem index` runs; this is the same trade git makes.
 - The `stats` baseline assumes an agent would read in full every file a result body came from, so the saving it shows is an upper bound, not a measurement.
 - The MCP Inspector check and the manual run in Claude Code are documented in SETUP.md but were not run by the build agent; the same protocol paths are covered by automated tests.
-- `codemem index` creates `.codemem/` but only `codemem init` adds the index to `.gitignore`.
+- `remimem index` creates `.remimem/` but only `remimem init` adds the index to `.gitignore`.
 - Only the tables in use exist so far. Edges, memories, and the query log arrive as migrations in the phases that use them.
 - Without git, `.gitignore` is not honored; only the built-in excludes apply.
 - Call resolution has no type inference: `user.save()` resolves only when one symbol in the repo is named `save`. On real code about one in four name-match edges is wrong (see the hand-check above); they carry the lowest retrieval weight (0.2).

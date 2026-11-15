@@ -22,7 +22,7 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       # The packed tarball must install and run with the npm that ships with each Node.js
-      # version, the way `npx codemem` would for a user. No lockfile is involved on this path.
+      # version, the way `npx remimem` would for a user. No lockfile is involved on this path.
       # Installs download a few hundred megabytes; retry once so a dropped connection on a
       # runner does not fail the job, and publish the error if both attempts fail.
       - name: Install without scripts
@@ -38,17 +38,17 @@ jobs:
         shell: bash
         run: |
           mkdir "$RUNNER_TEMP/packtest"
-          cp codemem-*.tgz "$RUNNER_TEMP/packtest/codemem.tgz"
+          cp remimem-*.tgz "$RUNNER_TEMP/packtest/remimem.tgz"
           cd "$RUNNER_TEMP/packtest"
           printf 'export function helloWorld() {\n  return 1;\n}\n' > a.ts
           # On failure the end of the output becomes an annotation, which can be read
           # without signing in to GitHub.
           if ! {
             npm --version &&
-            npx --yes ./codemem.tgz --version &&
-            npx --yes ./codemem.tgz doctor &&
-            npx --yes ./codemem.tgz index &&
-            npx --yes ./codemem.tgz search helloWorld | grep 'function helloWorld'
+            npx --yes ./remimem.tgz --version &&
+            npx --yes ./remimem.tgz doctor &&
+            npx --yes ./remimem.tgz index &&
+            npx --yes ./remimem.tgz search helloWorld | grep 'function helloWorld'
           } > "$RUNNER_TEMP/pack.log" 2>&1; then
             cat "$RUNNER_TEMP/pack.log"
             echo "::error title=Packed tarball failed::$(tail -c 3000 "$RUNNER_TEMP/pack.log" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
@@ -73,7 +73,7 @@ jobs:
       # The hybrid search tests use the real local embedding model (about 23 MB).
       - uses: actions/cache@v6
         with:
-          path: ~/.cache/codemem
+          path: ~/.cache/remimem
           key: embedding-model-all-MiniLM-L6-v2-q8
       - run: npm run coverage
       - run: npx . --version

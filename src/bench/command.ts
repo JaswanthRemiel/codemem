@@ -18,7 +18,7 @@ export interface BenchCommandOptions {
   pricePerMtok?: string;
 }
 
-/** `codemem bench`. Returns false when a comparison is out of tolerance. */
+/** `remimem bench`. Returns false when a comparison is out of tolerance. */
 export async function runBenchCommand(
   options: BenchCommandOptions,
   print: (line: string) => void,

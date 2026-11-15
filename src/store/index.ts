@@ -296,7 +296,7 @@ export class Store {
       sqliteVec.load(this.db);
     } catch (cause) {
       this.db.close();
-      throw new StoreError('The sqlite-vec extension failed to load; run `codemem doctor`', {
+      throw new StoreError('The sqlite-vec extension failed to load; run `remimem doctor`', {
         cause,
       });
     }
@@ -313,7 +313,7 @@ export class Store {
     const current = Number(this.getMeta('schema_version') ?? 0);
     if (current > MIGRATIONS.length) {
       throw new StoreError(
-        `The index was written by a newer codemem (schema ${current}); upgrade codemem or delete .codemem/index.db and run \`codemem index\``,
+        `The index was written by a newer remimem (schema ${current}); upgrade remimem or delete .remimem/index.db and run \`remimem index\``,
       );
     }
     for (let version = current; version < MIGRATIONS.length; version++) {

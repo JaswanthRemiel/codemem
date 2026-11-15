@@ -1,6 +1,6 @@
-# codemem
+# remimem
 
-codemem is a local-first MCP server and CLI that indexes a codebase and gives coding agents only the code context they need.
+remimem is a local-first MCP server and CLI that indexes a codebase and gives coding agents only the code context they need.
 
 It is under active development and not ready for use yet.
 
@@ -8,16 +8,16 @@ To build and test it from source, see [SETUP.md](SETUP.md).
 
 ## Benchmark
 
-How much context does codemem save, and does it find the right code? Each task is a real commit from an open-source repository, described by its commit message; the code is indexed as it was just before that commit, and a strategy is scored on whether it returns the files and symbols the commit went on to change. The baseline imitates an agent that greps for keywords and reads whole files.
+How much context does remimem save, and does it find the right code? Each task is a real commit from an open-source repository, described by its commit message; the code is indexed as it was just before that commit, and a strategy is scored on whether it returns the files and symbols the commit went on to change. The baseline imitates an agent that greps for keywords and reads whole files.
 
 <!-- prettier-ignore-start -->
 <!-- bench:start -->
 
-Measured on 2026-11-15 with codemem `9e63d69` on Apple M5 (10 cores, 16 GB, darwin 27.2.0, Node.js v24.20.0), embedding model `local:Xenova/all-MiniLM-L6-v2`. Test split: 36 of 108 tasks, held out from tuning. Ground-truth files are the non-test source files a task's commit changed. Token counts are approximate.
+Measured on 2026-11-15 with remimem `9e63d69` on Apple M5 (10 cores, 16 GB, darwin 27.2.0, Node.js v24.20.0), embedding model `local:Xenova/all-MiniLM-L6-v2`. Test split: 36 of 108 tasks, held out from tuning. Ground-truth files are the non-test source files a task's commit changed. Token counts are approximate.
 
-**Headline (test split, 36 tasks, `get_context@4000` against the grep baseline).** Tokens: codemem serves 3,827 per call on average; the baseline reads 27,529 per task on average, with each task where it did not read every ground-truth file counted at its 40,000-token cap. That is 86% fewer (target: at least 40% fewer). Charging codemem the same cap for each task where its answer lacks a ground-truth file gives 6,854, 75% fewer. Recall@10: on average 0.93 of a task's ground-truth files are among the ten best-ranked files (baseline 0.79; target 0.80). File recall in the answer: 93% (baseline 60%); counting a file only when a full body from it is shown, not a signature-only block: 92%.
+**Headline (test split, 36 tasks, `get_context@4000` against the grep baseline).** Tokens: remimem serves 3,827 per call on average; the baseline reads 27,529 per task on average, with each task where it did not read every ground-truth file counted at its 40,000-token cap. That is 86% fewer (target: at least 40% fewer). Charging remimem the same cap for each task where its answer lacks a ground-truth file gives 6,854, 75% fewer. Recall@10: on average 0.93 of a task's ground-truth files are among the ten best-ranked files (baseline 0.79; target 0.80). File recall in the answer: 93% (baseline 60%); counting a file only when a full body from it is shown, not a signature-only block: 92%.
 
-**The same without httpx `cabd1c095e`** (35 tasks), a test task that was inspected while the harness was being debugged, before tuning: Tokens: codemem serves 3,823 per call on average; the baseline reads 27,535 per task on average, with each task where it did not read every ground-truth file counted at its 40,000-token cap. That is 86% fewer (target: at least 40% fewer). Charging codemem the same cap for each task where its answer lacks a ground-truth file gives 6,937, 75% fewer. Recall@10: on average 0.93 of a task's ground-truth files are among the ten best-ranked files (baseline 0.79; target 0.80). File recall in the answer: 93% (baseline 59%); counting a file only when a full body from it is shown, not a signature-only block: 92%.
+**The same without httpx `cabd1c095e`** (35 tasks), a test task that was inspected while the harness was being debugged, before tuning: Tokens: remimem serves 3,823 per call on average; the baseline reads 27,535 per task on average, with each task where it did not read every ground-truth file counted at its 40,000-token cap. That is 86% fewer (target: at least 40% fewer). Charging remimem the same cap for each task where its answer lacks a ground-truth file gives 6,937, 75% fewer. Recall@10: on average 0.93 of a task's ground-truth files are among the ten best-ranked files (baseline 0.79; target 0.80). File recall in the answer: 93% (baseline 59%); counting a file only when a full body from it is shown, not a signature-only block: 92%.
 
 | Strategy | Tokens per task | File recall | File recall, full body only | Symbol recall | Recall@10 | MRR | Reached | Tokens to first hit | Latency p50 / p95 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

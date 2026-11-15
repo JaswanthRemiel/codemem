@@ -270,5 +270,5 @@ test('a file with syntax errors still yields the symbols around the error', asyn
 
 test('an unknown grammar fails with an actionable error', async () => {
   await expect(parseSource('ruby' as Lang, '')).rejects.toThrow(GrammarError);
-  await expect(parseSource('ruby' as Lang, '')).rejects.toThrow(/codemem doctor/);
+  await expect(parseSource('ruby' as Lang, '')).rejects.toThrow(/remimem doctor/);
 });

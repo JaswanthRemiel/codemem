@@ -2,7 +2,7 @@ import { matchesGlob } from 'node:path';
 import { z } from 'zod';
 import type { Config } from '../config/index.js';
 import type { EmbeddingProvider } from '../embedder/index.js';
-import { CodememError } from '../errors.js';
+import { RemimemError } from '../errors.js';
 import { describeSymbol, findReferences } from '../graph/describe.js';
 import { indexRepo, pendingChanges } from '../indexer/index.js';
 import { log } from '../log.js';
@@ -36,7 +36,7 @@ export interface ToolContext {
 /** What a tool returns: text for the agent, and the files its code came from. */
 export interface ToolResult {
   text: string;
-  /** Paths whose code is in `text`, for the baseline estimate in `codemem stats`. */
+  /** Paths whose code is in `text`, for the baseline estimate in `remimem stats`. */
   files?: string[];
   /** Distinct paths of the search results, best first, before packing. */
   rankedFiles?: string[];
@@ -48,12 +48,12 @@ const REFRESH_NOTE = '(index refresh still running: results may not include your
 /** Room kept in the budget for the note above. */
 const REFRESH_NOTE_TOKENS = 20;
 
-export class EmptyIndexError extends CodememError {
+export class EmptyIndexError extends RemimemError {
   constructor(building = false) {
     super(
       building
         ? 'The index is still being built for the first time. Try again in a moment.'
-        : 'The index is empty. Run `codemem index` (or `codemem init`) in the project first.',
+        : 'The index is empty. Run `remimem index` (or `remimem init`) in the project first.',
     );
   }
 }
@@ -135,7 +135,7 @@ export async function refreshIndex(ctx: ToolContext, waitMs = REFRESH_WAIT_MS): 
 
 /**
  * Runs one tool the way every caller should: refresh the index first, run, add the refresh
- * note when the index is behind, and log the query for `codemem stats`.
+ * note when the index is behind, and log the query for `remimem stats`.
  */
 export async function runTool(
   ctx: ToolContext,
@@ -162,7 +162,7 @@ export async function runTool(
       tool: tool.name,
       query: String(queryText).slice(0, 500),
       tokensReturned: tokens,
-      // Reading the same code without codemem means reading those files in full.
+      // Reading the same code without remimem means reading those files in full.
       baselineTokens: Math.max(tokens, ctx.store.fileTokens(files)),
       latencyMs: Math.round(performance.now() - started),
     });
@@ -362,7 +362,7 @@ export const TOOLS: ToolDefinition[] = [
     { id: z.string().min(1).describe('The memory id, as shown by recall.') },
     (ctx, args) => {
       if (!forget(ctx.root, ctx.store, args.id)) {
-        throw new CodememError(`No memory with id ${args.id}. Use recall to list ids.`);
+        throw new RemimemError(`No memory with id ${args.id}. Use recall to list ids.`);
       }
       return `Forgot memory ${args.id}.`;
     },
@@ -370,7 +370,7 @@ export const TOOLS: ToolDefinition[] = [
   ),
   tool(
     'index_status',
-    'Report what the codemem index covers: files, chunks, last indexed commit, pending changes, embedding model.',
+    'Report what the remimem index covers: files, chunks, last indexed commit, pending changes, embedding model.',
     {},
     (ctx) => indexStatus(ctx),
   ),
@@ -408,7 +408,7 @@ export async function indexStatus(ctx: ToolContext): Promise<string> {
   return [
     `Files: ${counts.files} | Symbols: ${counts.symbols} | Chunks: ${counts.chunks} | Edges: ${store.edgeCount()}`,
     `Last indexed: ${store.getMeta('last_indexed_at') ?? 'unknown'}${commit ? ` at commit ${commit.slice(0, 12)}` : ' (no git commit)'}`,
-    `Pending changes: ${pending.changed} changed, ${pending.added} new, ${pending.deleted} deleted${pending.changed + pending.added + pending.deleted > 0 ? ' (run `codemem index`)' : ''}`,
+    `Pending changes: ${pending.changed} changed, ${pending.added} new, ${pending.deleted} deleted${pending.changed + pending.added + pending.deleted > 0 ? ' (run `remimem index`)' : ''}`,
     `Embedding model: ${model ? `${model} (${store.vectorCount()} of ${counts.chunks} chunks embedded)` : 'none (keyword search only)'}`,
   ].join('\n');
 }

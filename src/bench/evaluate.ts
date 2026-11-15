@@ -11,7 +11,7 @@ export interface StrategyResult {
   symbolRecall: number | null;
   /** Tokens read up to and including the first ground-truth file, or null if never reached. */
   firstHitTokens: number | null;
-  /** Total tokens returned (codemem) or read (baseline). */
+  /** Total tokens returned (remimem) or read (baseline). */
   tokens: number;
   /** 1 / rank of the first ground-truth file in the ranking, 0 when it is not ranked. */
   reciprocalRank: number;
@@ -150,7 +150,7 @@ export function parseBlocks(text: string): Block[] {
   });
 }
 
-/** Runs one codemem query and scores what an agent would see in the answer. */
+/** Runs one remimem query and scores what an agent would see in the answer. */
 export async function evaluateQuery(
   ctx: ToolContext,
   task: BenchTask,

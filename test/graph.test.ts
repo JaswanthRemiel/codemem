@@ -296,9 +296,9 @@ test('the graph follows the files: edits and deletions update the edges', async 
 
 test('the debug commands print a symbol and its references', async () => {
   const root = copyFixture('go-mod');
-  expect(() => runRefs(root, 'New')).toThrow(/codemem index/);
-  mkdirSync(join(root, '.codemem'));
-  writeFileSync(join(root, '.codemem/config.json'), '{ "embedding": { "provider": "none" } }');
+  expect(() => runRefs(root, 'New')).toThrow(/remimem index/);
+  mkdirSync(join(root, '.remimem'));
+  writeFileSync(join(root, '.remimem/config.json'), '{ "embedding": { "provider": "none" } }');
   await runIndex(root, {});
   expect(runSymbol(root, 'Store.Get', { depth: 1 })).toContain(
     'Called by:\n  run  cmd/kv/main.go:18-29  [name-match]',

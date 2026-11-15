@@ -1,5 +1,5 @@
 // Optional end-to-end run: a real coding agent gets the same tasks twice, with and without
-// codemem attached over MCP. It needs the Claude Code CLI and a paid account, so it runs only
+// remimem attached over MCP. It needs the Claude Code CLI and a paid account, so it runs only
 // with an explicit flag, and prints an estimated cost before doing anything.
 //
 // This file has never been run by the project's build: no API spend was authorized. Treat
@@ -54,13 +54,13 @@ function runAgent(dir: string, task: BenchTask, mcpConfig: string | null): Agent
   };
 }
 
-/** `codemem bench --e2e`. Prints the estimate; runs only when `yes` is set. */
+/** `remimem bench --e2e`. Prints the estimate; runs only when `yes` is set. */
 export function runE2e(options: E2eOptions, print: (line: string) => void): void {
   const repos = readRepos();
   const runs = repos.length * options.tasks * 2;
   const millions = (runs * ASSUMED_TOKENS_PER_RUN) / 1e6;
   print(
-    `End-to-end run: ${options.tasks} test tasks in each of ${repos.length} repositories, each with and without codemem: ${runs} agent runs.`,
+    `End-to-end run: ${options.tasks} test tasks in each of ${repos.length} repositories, each with and without remimem: ${runs} agent runs.`,
   );
   print(
     `Estimated cost: about ${millions.toFixed(1)} million input tokens (assuming ${ASSUMED_TOKENS_PER_RUN.toLocaleString('en-US')} per run), about $${(millions * options.pricePerMillion).toFixed(0)} at $${options.pricePerMillion} per million. Both figures are assumptions; check your model's price.`,
@@ -72,14 +72,14 @@ export function runE2e(options: E2eOptions, print: (line: string) => void): void
     return;
   }
   const cli = fileURLToPath(new URL('../cli/index.js', import.meta.url));
-  const mcpConfig = join(tmpdir(), 'codemem-bench-mcp.json');
+  const mcpConfig = join(tmpdir(), 'remimem-bench-mcp.json');
   const rows: string[] = [];
   for (const repo of repos) {
     const dir = ensureClone(repo, print);
     writeFileSync(
       mcpConfig,
       JSON.stringify({
-        mcpServers: { codemem: { command: 'node', args: [cli, 'serve', '--root', dir] } },
+        mcpServers: { remimem: { command: 'node', args: [cli, 'serve', '--root', dir] } },
       }),
     );
     const tasks = readFileSync(join(benchDir(), 'tasks', `${repo.name}.jsonl`), 'utf8')
@@ -91,7 +91,7 @@ export function runE2e(options: E2eOptions, print: (line: string) => void): void
     for (const task of tasks) {
       const plain = runAgent(dir, task, null);
       const assisted = runAgent(dir, task, mcpConfig);
-      const line = `${repo.name} ${task.id}: without codemem ${plain.inputTokens} input tokens, edited ${Math.round(plain.editedRecall * 100)}% of the right files; with codemem ${assisted.inputTokens}, ${Math.round(assisted.editedRecall * 100)}%`;
+      const line = `${repo.name} ${task.id}: without remimem ${plain.inputTokens} input tokens, edited ${Math.round(plain.editedRecall * 100)}% of the right files; with remimem ${assisted.inputTokens}, ${Math.round(assisted.editedRecall * 100)}%`;
       rows.push(line);
       print(line);
     }

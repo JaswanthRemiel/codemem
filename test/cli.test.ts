@@ -22,8 +22,8 @@ test('nodeOk enforces the 22.13.0 minimum', () => {
 
 test('doctor checks the runtime, grammars, SQLite, and the embedding setting', async () => {
   const root = copyFixture('go-mod');
-  mkdirSync(`${root}/.codemem`);
-  writeFileSync(`${root}/.codemem/config.json`, '{ "embedding": { "provider": "none" } }');
+  mkdirSync(`${root}/.remimem`);
+  writeFileSync(`${root}/.remimem/config.json`, '{ "embedding": { "provider": "none" } }');
   const { lines, ok } = await runDoctor(root);
   expect(ok).toBe(true);
   expect(lines).toEqual([
@@ -35,14 +35,14 @@ test('doctor checks the runtime, grammars, SQLite, and the embedding setting', a
     'Grammar go: ok',
     'SQLite with FTS5 and sqlite-vec: ok',
     'Embedding model: off (keyword search only)',
-    'Index: none yet (run `codemem init` in the project)',
+    'Index: none yet (run `remimem init` in the project)',
   ]);
 });
 
 test('doctor reports a failing check with a fix hint and a failing status', async () => {
   const root = copyFixture('go-mod');
-  mkdirSync(`${root}/.codemem`);
-  writeFileSync(`${root}/.codemem/config.json`, '{ "embedding": { "provider": "openai" } }');
+  mkdirSync(`${root}/.remimem`);
+  writeFileSync(`${root}/.remimem/config.json`, '{ "embedding": { "provider": "openai" } }');
   vi.stubEnv('OPENAI_API_KEY', '');
   const { lines, ok } = await runDoctor(root);
   vi.unstubAllEnvs();

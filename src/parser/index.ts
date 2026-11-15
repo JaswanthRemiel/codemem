@@ -111,7 +111,7 @@ function load(lang: Lang): Promise<{ parser: Parser; query: Query }> {
         parser.setLanguage(language);
         return { parser, query: new Query(language, scm.join('\n')) };
       } catch (cause) {
-        throw new GrammarError(`Grammar for ${lang} failed to load; run \`codemem doctor\``, {
+        throw new GrammarError(`Grammar for ${lang} failed to load; run \`remimem doctor\``, {
           cause,
         });
       }

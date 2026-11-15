@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import { ConfigError } from '../errors.js';
 
-export const CONFIG_DIR = '.codemem';
+export const CONFIG_DIR = '.remimem';
 
 const EmbeddingSchema = z.strictObject({
   /** `local` runs on this machine. `openai` and `voyage` send code to that service. `none` disables vectors. */
@@ -77,7 +77,7 @@ const ConfigSchema = z.strictObject({
   retrieval: RetrievalSchema.prefault({}),
   watch: z
     .strictObject({
-      /** `codemem watch` waits this long after the last file change before re-indexing. */
+      /** `remimem watch` waits this long after the last file change before re-indexing. */
       debounceMs: z.number().int().nonnegative().default(500),
     })
     .prefault({}),
@@ -96,7 +96,7 @@ export function parseConfig(raw: unknown): Config {
   return result.data;
 }
 
-/** Loads `.codemem/config.json` under `root`, or the defaults when it does not exist. */
+/** Loads `.remimem/config.json` under `root`, or the defaults when it does not exist. */
 export function loadConfig(root: string): Config {
   let text: string;
   try {

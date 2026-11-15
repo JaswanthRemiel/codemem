@@ -66,7 +66,7 @@ test('a different model is refused until a full rebuild, which replaces every ve
   const { root, store } = await indexed('go-mod', fakeProvider('fake:small', 16));
   const other = fakeProvider('fake:large', 48);
   await expect(indexRepo(root, store, TEST_CONFIG, { provider: other })).rejects.toThrow(
-    /fake:small .* fake:large.*codemem index --full/,
+    /fake:small .* fake:large.*remimem index --full/,
   );
   await expect(search(store, 'get value', TEST_CONFIG.retrieval, other)).rejects.toThrow(
     EmbeddingError,
@@ -142,7 +142,7 @@ test('providers: none disables vectors, local is the default, model ids name the
   expect(createProvider(embedding({ provider: 'voyage', model: 'voyage-4' }))?.id).toBe(
     'voyage:voyage-4',
   );
-  vi.stubEnv('CODEMEM_CACHE_DIR', '/tmp/somewhere');
+  vi.stubEnv('REMIMEM_CACHE_DIR', '/tmp/somewhere');
   expect(modelCacheDir()).toBe(join('/tmp/somewhere', 'models'));
 });
 

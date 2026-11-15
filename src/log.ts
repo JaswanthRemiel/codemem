@@ -3,12 +3,12 @@ const LEVELS = ['error', 'warn', 'info', 'debug'] as const;
 type Level = (typeof LEVELS)[number];
 
 function enabled(level: Level): boolean {
-  const wanted = LEVELS.indexOf((process.env['CODEMEM_LOG_LEVEL'] ?? 'warn') as Level);
+  const wanted = LEVELS.indexOf((process.env['REMIMEM_LOG_LEVEL'] ?? 'warn') as Level);
   return LEVELS.indexOf(level) <= (wanted === -1 ? 1 : wanted);
 }
 
 function write(level: Level, message: string): void {
-  if (enabled(level)) process.stderr.write(`codemem ${level}: ${message}\n`);
+  if (enabled(level)) process.stderr.write(`remimem ${level}: ${message}\n`);
 }
 
 export const log = {

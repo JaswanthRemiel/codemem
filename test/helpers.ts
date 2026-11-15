@@ -13,9 +13,9 @@ export const TEST_CONFIG: Config = parseConfig({
   embedding: { provider: 'none' },
 });
 
-/** A private copy of a fixture repo, so tests can edit files and create `.codemem/`. */
+/** A private copy of a fixture repo, so tests can edit files and create `.remimem/`. */
 export function copyFixture(name: string): string {
-  const root = mkdtempSync(join(tmpdir(), `codemem-${name}-`));
+  const root = mkdtempSync(join(tmpdir(), `remimem-${name}-`));
   cpSync(`test/fixtures/${name}`, root, { recursive: true });
   return root;
 }

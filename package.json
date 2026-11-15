@@ -1,16 +1,16 @@
 {
-  "name": "codemem",
+  "name": "remimem",
   "version": "0.1.0",
   "description": "Local-first MCP server and CLI that serves coding agents only the code context they need",
   "license": "MIT",
   "author": "Jaswanth Remiel AG",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/JaswanthRemiel/codemem.git"
+    "url": "git+https://github.com/JaswanthRemiel/remimem.git"
   },
   "type": "module",
   "bin": {
-    "codemem": "dist/cli/index.js"
+    "remimem": "dist/cli/index.js"
   },
   "files": [
     "dist",

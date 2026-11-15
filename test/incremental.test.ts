@@ -45,8 +45,8 @@ async function call(
 }
 
 function useKeywordOnly(root: string): void {
-  mkdirSync(join(root, '.codemem'), { recursive: true });
-  writeFileSync(join(root, '.codemem/config.json'), '{ "embedding": { "provider": "none" } }');
+  mkdirSync(join(root, '.remimem'), { recursive: true });
+  writeFileSync(join(root, '.remimem/config.json'), '{ "embedding": { "provider": "none" } }');
 }
 
 test('a quick run finds edits, new files, and deleted files without a full pass', async () => {
@@ -142,7 +142,7 @@ test('a file modified within two seconds of the last scan is always hashed', asy
   store.close();
 });
 
-test('codemem search and codemem context pick up changed files before answering', async () => {
+test('remimem search and remimem context pick up changed files before answering', async () => {
   const root = copyFixture('py-pkg');
   useKeywordOnly(root);
   await runIndex(root, {});
@@ -150,7 +150,7 @@ test('codemem search and codemem context pick up changed files before answering'
     join(root, 'shop/loyalty.py'),
     'def award_points(order):\n    return len(order.items)\n',
   );
-  // No `codemem index` in between.
+  // No `remimem index` in between.
   expect(await runSearch(root, 'award_points', { k: 1 })).toContain(
     '--- shop/loyalty.py:1-2 function award_points [exact-symbol, keyword]',
   );
@@ -304,9 +304,9 @@ test('every tool call is logged, and stats compares tokens served with the basel
   store.close();
 });
 
-test('codemem stats and context work from the command line', async () => {
+test('remimem stats and context work from the command line', async () => {
   const root = copyFixture('go-mod');
-  expect(() => runStats(root)).toThrow(/codemem index/);
+  expect(() => runStats(root)).toThrow(/remimem index/);
   useKeywordOnly(root);
   await runIndex(root, {});
   expect(runStats(root)).toMatch(/^No queries logged yet/);
@@ -348,7 +348,7 @@ test('watch re-indexes after files change, once the changes settle', async () =>
   store.close();
 }, 30_000);
 
-test('codemem watch indexes first, reports, and stops cleanly', async () => {
+test('remimem watch indexes first, reports, and stops cleanly', async () => {
   const root = copyFixture('go-mod');
   useKeywordOnly(root);
   const lines: string[] = [];

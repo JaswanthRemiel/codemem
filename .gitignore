@@ -4,5 +4,5 @@
 node_modules/
 dist/
 coverage/
-.codemem/index.db*
+.remimem/index.db*
 *.tgz

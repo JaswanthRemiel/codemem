@@ -23,7 +23,7 @@ export const DEFAULT_SCAN_OPTIONS: ScanOptions = { maxFileSizeKb: 512, include: 
 
 const EXCLUDED_DIRS = new Set([
   '.git',
-  '.codemem',
+  '.remimem',
   'node_modules',
   'dist',
   'vendor',
