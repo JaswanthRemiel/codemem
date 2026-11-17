@@ -50,3 +50,118 @@ html > body[data-scroll-locked] {
   --color-fd-primary-foreground: hsl(0, 0%, 4%);
   --color-fd-ring: hsl(0, 0%, 40%);
 }
+
+/* Landing page motion. Everything here is switched off for people who ask for less motion. */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate(-50%, 0) scale(1);
+  }
+  50% {
+    transform: translate(-46%, 24px) scale(1.08);
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Staggered entrance for the hero; runs without JavaScript too. */
+.enter {
+  animation: fade-up 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+/* Scroll reveals, applied by the Reveal component only to elements below the fold. */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
+    transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.reveal.reveal-in {
+  opacity: 1;
+  transform: none;
+}
+
+.hero-glow {
+  position: absolute;
+  left: 50%;
+  top: -160px;
+  width: 720px;
+  height: 480px;
+  border-radius: 9999px;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in oklab, var(--color-fd-primary) 22%, transparent),
+    transparent
+  );
+  filter: blur(40px);
+  transform: translate(-50%, 0);
+  animation: drift 14s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, var(--color-fd-border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-fd-border) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 60% 55% at 50% 30%, black, transparent);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.typing-cursor {
+  display: inline-block;
+  width: 0.55em;
+  height: 1.1em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--color-fd-primary);
+  animation: blink 1s steps(1) infinite;
+}
+
+.lift {
+  transition:
+    transform 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.lift:hover {
+  transform: translateY(-3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enter,
+  .hero-glow,
+  .typing-cursor {
+    animation: none;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .lift:hover {
+    transform: none;
+  }
+}

@@ -1,5 +1,6 @@
 import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
+import { CountUp, Reveal } from '@/components/motion';
 import { SetupPanel } from '@/components/setup-panel';
 import { githubUrl, npmUrl } from '@/lib/shared';
 
@@ -43,43 +44,59 @@ export default function HomePage() {
   return (
     <main className="flex flex-1 flex-col">
       {/* Hero */}
-      <section className="mx-auto grid w-full max-w-6xl items-center gap-12 px-6 pt-20 pb-24 md:pt-28 lg:grid-cols-2">
-        <div>
-          <a
-            href={npmUrl}
-            className="mb-6 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs text-fd-muted-foreground transition-colors hover:text-fd-foreground"
-          >
-            v0.1.0 is out <ArrowUpRight className="size-3" />
-          </a>
-          <h1 className="text-4xl font-semibold tracking-tight text-balance md:text-5xl">
-            Codebase memory for coding agents.
-          </h1>
-          <p className="mt-5 max-w-md text-lg text-fd-muted-foreground">
-            Your agent gets only the code it needs, within a token budget. Open source and local
-            first.
-          </p>
-          <div className="mt-8 flex items-center gap-5">
-            <Link
-              href="/docs/quickstart"
-              className="inline-flex items-center gap-2 rounded-lg bg-fd-foreground px-5 py-2.5 text-sm font-medium text-fd-background transition-opacity hover:opacity-85"
-            >
-              Get started <ArrowRight className="size-4" />
-            </Link>
+      <section className="relative overflow-hidden">
+        <div aria-hidden className="hero-grid" />
+        <div aria-hidden className="hero-glow" />
+        <div className="relative mx-auto grid w-full max-w-6xl items-center gap-12 px-6 pt-20 pb-24 md:pt-28 lg:grid-cols-2">
+          <div>
             <a
-              href={githubUrl}
-              className="text-sm font-medium text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+              href={npmUrl}
+              style={{ animationDelay: '0ms' }}
+              className="enter mb-6 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs text-fd-muted-foreground transition-colors hover:text-fd-foreground"
             >
-              GitHub
+              v0.1.0 is out <ArrowUpRight className="size-3" />
             </a>
+            <h1
+              style={{ animationDelay: '80ms' }}
+              className="enter text-4xl font-semibold tracking-tight text-balance md:text-5xl"
+            >
+              Codebase memory for coding agents.
+            </h1>
+            <p
+              style={{ animationDelay: '160ms' }}
+              className="enter mt-5 max-w-md text-lg text-fd-muted-foreground"
+            >
+              Your agent gets only the code it needs, within a token budget. Open source and local
+              first.
+            </p>
+            <div style={{ animationDelay: '240ms' }} className="enter mt-8 flex items-center gap-5">
+              <Link
+                href="/docs/quickstart"
+                className="group inline-flex items-center gap-2 rounded-lg bg-fd-foreground px-5 py-2.5 text-sm font-medium text-fd-background transition-opacity hover:opacity-85"
+              >
+                Get started{' '}
+                <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+              </Link>
+              <a
+                href={githubUrl}
+                className="text-sm font-medium text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+              >
+                GitHub
+              </a>
+            </div>
+          </div>
+          <div style={{ animationDelay: '320ms' }} className="enter">
+            <SetupPanel />
           </div>
         </div>
-        <SetupPanel />
       </section>
 
       {/* One number */}
       <section className="border-y">
         <div className="mx-auto w-full max-w-6xl px-6 py-20 text-center">
-          <div className="text-6xl font-semibold tracking-tight md:text-7xl">86%</div>
+          <div className="text-6xl font-semibold tracking-tight md:text-7xl">
+            <CountUp value="86%" />
+          </div>
           <p className="mx-auto mt-4 max-w-md text-fd-muted-foreground">
             fewer tokens per task than an agent that greps and reads whole files, on 36 held-out
             tasks from real commits.
@@ -87,7 +104,9 @@ export default function HomePage() {
           <div className="mx-auto mt-12 grid max-w-2xl grid-cols-3 gap-6">
             {stats.map((stat) => (
               <div key={stat.label}>
-                <div className="text-2xl font-semibold">{stat.value}</div>
+                <div className="text-2xl font-semibold">
+                  <CountUp value={stat.value} duration={1000} />
+                </div>
                 <div className="mt-1 text-xs text-fd-muted-foreground">{stat.label}</div>
               </div>
             ))}
@@ -97,64 +116,70 @@ export default function HomePage() {
 
       {/* How it works */}
       <section className="mx-auto w-full max-w-6xl px-6 py-24">
-        <p className="text-sm text-fd-muted-foreground">How it works</p>
-        <h2 className="mt-2 max-w-xl text-3xl font-semibold tracking-tight">
-          Index once. Ask anything. Remember what matters.
-        </h2>
+        <Reveal>
+          <p className="text-sm text-fd-muted-foreground">How it works</p>
+          <h2 className="mt-2 max-w-xl text-3xl font-semibold tracking-tight">
+            Index once. Ask anything. Remember what matters.
+          </h2>
+        </Reveal>
         <div className="mt-12 grid gap-10 md:grid-cols-3">
           {steps.map((step, i) => (
-            <div key={step.title}>
+            <Reveal key={step.title} delay={i * 120}>
               <div className="text-sm text-fd-muted-foreground">0{i + 1}</div>
               <h3 className="mt-3 text-lg font-semibold">{step.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-fd-muted-foreground">{step.body}</p>
-            </div>
+            </Reveal>
           ))}
         </div>
       </section>
 
       {/* Benchmark callout */}
       <section className="mx-auto w-full max-w-6xl px-6">
-        <div className="flex flex-col items-start justify-between gap-6 rounded-xl bg-fd-muted px-8 py-10 md:flex-row md:items-center">
-          <div>
-            <span className="rounded-full border bg-fd-background px-2.5 py-0.5 text-xs">
-              Benchmark
-            </span>
-            <h2 className="mt-4 max-w-lg text-xl font-semibold tracking-tight">
-              Measured on hono, httpx, and echo. Method, every table, and what the numbers do not
-              show.
-            </h2>
+        <Reveal>
+          <div className="lift flex flex-col items-start justify-between gap-6 rounded-xl bg-fd-muted px-8 py-10 md:flex-row md:items-center">
+            <div>
+              <span className="rounded-full border bg-fd-background px-2.5 py-0.5 text-xs">
+                Benchmark
+              </span>
+              <h2 className="mt-4 max-w-lg text-xl font-semibold tracking-tight">
+                Measured on hono, httpx, and echo. Method, every table, and what the numbers do not
+                show.
+              </h2>
+            </div>
+            <Link
+              href="/docs/benchmark"
+              className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium hover:underline"
+            >
+              Read the benchmark <ArrowRight className="size-4" />
+            </Link>
           </div>
-          <Link
-            href="/docs/benchmark"
-            className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium hover:underline"
-          >
-            Read the benchmark <ArrowRight className="size-4" />
-          </Link>
-        </div>
+        </Reveal>
       </section>
 
       {/* Pillars */}
       <section className="mx-auto w-full max-w-6xl px-6 py-24">
         <div className="grid gap-10 md:grid-cols-3">
-          {pillars.map((pillar) => (
-            <div key={pillar.title} className="border-t pt-6">
+          {pillars.map((pillar, i) => (
+            <Reveal key={pillar.title} delay={i * 120} className="border-t pt-6">
               <h3 className="font-semibold">{pillar.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-fd-muted-foreground">{pillar.body}</p>
-            </div>
+            </Reveal>
           ))}
         </div>
       </section>
 
       {/* Closing call to action */}
       <section className="mx-auto w-full max-w-6xl px-6 pb-24 text-center">
-        <h2 className="text-3xl font-semibold tracking-tight">Give your agent a memory.</h2>
+        <Reveal>
+          <h2 className="text-3xl font-semibold tracking-tight">Give your agent a memory.</h2>
+        </Reveal>
         <code className="mt-6 inline-block rounded-lg border bg-fd-card px-4 py-2 font-mono text-sm">
           npx -y remimem init
         </code>
         <div className="mt-6">
           <Link
             href="/docs/quickstart"
-            className="inline-flex items-center gap-2 rounded-lg bg-fd-foreground px-5 py-2.5 text-sm font-medium text-fd-background transition-opacity hover:opacity-85"
+            className="group inline-flex items-center gap-2 rounded-lg bg-fd-foreground px-5 py-2.5 text-sm font-medium text-fd-background transition-opacity hover:opacity-85"
           >
             Read the quickstart <ArrowRight className="size-4" />
           </Link>
