@@ -1,0 +1,71 @@
+---
+title: Introduction
+description: remimem is codebase memory for coding agents. It serves only the code context an agent needs, within a token budget, and keeps your project's decisions across sessions.
+icon: BookOpen
+---
+
+Coding agents explore unfamiliar code by grepping and reading whole files. That burns tokens, fills the context window with code that has nothing to do with the task, and forgets what was decided last session.
+
+remimem replaces that with a local index of your codebase. When an agent asks a question, remimem answers with the smallest set of code that answers it: the right functions in full, the code around them as signatures, and any decisions your team recorded about them. Every answer fits a token budget and says where each piece came from.
+
+```text
+--- src/auth.ts:10-23 function authenticateUser [keyword, vector, calls hash, called by UserService.login]
+export async function authenticateUser(id: string, password: string): Promise<boolean> {
+  const user = findUser(id);
+  if (!user) return false;
+  return verify(user.passwordHash, hash(password));
+}
+
+--- src/hash.ts:4-10 function hash [called by authenticateUser] (signature only)
+export default function hash(input: string): string
+  Hashes a password with the fixture salt.
+
+~360 tokens | 5 results | 22 dropped for budget
+```
+
+## What you get
+
+<Cards>
+  <Card title="Structure-aware search" href="/docs/concepts/search" icon={<span>01</span>}>
+    Keyword, meaning, and exact symbol search fused into one ranking, with a reason on every result.
+  </Card>
+  <Card title="A call graph" href="/docs/concepts/call-graph" icon={<span>02</span>}>
+    Callers, callees, base classes, and referenced types follow the top results as signatures.
+  </Card>
+  <Card title="Token budgets" href="/docs/concepts/context-packing" icon={<span>03</span>}>
+    Answers fit the budget you set and never go over. They say what was dropped.
+  </Card>
+  <Card title="Project memory" href="/docs/concepts/memory" icon={<span>04</span>}>
+    Decisions and conventions linked to code, shared through git, flagged when the code changes.
+  </Card>
+</Cards>
+
+## How agents use it
+
+remimem runs as an [MCP](https://modelcontextprotocol.io) server. Your agent (Claude Code, Cursor, VS Code Copilot, or any MCP client) starts it and calls its tools:
+
+| Tool | Use it to |
+| --- | --- |
+| `get_context` | Start a task. Returns memory, the best code, and neighbor signatures. |
+| `search_code` | Look something up by meaning or by name. |
+| `get_symbol` | Read one function or class with its callers and callees. |
+| `get_file_outline` | See what a file contains without reading it. |
+| `find_references` | Find every caller and importer before changing a symbol. |
+| `remember`, `recall`, `forget` | Keep decisions and conventions across sessions. |
+| `index_status` | Check what the index covers. |
+
+Everything also works from the command line, so you can paste context into any chat. See the [CLI reference](/docs/reference/cli).
+
+## Does it actually help?
+
+The repository ships a benchmark anyone can rerun. On 36 held-out tasks taken from real commits in three open-source projects, `get_context` served 86% fewer tokens per task than a simulated grep-and-read agent and placed 0.93 of the files each commit changed in its top ten results, against 0.79 for the baseline. The [benchmark page](/docs/benchmark) has the method, every table, and what the numbers do not show.
+
+## Principles
+
+- **Local first.** Code is parsed, embedded, and stored on your machine in one SQLite file. Nothing leaves it unless you choose a remote embedding provider. There is no telemetry. See [Privacy](/docs/privacy).
+- **Honest numbers.** Every figure on this site comes from a script in the repository that you can run.
+- **Explainable results.** Every result carries the reason it was returned, and `--debug` prints every score.
+
+<Callout title="Ready to try it?">
+  The [quickstart](/docs/quickstart) takes about two minutes and needs only Node.js 22.13 or newer.
+</Callout>

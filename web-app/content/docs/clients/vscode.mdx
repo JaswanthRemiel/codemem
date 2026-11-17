@@ -1,0 +1,52 @@
+---
+title: VS Code (Copilot)
+description: Add remimem to GitHub Copilot in VS Code with a workspace-root .mcp.json, or the older .vscode/mcp.json.
+---
+
+## Add the server
+
+Create `.mcp.json` in the workspace root. This is the format VS Code's documentation recommends for new configurations:
+
+```json title=".mcp.json"
+{
+  "mcpServers": {
+    "remimem": { "type": "stdio", "command": "npx", "args": ["-y", "remimem", "serve"] }
+  }
+}
+```
+
+The same file also works for Claude Code, so one committed `.mcp.json` serves both.
+
+<Callout title="Older VS Code versions">
+  Versions that predate the workspace-root file read `.vscode/mcp.json`, which uses a `servers` key instead of `mcpServers`:
+
+```json title=".vscode/mcp.json"
+{
+  "servers": {
+    "remimem": { "type": "stdio", "command": "npx", "args": ["-y", "remimem", "serve"] }
+  }
+}
+```
+
+VS Code's documentation now describes this file as the deprecated format. `remimem init` prints both.
+</Callout>
+
+For a configuration that applies to every workspace, use **Chat: Open Customizations**, then **MCP Servers**, then **Add Server**, and choose the global destination.
+
+## Confirm it works
+
+Open the Command Palette, run **Chat: Open Customizations**, and select **MCP Servers**. `remimem` should be listed. In Copilot Chat, ask: `Use the remimem get_context tool for "how are requests authenticated" and show the result`, then expand the tool call to check it used remimem.
+
+## Common problems
+
+<Accordions>
+  <Accordion title="The server does not appear">
+    Check the file is at the workspace root (not inside `.vscode/`) and uses `mcpServers`. On an older VS Code, use `.vscode/mcp.json` with `servers` instead.
+  </Accordion>
+  <Accordion title="The server starts but no tool is called">
+    Name the tool in your request, or check the tool is enabled in the chat tool picker.
+  </Accordion>
+  <Accordion title="It fails to start">
+    View the server output from the MCP Servers list. Run `npx -y remimem serve` in a terminal to see the same error. Node.js must be 22.13 or newer.
+  </Accordion>
+</Accordions>

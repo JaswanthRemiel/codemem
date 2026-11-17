@@ -1,0 +1,57 @@
+---
+title: Other MCP clients
+description: Connect any client that can start a stdio MCP server, and test the server by hand.
+---
+
+Any client that can launch a stdio MCP server can use remimem. Most accept a JSON entry of this shape:
+
+```json
+{
+  "mcpServers": {
+    "remimem": {
+      "command": "npx",
+      "args": ["-y", "remimem", "serve", "--root", "/absolute/path/to/project"]
+    }
+  }
+}
+```
+
+Use an absolute `--root` when the client does not start servers in the project directory, which is common for desktop chat apps.
+
+## Test the server by hand
+
+You do not need a client to check the server. In an indexed project, send it three protocol messages:
+
+```sh
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"check","version":"1"}}}' \
+  '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+  | npx -y remimem serve
+```
+
+It prints two lines of JSON. The second lists the nine tools.
+
+## The MCP Inspector
+
+The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) lists tools and lets you call them from a web page:
+
+```sh
+npx @modelcontextprotocol/inspector npx -y remimem serve
+```
+
+For a terminal listing instead:
+
+```sh
+npx @modelcontextprotocol/inspector --cli npx -y remimem serve --method tools/list
+```
+
+## No MCP support at all?
+
+Use the command line and paste the result into the chat:
+
+```sh
+npx -y remimem context "the task you are about to do" --budget 4000
+```
+
+See [Using remimem without an agent](/docs/guides/cli-without-an-agent).

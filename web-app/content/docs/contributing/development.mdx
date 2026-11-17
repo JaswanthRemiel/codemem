@@ -1,0 +1,81 @@
+---
+title: Development
+description: Build, test, and change remimem from a source checkout.
+icon: Code
+---
+
+## Set up
+
+You need Node.js 22.13 or newer and npm 11 or newer. Node.js 22 ships npm 10; upgrade with `npm install -g npm@11`. (npm 10 carries an older node-gyp that cannot find recent Visual Studio versions on Windows during a lockfile install.)
+
+```sh
+git clone https://github.com/JaswanthRemiel/remimem.git
+cd remimem
+npm install
+```
+
+`npm install` builds into `dist/` and enables the pre-commit hook.
+
+## Checks
+
+Run what CI runs before opening a pull request:
+
+```sh
+npm run lint
+npm run format:check
+npm run typecheck
+npm run check:chars
+npm run coverage
+```
+
+| Command | Checks |
+| --- | --- |
+| `lint` | ESLint, including the rule that only `src/store/` may import the SQLite driver |
+| `format:check` | Prettier |
+| `typecheck` | TypeScript in strict mode |
+| `check:chars` | No em dash and no emoji in any tracked file. Also runs as the pre-commit hook. |
+| `coverage` | All tests, failing if line coverage of `parser`, `chunker`, `retriever`, `packer`, `graph`, or `memory` drops below 80% |
+
+CI runs these on Ubuntu, macOS, and Windows with Node.js 22 and 24, and also installs the packed tarball with each Node.js version's own npm.
+
+## Ground rules
+
+- **Stdout is sacred.** The MCP server talks over stdout, so nothing else may write there. Use `log` from `src/log.ts`, which writes to stderr. A test fails if `serve` prints anything but protocol messages.
+- **Only `src/store/` touches SQL.**
+- **Record decisions.** A choice someone will later ask about goes into `DECISIONS.md`: context, options, decision, consequences.
+- **Keep `SETUP.md` true.** When a command or its output changes, update it.
+- **Conventional commits:** `feat(retriever): add RRF fusion`.
+- **Retrieval changes need numbers.** Run `npx . bench` and report how the test-split figures moved. Tune on the training split only (`--tune`).
+
+## Useful commands while developing
+
+```sh
+npx . debug chunks path/to/file.ts      # what a file becomes
+npx . debug symbol SomeSymbol --depth 2  # the call graph around a symbol
+npx . search "query" --debug             # every score
+npx vitest run test/golden.test.ts -u    # regenerate parser golden files after an intended change
+```
+
+## The repository
+
+| Path | Contents |
+| --- | --- |
+| `src/` | The CLI and server, one folder per module |
+| `grammars/` | tree-sitter grammars (`.wasm`) and the queries that run on them (`.scm`) |
+| `test/` | Tests and fixture projects in TypeScript, Python, and Go |
+| `bench/` | Benchmark repositories, tasks, memories, and results |
+| `web-app/` | This website, a separate Next.js project |
+| `SETUP.md` | Full setup and verification steps, with expected output |
+| `DECISIONS.md` | Why things are the way they are |
+
+## Working on this website
+
+The site lives in `web-app/`, with its own dependencies. It is not part of the npm package and not covered by the root scripts.
+
+```sh
+cd web-app
+npm install
+npm run dev
+```
+
+Pages are MDX files in `web-app/content/docs`. The sidebar order is in each folder's `meta.json`.

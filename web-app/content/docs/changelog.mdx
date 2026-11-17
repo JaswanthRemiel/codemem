@@ -1,0 +1,24 @@
+---
+title: Changelog
+description: What changed in each version.
+icon: ClockFading
+---
+
+remimem follows [Semantic Versioning](https://semver.org). While the version is below 1.0.0, a minor version may contain breaking changes. The changelog in the repository is the source; this page mirrors it.
+
+## 0.1.0 (2026-11-15)
+
+First release.
+
+- **Indexing:** a scanner that respects `.gitignore` and skips vendored, generated, binary, oversized, and secret-looking files; tree-sitter parsing for TypeScript, TSX, JavaScript, Python, and Go; one chunk per function, method, type, and class header; line windows for every other text file.
+- **Storage:** one SQLite file per project, with an identifier-aware keyword index, vectors in `sqlite-vec`, and numbered migrations.
+- **Embeddings:** a local model by default (`Xenova/all-MiniLM-L6-v2`), optional OpenAI and Voyage providers, and a cache so unchanged text is never embedded twice.
+- **Search:** keyword and vector rankings fused by reciprocal rank, exact symbol names first, a reason on every result.
+- **Call graph:** links with a confidence (`exact`, `import`, `name-match`), used to add the neighbors of top results as signatures.
+- **Packing:** answers fitted into a token budget, grouped by file in line order, never over the budget.
+- **Project memory:** decisions, conventions, gotchas, and todos linked to code, mirrored to `.remimem/memory.json`, marked stale when the code changes.
+- **MCP server:** nine tools and the `remimem://overview` resource, with changed files re-indexed before each call.
+- **CLI:** `init`, `index`, `watch`, `serve`, `search`, `context`, `memory`, `stats`, `doctor`, and `bench`.
+- **Benchmark:** three open-source repositories, a grep-and-read baseline, ablations, and a held-out test split.
+
+The project was developed under the working name codemem and renamed before release, because that name was taken on npm.

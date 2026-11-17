@@ -1,0 +1,54 @@
+---
+title: Using remimem without an agent
+description: Get packed context from the command line and paste it into any chat, or search your code yourself.
+icon: Terminal
+---
+
+Not every tool speaks MCP. Every remimem tool has a command-line twin, so you can use it with a web chat, a code review, or on its own.
+
+## Paste context into any chat
+
+```sh
+remimem context "add pagination to the orders API" --budget 4000 | pbcopy
+```
+
+`context` prints exactly what the `get_context` tool returns, memory included. Paste it above your question. On Linux use `xclip -selection clipboard` or `wl-copy` instead of `pbcopy`; on Windows, `clip`.
+
+## Search your own code
+
+```sh
+remimem search "where do we validate email addresses"
+remimem search parseToken -k 3
+remimem search "retry policy" --budget 1500 --debug
+```
+
+`search` returns ranked code with the reason each result matched, packed into the budget. `--debug` prints every score first. It does not add memories.
+
+## Look up a symbol or its callers
+
+These hidden developer commands print what `get_symbol` and `find_references` return:
+
+```sh
+remimem debug symbol UserService.login
+remimem debug symbol hash --signature --depth 0
+remimem debug refs findUser
+```
+
+## See how a file is chunked
+
+```sh
+remimem debug chunks src/auth.ts
+remimem debug chunks src/auth.ts --content
+remimem debug chunks .
+```
+
+The last form scans and chunks a whole directory and prints totals, which is a quick way to see how big a repository is to remimem.
+
+## In scripts
+
+All commands write results to stdout and diagnostics to stderr, and exit with a non-zero code on failure, so they compose with other tools:
+
+```sh
+remimem context "$TASK" --budget 3000 > context.txt
+remimem doctor || echo "remimem is not set up on this machine"
+```

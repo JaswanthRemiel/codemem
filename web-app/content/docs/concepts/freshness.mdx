@@ -1,0 +1,69 @@
+---
+title: Keeping the index fresh
+description: How remimem notices your edits before answering, and when to re-index by hand.
+icon: RefreshCw
+---
+
+An index that lags behind your edits gives an agent stale code. remimem checks for changes before every answer, cheaply enough that you do not notice.
+
+## Before every tool call
+
+The MCP server runs a quick re-index before each tool call (except `index_status`, which reports pending changes instead):
+
+1. List files and compare each one's size and modification time with what the index recorded. On a 2,800-file repository this takes about 30 ms.
+2. Read and hash only the files that look different, and re-index the ones whose content really changed.
+3. Rebuild the call graph if anything changed (about 0.6 s on a 277,000-line repository), re-check memory staleness, and embed new chunks.
+
+The call waits for this at most **two seconds**. After a branch switch or a large pull, catching up can take longer: the answer then comes from the current index and ends with:
+
+```text
+(index refresh still running: results may not include your latest edits)
+```
+
+The refresh continues in the background, and the next call is up to date.
+
+`remimem search` and `remimem context` run the same check before answering, and wait for it to finish.
+
+## The two-second rule
+
+Some file systems store modification times coarsely, so a file edited in the same second as a scan can look untouched. To cover that, a file modified within two seconds before the last scan, or any time after it, is always read and hashed, never trusted.
+
+## What the quick check can miss
+
+A change that keeps both the size and the modification time of a file (some tools restore timestamps) is not noticed by the quick check. Git's own index makes the same trade. Run the thorough check:
+
+```sh
+remimem index        # reads and hashes every file
+```
+
+## Watching continuously
+
+Outside a client, `remimem watch` keeps the index current as you work:
+
+```sh
+remimem watch
+```
+
+```text
+Indexed 0 of 8 files (8 unchanged, 0 removed) in 0.02s.
+Watching /path/to/project for changes. Press Ctrl+C to stop.
+Indexed 1 of 8 files (7 unchanged, 0 removed) in 0.35s.
+```
+
+It waits `watch.debounceMs` (500 ms) after the last change, so saving many files at once triggers one run. Excluded folders (`node_modules`, `dist`, and the rest) are not watched. You do not need `watch` while an MCP client is connected; the server refreshes on its own.
+
+## Full rebuilds
+
+```sh
+remimem index --full
+```
+
+Re-indexes every file, rebuilds all vectors, and removes cached vectors no chunk uses any more. Needed after changing the embedding model; otherwise rarely.
+
+## Measured
+
+| Repository | Change | Time |
+| --- | --- | --- |
+| hono, 99,000 lines | 20 files | 0.97 s from the command line |
+| nest, 277,000 lines | 20 files | 2.0 s |
+| nest, 277,000 lines | nothing | about 30 ms |

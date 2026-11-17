@@ -1,0 +1,51 @@
+---
+title: FAQ
+description: Short answers to common questions.
+icon: CircleQuestionMark
+---
+
+<Accordions>
+  <Accordion title="Is remimem free?">
+    Yes. It is open source under the MIT license, and the default setup costs nothing to run: no API keys, no hosted service.
+  </Accordion>
+  <Accordion title="Does my code leave my machine?">
+    Not with the defaults. Only if you choose the OpenAI or Voyage embedding provider. See [Privacy](/docs/privacy).
+  </Accordion>
+  <Accordion title="Which agents does it work with?">
+    Any MCP client that can start a stdio server: Claude Code, Cursor, VS Code with Copilot, and others. Without MCP, use `remimem context` and paste the result.
+  </Accordion>
+  <Accordion title="Which languages are supported?">
+    TypeScript, TSX, JavaScript, Python, and Go at full depth (symbols and call graph). Every other text file is searchable as text.
+  </Accordion>
+  <Accordion title="How is this different from my editor's search, or from grep?">
+    It returns the functions that answer a question, not every line that contains a word, and it ranks by meaning as well as by name. It adds the surrounding code as signatures, keeps decisions across sessions, and fits all of it into a token budget. On the benchmark it served 86% fewer tokens per task than grep and reading whole files.
+  </Accordion>
+  <Accordion title="Do I need to keep a process running?">
+    No. Your MCP client starts the server when it needs it. `remimem watch` is optional and only useful without a client.
+  </Accordion>
+  <Accordion title="Should I commit the .remimem folder?">
+    Commit `config.json` and `memory.json`, not the index. `remimem init` adds the index to `.gitignore` for you.
+  </Accordion>
+  <Accordion title="How big is the index?">
+    Roughly 7 KB per chunk: about 121 MB for a 277,000-line repository.
+  </Accordion>
+  <Accordion title="Can I use a GPU or a bigger model?">
+    The local provider runs on the CPU. You can pick another local model, or a hosted provider. See [Embedding providers](/docs/guides/embedding-providers).
+  </Accordion>
+  <Accordion title="Can a team share one index?">
+    Not yet; each person indexes locally. Memories are shared through the committed `memory.json`. A shared, hosted index is on the roadmap.
+  </Accordion>
+  <Accordion title="Why are token counts 'approximate'?">
+    remimem counts with the `o200k_base` encoding. Each model tokenizes slightly differently, so treat counts as close estimates.
+  </Accordion>
+  <Accordion title="Why did the project change its name?">
+    It was developed as codemem, but that name was already taken on npm by an unrelated package, so it was renamed to remimem before the first release.
+  </Accordion>
+</Accordions>
+
+## Roadmap
+
+- More languages at structural depth: Java, Rust, C#.
+- Team mode: a shared index and memory with access control.
+- A pull request reviewer that uses project memory and conventions to flag violations.
+- Smarter context: reranking with a small cross-encoder, and learning from which results agents open.

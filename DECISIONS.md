@@ -290,3 +290,16 @@ Each entry: context, options, decision, consequences.
   - The demo is scripted for VHS in `docs/demo.tape` and recorded to `docs/demo.gif` once the owner allowed installing VHS on the build machine.
   - VS Code setup in the README shows the workspace-root `.mcp.json` with `mcpServers` first and `.vscode/mcp.json` as the older format, following VS Code's own documentation (decision 024).
 - **Consequences:** The end-to-end benchmark hook has never been executed, and says so where it lives.
+
+## 038: The website is a separate project in web-app/
+
+- **Context:** The project needs a landing page and full documentation, in Next.js, with a documentation UI like Mintlify's, without affecting the CLI's package, build, tests, or CI.
+- **Options:** (a) Mintlify itself, a hosted service with its own format, (b) a Next.js documentation framework such as Fumadocs or Nextra, (c) hand-built pages.
+- **Decision:** (b) Fumadocs, scaffolded with its official generator: Next.js with MDX pages, a sidebar, built-in search, a table of contents, light and dark themes, and components for steps, tabs, callouts, accordions, and parameter tables. It lives in `web-app/` with its own `package.json` and lockfile, and is not an npm workspace.
+- **Consequences:**
+  - The npm package is unchanged: `files` in the root `package.json` lists only `dist/` and `grammars/`.
+  - The root scripts list their paths explicitly, so lint, format, typecheck, and tests never look inside `web-app/`. The character check does, as it covers every tracked file.
+  - `turbopack.root` is set in `web-app/next.config.mjs`, because the root lockfile would otherwise make Next.js treat the repository root as the app's root.
+  - A separate workflow (`.github/workflows/web.yml`) builds the site only when files under `web-app/` change.
+  - The docs repeat facts from `SETUP.md`, the README, and the code, so a change to a command, a default, or the benchmark has to be mirrored in `web-app/content/docs`. Benchmark figures on the site are copied from the README by hand, with the date they were measured.
+  - The landing page loads the demo GIF from GitHub instead of keeping a second copy.

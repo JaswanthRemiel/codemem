@@ -1,0 +1,97 @@
+---
+title: Embedding providers
+description: Use the default local model, a larger code-trained model, OpenAI or Voyage, or no embeddings at all.
+icon: Cpu
+---
+
+Embeddings power search by meaning. The provider is set in `.remimem/config.json` under `embedding`.
+
+| Provider | Where it runs | Code leaves your machine | Default model |
+| --- | --- | --- | --- |
+| `local` (default) | On your CPU | No | `Xenova/all-MiniLM-L6-v2` |
+| `openai` | OpenAI's API | Yes | `text-embedding-3-small` |
+| `voyage` | Voyage AI's API | Yes | `voyage-code-3` |
+| `none` | Nowhere | No | none: keyword and exact-name search only |
+
+<Callout type="warn" title="Changing the model">
+  Vectors from different models cannot be mixed. After changing `provider` or `model`, run `remimem index --full`. Until you do, searches stop with a message telling you to.
+</Callout>
+
+## The default local model
+
+`Xenova/all-MiniLM-L6-v2` is small (23 MB, 384 dimensions) and fast (about 200 chunks a second on an Apple M5). It is a general-purpose model, not one trained on code.
+
+## A code-trained local model
+
+```json title=".remimem/config.json"
+{
+  "embedding": { "provider": "local", "model": "jinaai/jina-embeddings-v2-base-code" }
+}
+```
+
+This model is trained on code, but on the benchmark it found no more of the right files (92% against 93%) while indexing about five times slower (324 s against 62 s for the three benchmark repositories) and using a 163 MB download. It ranked the first right file slightly higher (MRR 0.65 against 0.61). Try it if your queries are mostly code-shaped and indexing time does not matter to you.
+
+Other Hugging Face feature-extraction models can be used if they publish 8-bit quantized ONNX weights (a `model_quantized.onnx` file), which is what the local provider loads. Only these two have been measured.
+
+## OpenAI or Voyage
+
+<Tabs items={['OpenAI', 'Voyage']}>
+
+<Tab value="OpenAI">
+
+```json title=".remimem/config.json"
+{
+  "embedding": { "provider": "openai", "model": "text-embedding-3-small" }
+}
+```
+
+```sh
+export OPENAI_API_KEY=sk-...
+remimem index --full
+```
+
+</Tab>
+
+<Tab value="Voyage">
+
+```json title=".remimem/config.json"
+{
+  "embedding": { "provider": "voyage", "model": "voyage-code-3" }
+}
+```
+
+```sh
+export VOYAGE_API_KEY=...
+remimem index --full
+```
+
+Voyage receives whether each request is a document or a query, as it recommends.
+
+</Tab>
+
+</Tabs>
+
+API keys are read from the environment only, never from the config file, so the config stays safe to commit. Requests are batched (`batchSize`, 8 by default) and retried on rate limits and server errors.
+
+<Callout type="warn" title="Privacy">
+  With a remote provider, the text of every indexed chunk is sent to that service when it is embedded, and every query when you search. `remimem init` says so when it runs. These providers are tested only against stubbed responses; they have not been exercised against the live services.
+</Callout>
+
+## No embeddings
+
+```json title=".remimem/config.json"
+{
+  "embedding": { "provider": "none" }
+}
+```
+
+Nothing is downloaded and indexing is fastest. Search uses the keyword index and exact symbol names. On the benchmark, keyword search alone found 80% of the right files against 93% for the full hybrid search.
+
+## Settings
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `embedding.provider` | `local` | `local`, `openai`, `voyage`, or `none` |
+| `embedding.model` | provider default | Model name |
+| `embedding.batchSize` | 8 | Texts per embedding call |
+| `embedding.maxTokens` | 256 | Local models only: inputs are cut to this many model tokens |

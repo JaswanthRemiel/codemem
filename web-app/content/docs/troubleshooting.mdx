@@ -1,0 +1,129 @@
+---
+title: Troubleshooting
+description: Symptoms, causes, and fixes for the problems people actually hit.
+icon: LifeBuoy
+---
+
+Start with `npx -y remimem doctor`. It checks Node.js, every grammar, SQLite, the embedding model, and the index, and prints a fix hint for each failure.
+
+For more detail from any command or from the server, set `REMIMEM_LOG_LEVEL=debug`. Logs go to stderr.
+
+## Installing
+
+<Accordions>
+  <Accordion title="npm install fails with an engine error">
+    Node.js is older than 22.13. Install a newer version (`node --version` to check).
+  </Accordion>
+  <Accordion title="Building better-sqlite3 fails, or 'Could not locate the bindings file'">
+    No prebuilt SQLite binary matched your platform and Node.js version, so npm tried to compile it. Install Python 3 and a C++ toolchain (Xcode Command Line Tools on macOS, `build-essential` on Debian or Ubuntu, "Desktop development with C++" from Visual Studio Build Tools on Windows), then run `npm rebuild better-sqlite3`.
+  </Accordion>
+  <Accordion title="'node-gyp rebuild' fails with 'Could not find any Visual Studio installation' (Windows, from a source checkout)">
+    This happens on a lockfile install with npm 10. Run `npm install -g npm@11`, delete `node_modules`, and install again. With no C++ toolchain at all, run `npm ci --ignore-scripts`, then `npm run prepare`. Installing the published package with `npx` is not affected.
+  </Accordion>
+  <Accordion title="'The sqlite-vec extension failed to load'">
+    The platform package for `sqlite-vec` is missing. Prebuilt extensions exist for macOS (x64, arm64), Linux (x64, arm64), and Windows (x64). Reinstall; other platforms, including Windows on ARM, are not supported yet. Setting `"embedding": { "provider": "none" }` does not avoid it, since the extension is loaded with the database.
+  </Accordion>
+  <Accordion title="'Grammar for <language> failed to load'">
+    A grammar file in the package is missing or damaged. Reinstall remimem. From a source checkout, run `git checkout -- grammars`.
+  </Accordion>
+</Accordions>
+
+## The embedding model
+
+<Accordions>
+  <Accordion title="'Embedding model ... failed to load'">
+    The first use downloads the model from huggingface.co. Check the network or proxy, then run `remimem doctor` again. A partial download can be cleared by deleting `~/.cache/remimem/models`. To work without a model, set `"embedding": { "provider": "none" }`; search then uses keywords and exact names.
+  </Accordion>
+  <Accordion title="'The index holds vectors from X but the configured model is Y'">
+    The model in the config changed. Run `remimem index --full` to rebuild the vectors.
+  </Accordion>
+  <Accordion title="'Set OPENAI_API_KEY (or VOYAGE_API_KEY) to use the ... embedding provider'">
+    The config selects a remote provider, but the key is not in the environment of the process. For an MCP client, set it in the client's `env` for the server, or in the shell that starts the client.
+  </Accordion>
+</Accordions>
+
+## Connecting a client
+
+<Accordions>
+  <Accordion title="The client shows remimem as failed, or with no tools">
+    Run the exact command from the client configuration in a terminal, in the project: it should start and wait silently. If it exits, stderr says why. Typical causes: an old Node.js, `npx` not on the PATH the client sees (use the full path to `npx`), an invalid `.remimem/config.json`, or the wrong working directory (add `--root`).
+  </Accordion>
+  <Accordion title="Every tool answers 'The index is empty'">
+    The server is running in a directory with no index. Run `npx -y remimem init` there, or point the server at the project with `--root`.
+  </Accordion>
+  <Accordion title="The agent ignores the tools and reads files anyway">
+    Name the tool in your request ("use remimem get_context for ..."), or add a line to your client's project instructions. See [Working with an agent](/docs/guides/agent-workflow#steering-an-agent).
+  </Accordion>
+  <Accordion title="'remimem: command not found' from npx, after a rename or reinstall">
+    `npx` is using a cached link to an older package. Delete the matching directory under `~/.npm/_npx` (each one's `package.json` names what it was made for) and run the command again.
+  </Accordion>
+</Accordions>
+
+## Results
+
+<Accordions>
+  <Accordion title="Answers do not include my latest edits">
+    The server re-indexes changed files before each call, judging by size and modification time. A change that kept both is missed; run `remimem index`, which hashes every file. If answers end with `(index refresh still running ...)`, a large re-index is in progress; ask again shortly.
+  </Accordion>
+  <Accordion title="Results look wrong or stale after upgrading remimem">
+    Run `remimem index --full`.
+  </Accordion>
+  <Accordion title="Documentation outranks code, or code outranks the docs I want">
+    Adjust `retrieval.textFileWeight` (default 0.25). Raise it to 1 to rank prose equally with code.
+  </Accordion>
+  <Accordion title="A caller or callee is missing from get_symbol or find_references">
+    Resolution never guesses across an import that leads outside the repository, and has no type inference: `user.save()` is linked only when one symbol in the repository is named `save`. Calls to library functions have no link. See [The call graph](/docs/concepts/call-graph#where-it-stops).
+  </Accordion>
+  <Accordion title="A file I expected is not in the index">
+    Check it is not excluded: vendored folders, lockfiles, generated or minified files, binaries, secrets, files over `maxFileSizeKb` (512), and anything `.gitignore` or your `exclude` globs remove. `remimem debug chunks <path>` shows what remimem makes of a file.
+  </Accordion>
+</Accordions>
+
+## Index and config
+
+<Accordions>
+  <Accordion title="'Invalid .remimem/config.json' or 'is not valid JSON'">
+    The message names the field or position. Unknown keys are rejected on purpose, so check for typos. Delete the file to go back to the defaults.
+  </Accordion>
+  <Accordion title="'The index was written by a newer remimem'">
+    Upgrade remimem, or delete `.remimem/index.db` and run `remimem index`.
+  </Accordion>
+  <Accordion title="Indexing is slow">
+    Embedding is the slow stage: about 160 chunks a second with the default model on an Apple M5. It happens once; later runs embed only changed chunks. Narrow the file set with `exclude`, or use `"provider": "none"` to skip embeddings.
+  </Accordion>
+  <Accordion title="remimem watch does not notice changes">
+    Excluded folders are not watched. On Linux, a large repository can exceed the inotify limit: raise `fs.inotify.max_user_watches`.
+  </Accordion>
+</Accordions>
+
+## Memory
+
+<Accordions>
+  <Accordion title="'.remimem/memory.json is not valid'">
+    The file was damaged, usually by a merge conflict. Fix the JSON, or restore it with `git checkout -- .remimem/memory.json`. Until then the memories already in the index are kept and nothing is overwritten.
+  </Accordion>
+  <Accordion title="A memory is marked STALE">
+    Code it is linked to changed after it was written. If it is still true, delete it and add it again to link it to the current code; if not, `remimem memory rm <id>`. A memory that arrived through git can also show as stale when your checkout differs from the author's.
+  </Accordion>
+  <Accordion title="An irrelevant memory keeps appearing">
+    It is either linked to a file in the results (a whole-file link is always shown with that file), or it matches the task. Link it to a symbol instead of a file, or raise `memoryMinSimilarity`.
+  </Accordion>
+</Accordions>
+
+## Benchmark
+
+<Accordions>
+  <Accordion title="'remimem bench' says it runs from a source checkout">
+    The benchmark is not in the npm package. Clone the repository, run `npm install`, and use `npx . bench`.
+  </Accordion>
+  <Accordion title="It fails while cloning or checking out">
+    Delete the affected folder under `~/.cache/remimem/bench` and run it again.
+  </Accordion>
+  <Accordion title="My figures differ from the published ones">
+    Small differences between CPU types are expected; `--compare` checks them against a tolerance. Larger ones usually mean the task files or pinned commits changed.
+  </Accordion>
+</Accordions>
+
+## Still stuck?
+
+Open an [issue](https://github.com/JaswanthRemiel/remimem/issues/new/choose) with the output of `remimem doctor`, your remimem version, and, for a results problem, the output of `remimem search "<query>" --debug`.

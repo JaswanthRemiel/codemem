@@ -1,0 +1,40 @@
+---
+title: Overview
+description: How MCP clients start remimem, and the configuration every client needs.
+---
+
+remimem speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio. Your client starts it as a child process with `remimem serve`, sends tool calls on its stdin, and reads answers from its stdout. There is no port, no daemon, and nothing to keep running yourself.
+
+## What every client needs
+
+| Field | Value |
+| --- | --- |
+| Transport | stdio |
+| Command | `npx` |
+| Arguments | `-y`, `remimem`, `serve` |
+| Working directory | The project root. Or add `--root` and a path to the arguments. |
+
+Before connecting, run `npx -y remimem init` in the project once. Until the project has an index, tools answer `The index is empty`.
+
+## Pick your client
+
+<Cards>
+  <Card title="Claude Code" href="/docs/clients/claude-code" />
+  <Card title="Cursor" href="/docs/clients/cursor" />
+  <Card title="VS Code (Copilot)" href="/docs/clients/vscode" />
+  <Card title="Other MCP clients" href="/docs/clients/other" />
+</Cards>
+
+## Let init write it for you
+
+`remimem init` prints a ready configuration for each client, with the right command filled in:
+
+- Installed from npm: `npx -y remimem serve`.
+- Run from a source checkout: `node <checkout>/dist/cli/index.js serve`. That path is specific to your machine, so do not commit a configuration that contains it.
+
+## What the server does on its own
+
+- **Keeps the index fresh.** Before each tool call it checks for changed files and re-indexes them, waiting at most two seconds. See [Keeping the index fresh](/docs/concepts/freshness).
+- **Builds an index if there is none.** The first tool call in a project with no index builds one.
+- **Logs to stderr only.** Stdout carries protocol messages and nothing else. Set `REMIMEM_LOG_LEVEL` to `error`, `warn` (default), `info`, or `debug` for more detail in your client's server log.
+- **Survives failures.** A tool that fails returns a readable error to the agent; the server keeps running.

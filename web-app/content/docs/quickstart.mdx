@@ -1,0 +1,129 @@
+---
+title: Quickstart
+description: Index a project and connect your coding agent in about two minutes.
+icon: Rocket
+---
+
+You need [Node.js](https://nodejs.org) 22.13 or newer. Check with `node --version`.
+
+<Steps>
+
+<Step>
+
+### Set up the project
+
+In the root of the repository you want your agent to understand, run:
+
+```sh
+npx -y remimem init
+```
+
+This does four things:
+
+1. Creates `.remimem/config.json` (empty: every setting has a default).
+2. Adds `.remimem/index.db*` to `.gitignore`, so the index stays local.
+3. Builds the index: it parses your code, embeds it, and builds the call graph. The first run downloads a 23 MB embedding model.
+4. Prints the configuration for Claude Code, Cursor, and VS Code.
+
+The output starts like this:
+
+```text
+Created .remimem/config.json (empty: every setting has a default).
+Added .remimem/index.db* to .gitignore.
+Privacy: everything runs on this machine. No code leaves it and there is no telemetry.
+Indexed 570 of 570 files (0 unchanged, 0 removed) in 38.04s. Embedded 5300 chunks ...
+```
+
+</Step>
+
+<Step>
+
+### Connect your agent
+
+<Tabs items={['Claude Code', 'Cursor', 'VS Code']}>
+
+<Tab value="Claude Code">
+
+```sh
+claude mcp add remimem -- npx -y remimem serve
+```
+
+</Tab>
+
+<Tab value="Cursor">
+
+Create `.cursor/mcp.json` in the project root:
+
+```json
+{
+  "mcpServers": {
+    "remimem": { "command": "npx", "args": ["-y", "remimem", "serve"] }
+  }
+}
+```
+
+</Tab>
+
+<Tab value="VS Code">
+
+Create `.mcp.json` in the workspace root:
+
+```json
+{
+  "mcpServers": {
+    "remimem": { "type": "stdio", "command": "npx", "args": ["-y", "remimem", "serve"] }
+  }
+}
+```
+
+</Tab>
+
+</Tabs>
+
+Other clients and older VS Code versions are covered in [Connect a client](/docs/clients).
+
+</Step>
+
+<Step>
+
+### Check the tools are there
+
+In Claude Code, enter `/mcp`: `remimem` should be listed as connected with 9 tools. In Cursor, look under Settings, MCP. In VS Code, open the Command Palette and run **Chat: Open Customizations**, then **MCP Servers**.
+
+</Step>
+
+<Step>
+
+### Ask a question
+
+Ask your agent to start a task, for example:
+
+```text
+Use remimem's get_context for "add rate limiting to the login endpoint",
+then make the change.
+```
+
+The agent gets the relevant code in a few thousand tokens instead of reading whole files. When it learns something worth keeping, it can call `remember`, and the next session sees it.
+
+</Step>
+
+</Steps>
+
+## Try it without an agent
+
+Every tool has a command-line twin. To see what an agent would get:
+
+```sh
+npx -y remimem context "check a password at login" --budget 1000
+npx -y remimem search "password hashing"
+npx -y remimem stats
+```
+
+## What next
+
+<Cards>
+  <Card title="How it works" href="/docs/concepts/how-it-works" />
+  <Card title="Working with an agent" href="/docs/guides/agent-workflow" />
+  <Card title="Configuration" href="/docs/reference/configuration" />
+  <Card title="Troubleshooting" href="/docs/troubleshooting" />
+</Cards>

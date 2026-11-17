@@ -1,0 +1,180 @@
+---
+title: CLI
+description: Every remimem command, its options, and example output.
+icon: SquareTerminal
+---
+
+```sh
+remimem [command] [options]
+remimem --version
+remimem --help
+```
+
+With `npx`, prefix every command: `npx -y remimem init`. All commands work on the current directory. Results go to stdout, diagnostics to stderr, and a failure exits with a non-zero code.
+
+## init
+
+Set up remimem in the current directory.
+
+```sh
+remimem init
+```
+
+Creates `.remimem/config.json` if it is missing, adds `.remimem/index.db*` to `.gitignore` if it is not there, states where code is processed, builds the index with a progress bar, and prints configuration for Claude Code, Cursor, and VS Code. Safe to run again: it changes nothing that is already set up.
+
+## index
+
+Bring the index up to date.
+
+```sh
+remimem index
+remimem index --full
+```
+
+| Option | Meaning |
+| --- | --- |
+| `--full` | Re-index every file, rebuild all vectors, and remove cached vectors no chunk uses. Needed after changing the embedding model. |
+
+Without `--full`, every file is read and hashed, and only changed files are re-indexed.
+
+```text
+Indexed 1 of 8 files (7 unchanged, 0 removed) in 0.34s. Embedded 2 chunks (0 from cache) with local:Xenova/all-MiniLM-L6-v2. Index: 8 files, 32 symbols, 39 chunks.
+```
+
+## watch
+
+Keep the index current while you work.
+
+```sh
+remimem watch
+```
+
+Indexes once, then re-indexes changed files after `watch.debounceMs` (500 ms) of quiet. Stop with Ctrl+C. Not needed while an MCP client is connected.
+
+## serve
+
+Start the MCP server on stdio. This is what MCP clients run.
+
+```sh
+remimem serve
+remimem serve --root /path/to/project
+```
+
+| Option | Meaning |
+| --- | --- |
+| `--root <dir>` | Project directory. Defaults to the current directory. |
+
+It reads the configuration once at start: restart the client's server after changing the config.
+
+## search
+
+Search the index and print the best matching code within a token budget.
+
+```sh
+remimem search "<query>"
+remimem search parseToken -k 3 --budget 1500 --debug
+```
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `-k, --limit <n>` | 10 | Number of results to consider |
+| `--budget <tokens>` | 4000 | Token budget for the output |
+| `--debug` | off | Print every score before the results |
+
+Runs the quick change check first. The same retrieval as the `search_code` tool.
+
+## context
+
+Print the context an agent would get for a task, to paste into any chat.
+
+```sh
+remimem context "<task>"
+remimem context "add pagination to orders" --budget 3000
+```
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `--budget <tokens>` | 4000 | Token budget for the output |
+
+Runs the quick change check first. The same output as the `get_context` tool, memory included.
+
+## memory
+
+Manage project memory by hand.
+
+```sh
+remimem memory list ["<query>"] [--kind <kind>]
+remimem memory add "<text>" [--kind <kind>] [--path <file>]... [--symbol <name>]... [--tag <tag>]...
+remimem memory rm <id>
+```
+
+| Command | Option | Meaning |
+| --- | --- | --- |
+| `list` | `[query]` | Search; omit to list everything |
+| `list` | `--kind <kind>` | `decision`, `convention`, `gotcha`, or `todo` |
+| `add` | `--kind <kind>` | Default `decision` |
+| `add` | `--path <file>` | Link to a file (repeatable) |
+| `add` | `--symbol <name>` | Link to a symbol (repeatable) |
+| `add` | `--tag <tag>` | Add a tag (repeatable) |
+| `rm` | `<id>` | The memory id |
+
+## stats
+
+Show queries served and tokens served against an estimated baseline.
+
+```sh
+remimem stats
+```
+
+```text
+Queries served: 2 since 2026-11-15
+Tokens served: ~382
+Estimated baseline: ~834 tokens (reading in full every file a result body came from)
+Estimated saving: up to ~452 tokens (54%)
+
+By tool (queries, tokens served, estimated baseline, mean latency):
+  get_context  2  ~382  ~834  41 ms
+```
+
+Every tool call from the MCP server, `context`, and `memory` is logged in the local index. The baseline assumes each file a result body came from would have been read in full, so the saving is an upper bound. On a very small repository it is close to 0%.
+
+## doctor
+
+Check that this machine can run remimem.
+
+```sh
+remimem doctor
+```
+
+Checks the Node.js version, each grammar, SQLite with FTS5 and `sqlite-vec`, the embedding model (the first run downloads it), and, in an indexed project, the index: files, chunks, pending changes, and chunks without a vector. Exits with code 1 if a check fails, with a hint for each failure.
+
+## bench
+
+Run the benchmark. Works only from a source checkout of remimem; see [Benchmark](/docs/benchmark).
+
+```sh
+npx . bench
+```
+
+| Option | Meaning |
+| --- | --- |
+| `--repo <name>` | Run one repository (repeatable). Prints without writing a results file. |
+| `--limit <n>` | First n tasks of each repository. Prints without writing a results file. |
+| `--model <name>` | Index with another embedding model |
+| `--tune` | Also run the tuning configurations on the training split |
+| `--update-readme` | Paste the summary into `README.md` |
+| `--compare <file>` | Check the run against a results file, within a tolerance |
+| `--mine` | Rebuild the task files from the pinned repositories |
+| `--e2e` | Print the cost estimate for an end-to-end agent run |
+| `--yes` | With `--e2e`: actually run it. Costs money. Never run so far. |
+| `--price-per-mtok <usd>` | With `--e2e`: price per million input tokens for the estimate |
+
+## debug (hidden)
+
+Developer commands, not listed in `--help`.
+
+| Command | Prints |
+| --- | --- |
+| `remimem debug symbol <name> [--depth 0-2] [--signature]` | What `get_symbol` returns |
+| `remimem debug refs <name>` | What `find_references` returns |
+| `remimem debug chunks <path> [--content]` | The chunks of a file; for a directory, totals of files, lines, symbols, and chunks |

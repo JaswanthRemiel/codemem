@@ -1,0 +1,83 @@
+---
+title: Large repositories
+description: Keep indexing fast and results focused in big codebases and monorepos.
+icon: Boxes
+---
+
+remimem is built for repositories of 10,000 to 500,000 lines. Beyond the defaults, a few settings help in large ones.
+
+## Know what you are indexing
+
+```sh
+remimem debug chunks .
+```
+
+```text
+2796 files, 277244 lines, 11718 symbols, 17008 chunks in 1.68s
+```
+
+This scans and chunks without embedding, so it is fast. Embedding time is roughly proportional to chunks: about 160 per second with the default model on an Apple M5 laptop, so 17,000 chunks take under two minutes, once.
+
+## Narrow the file set
+
+Leave out code an agent should never be handed, such as generated clients, fixtures, or vendored copies under unusual folder names:
+
+```json title=".remimem/config.json"
+{
+  "exclude": ["**/__generated__/**", "test/fixtures/**", "third_party/**"],
+  "maxFileSizeKb": 256
+}
+```
+
+Or index only the part you work in:
+
+```json title=".remimem/config.json"
+{
+  "include": ["services/billing/**", "libs/shared/**"]
+}
+```
+
+A change to `include` or `exclude` takes effect on the next index: files that no longer match are removed.
+
+## Keep results inside one area
+
+Without changing the index, an agent can scope a single call:
+
+```text
+search_code({ query: "invoice totals", paths: ["services/billing/**"] })
+get_context({ task: "fix rounding in invoices", paths: ["services/billing/**"] })
+```
+
+## When one file dominates results
+
+Sometimes a very large file fills most of the results. Cap how many chunks one file may contribute:
+
+```json title=".remimem/config.json"
+{
+  "retrieval": { "maxChunksPerFile": 3 }
+}
+```
+
+On the benchmark this found more of the right files but showed fewer of their symbols in full, so it is off by default.
+
+## Speed and size
+
+| Measured on nest (277,000 lines, Apple M5) | |
+| --- | --- |
+| First full index, with embeddings | 106 s |
+| Re-index after a 20-file change | 2.0 s |
+| Check with nothing changed | about 30 ms |
+| `get_context` p95, including that check | 65 ms |
+| Index file size | 121 MB |
+
+The index stores each vector twice (search table and cache). `remimem index --full` removes cached vectors that no chunk uses any more.
+
+## Linux file watchers
+
+`remimem watch` uses the operating system's file notifications. On Linux, a large repository can exceed the inotify limit; raise it:
+
+```sh
+echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p
+```
+
+You do not need `watch` while an MCP client is connected: the server checks for changes before every call.

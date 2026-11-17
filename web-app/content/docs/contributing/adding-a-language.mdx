@@ -1,0 +1,70 @@
+---
+title: Adding a language
+description: The five parts of structural support for a new language, with Python as the smallest example.
+icon: Languages
+---
+
+Structural support means symbols, per-function chunks, and a call graph. It has five parts. Python is the smallest existing example to copy.
+
+<Steps>
+
+<Step>
+
+### Grammar
+
+Download the language's `.wasm` file from its tree-sitter grammar release and save it as `grammars/<language>.wasm`. Add a row to the table in `grammars/README.md` with the source and version.
+
+</Step>
+
+<Step>
+
+### Queries
+
+Write `grammars/<language>.scm`. The parser understands these capture names:
+
+| Capture | On | With |
+| --- | --- | --- |
+| `@def.<kind>` | A definition | `@name`, optionally `@body`. Kinds: `function`, `method`, `class`, `interface`, `type`, `enum`, `constant`, and `overload` for a signature that precedes its implementation. A method declared outside its type (as in Go) also captures `@receiver`. |
+| `@call` | A call | `@callee`, optionally `@recv` for the receiver |
+| `@ref.extends`, `@ref.implements`, `@ref.type` | The name referred to | |
+| `@import` | An import statement | `@source` for the module, and one of `@iname` (with optional `@ialias`), `@idefault`, `@inamespace`, or `@imodule` |
+
+When two patterns match the same name, the earlier one wins, so put specific patterns first. Check the result on a real file:
+
+```sh
+npx . debug chunks path/to/example.ext
+```
+
+</Step>
+
+<Step>
+
+### Parser tables
+
+In `src/parser/index.ts`, add the language to the `Lang` type, its file extensions to `EXTENSIONS`, and its query file to `QUERY_FILES`. `remimem doctor` now checks the grammar loads.
+
+</Step>
+
+<Step>
+
+### Module resolution
+
+In `src/graph/index.ts`, add the language to `FAMILY` and teach `findModule` how an import source maps to files in the repository. Without this, calls still resolve within a file and by unique name, but not through imports.
+
+</Step>
+
+<Step>
+
+### Fixture and tests
+
+Add a small project under `test/fixtures/` that exercises the language's tricky cases (decorators, nested functions, methods outside their type, overloads, whatever applies), with at least one call across files. Then:
+
+- add it to `test/golden.test.ts`, generate the golden file with `npx vitest run test/golden.test.ts -u`, and read it line by line;
+- add hand-written assertions to `test/parser.test.ts`, as the other languages have;
+- list its call graph by hand in the `CALLS` table of `test/graph.test.ts`. At least 90% of those links must resolve, and no link may be invented.
+
+</Step>
+
+</Steps>
+
+Open a pull request with the golden file and a note on anything the grammar could not express.

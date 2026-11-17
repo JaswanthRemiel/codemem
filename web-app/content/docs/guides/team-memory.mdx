@@ -1,0 +1,65 @@
+---
+title: Sharing memory with a team
+description: Commit memory.json so every teammate and every agent session sees the same decisions and conventions.
+icon: Users
+---
+
+Memories live in your local index and in `.remimem/memory.json`. The file is what you share.
+
+## Set up
+
+<Steps>
+
+<Step>
+
+Run `remimem init` in the repository. It adds `.remimem/index.db*` to `.gitignore`, so the index stays local while `config.json` and `memory.json` can be committed.
+
+</Step>
+
+<Step>
+
+Commit the folder's shareable files:
+
+```sh
+git add .remimem/config.json .remimem/memory.json
+git commit -m "chore: share remimem config and project memory"
+```
+
+</Step>
+
+<Step>
+
+Teammates pull and run `npx -y remimem init` (or just use their client). The first command or tool call that touches memory loads the file.
+
+</Step>
+
+</Steps>
+
+## How changes flow
+
+- **Adding or deleting a memory** rewrites `memory.json` right away. Commit it like any other file.
+- **Pulling a teammate's memories** needs nothing: remimem compares the file with what it loaded last and reloads it when it differs.
+- **Deleting a memory from the file** by hand, or through a merge, deletes it from everyone's index on their next load.
+
+## Merges
+
+The file is written sorted by id with one memory per line, and ids are random (`m_` followed by eight hex digits). Two people adding memories on separate branches usually touch different lines, so git merges them cleanly.
+
+A conflict is still possible when two new memories land next to each other. Resolve it as you would any JSON conflict: keep both lines, and make sure every line but the last inside the array ends with a comma. If the file is left invalid, remimem refuses to load it and says so; it does not overwrite your memories:
+
+```text
+.remimem/memory.json is not valid (...). Fix the file, or restore it with git.
+```
+
+## Stale memories on other machines
+
+Each link stores a fingerprint of the code it was written against. On a checkout where that code differs (an older branch, say), the memory shows as stale. That is expected: the memory may not apply to that version of the code.
+
+## Reviewing memories
+
+Memories change behavior, so review them like code. In a pull request, `memory.json` diffs one memory per line, which makes additions and deletions easy to read. To list them locally:
+
+```sh
+remimem memory list
+remimem memory list --kind decision
+```

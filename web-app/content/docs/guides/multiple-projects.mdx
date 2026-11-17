@@ -1,0 +1,54 @@
+---
+title: Multiple projects and monorepos
+description: One index per project, serving a subfolder, and pointing a client at the right root.
+icon: FolderTree
+---
+
+Each directory where you run `remimem init` gets its own `.remimem/` folder, with its own index, config, and memories. The server serves exactly one of them.
+
+## One repository, one index
+
+The simplest setup: run `remimem init` at the repository root, and start the server there. Monorepos work fine this way; use `paths` on a call to stay inside one package when needed.
+
+## Serving a subfolder
+
+To index and serve only part of a repository, initialize inside it and point the server at it:
+
+```sh
+cd packages/api
+npx -y remimem init
+```
+
+```json title=".mcp.json at the repository root"
+{
+  "mcpServers": {
+    "remimem": { "command": "npx", "args": ["-y", "remimem", "serve", "--root", "packages/api"] }
+  }
+}
+```
+
+A relative `--root` is resolved from the directory the client starts the server in. If you are not sure what that is, use an absolute path, or a variable your client supports (Cursor, for instance, fills in `${workspaceFolder}`).
+
+## Several projects in one client
+
+Register one server per project, under different names:
+
+```json
+{
+  "mcpServers": {
+    "remimem-api": { "command": "npx", "args": ["-y", "remimem", "serve", "--root", "/work/api"] },
+    "remimem-web": { "command": "npx", "args": ["-y", "remimem", "serve", "--root", "/work/web"] }
+  }
+}
+```
+
+The agent then sees two sets of tools, prefixed by server name.
+
+## Alternatives to splitting
+
+Before creating several indexes, consider whether one index with filters does the job:
+
+- `include` in the config to index only some packages.
+- `paths` on a tool call to search only some packages.
+
+One index means one place for memories and a call graph that sees across packages.

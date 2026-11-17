@@ -1,0 +1,91 @@
+---
+title: Project memory
+description: Decisions, conventions, gotchas, and todos that persist across sessions, linked to code and flagged when it changes.
+icon: Brain
+---
+
+Agents forget everything between sessions. Project memory is a small store of facts about the codebase that should not be rediscovered every time: why something is done a certain way, what not to touch, what is still to do.
+
+## Kinds
+
+| Kind | Example |
+| --- | --- |
+| `decision` | Passwords are hashed with argon2, never bcrypt. |
+| `convention` | Handlers return `Result` objects instead of throwing. |
+| `gotcha` | `parseToken` accepts `sub.exp` only; anything else throws. |
+| `todo` | Move `notify` to the job queue. |
+
+## Saving a memory
+
+An agent calls `remember`; you can use the CLI:
+
+```sh
+remimem memory add "Never log passwords in authenticateUser." --kind convention --symbol authenticateUser
+```
+
+```text
+Stored memory m_7c03d27f (convention), linked to src/auth.ts authenticateUser.
+```
+
+Links tie a memory to code:
+
+- `--symbol` (or `symbols` in the tool) links to one symbol. It must resolve to exactly one; an ambiguous name is reported back and the memory is stored unlinked. Use a qualified name such as `UserService.login` to disambiguate.
+- `--path` (or `paths`) links to a whole file.
+
+Both are optional and repeatable. An unlinked memory still works; it is just found by matching the task instead.
+
+## When memories appear
+
+`get_context` puts relevant memories at the top of its answer:
+
+```text
+=== Project memory (decisions and conventions recorded for this repo) ===
+[convention] m_7c03d27f
+  Never log passwords in authenticateUser.
+  (linked: src/auth.ts authenticateUser)
+```
+
+A memory is included when:
+
+1. **It is linked to the results.** Linked to a file that is in the results, or to a symbol that is itself one of the results. These are always shown.
+2. **It matches the task.** It contains at least half of the task's words (`memoryMinKeywordMatch`), or its meaning is close enough (cosine similarity at least `memoryMinSimilarity`, 0.4). One shared word is not enough. At most `memoryLimit` (5) are added this way.
+
+Memory takes at most a quarter of the budget. `search_code` never adds memories; `recall` searches them directly.
+
+## Staleness
+
+Each link stores a fingerprint of the code it points at. After every index run, a memory whose linked symbol or file changed, or disappeared, is marked stale:
+
+```text
+[decision] m_20283783 STALE: linked code has changed since this was written
+```
+
+Stale memories are still shown, marked, so the agent can judge whether they still hold. If the code changes back, the mark goes away. To refresh one, delete it and add it again against the current code.
+
+## Sharing through git
+
+Every change is mirrored to `.remimem/memory.json`, sorted by id with one memory per line:
+
+```json title=".remimem/memory.json"
+{
+  "version": 1,
+  "memories": [
+    {"id":"m_20283783","kind":"decision","text":"Passwords are hashed with the fixture salt.","tags":["security"],"createdAt":"...","updatedAt":"...","links":[...]}
+  ]
+}
+```
+
+That file is the source of truth. Commit it, and teammates get your memories on their next `git pull`: remimem notices the file changed and loads it. Deleting `.remimem/index.db` loses nothing; the next index restores memories from the file. Staleness is not stored in the file, because it depends on each person's checkout.
+
+See [Sharing memory with a team](/docs/guides/team-memory) for the workflow, and how merges behave.
+
+## Managing memories
+
+```sh
+remimem memory list                    # everything
+remimem memory list "password"         # search
+remimem memory list --kind todo        # one kind
+remimem memory rm m_7c03d27f           # delete
+```
+
+The agent equivalents are `recall` and `forget`.

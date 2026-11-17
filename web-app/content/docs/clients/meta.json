@@ -1,0 +1,5 @@
+{
+  "title": "Connect a client",
+  "icon": "Plug",
+  "pages": ["index", "claude-code", "cursor", "vscode", "other"]
+}

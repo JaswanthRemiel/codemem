@@ -1,0 +1,91 @@
+---
+title: Claude Code
+description: Add remimem to Claude Code with one command or a shared .mcp.json file.
+---
+
+## Add the server
+
+<Tabs items={['Command', 'Shared .mcp.json']}>
+
+<Tab value="Command">
+
+In the project directory:
+
+```sh
+claude mcp add remimem -- npx -y remimem serve
+```
+
+The `--` separates Claude Code's own options from the command that starts the server. The server is added for you, in this project.
+
+</Tab>
+
+<Tab value="Shared .mcp.json">
+
+To share the setup with everyone who clones the repository, create `.mcp.json` in the project root and commit it:
+
+```json title=".mcp.json"
+{
+  "mcpServers": {
+    "remimem": { "command": "npx", "args": ["-y", "remimem", "serve"] }
+  }
+}
+```
+
+Claude Code asks each person to approve a project server the first time.
+
+</Tab>
+
+</Tabs>
+
+## Confirm it works
+
+<Steps>
+
+<Step>
+
+Start `claude` in the project and enter `/mcp`. `remimem` should be listed as connected, with 9 tools.
+
+</Step>
+
+<Step>
+
+Ask: `Call the remimem get_context tool with the task "where is authentication handled" and show me the raw result.`
+
+</Step>
+
+<Step>
+
+Approve the tool call. The result is a list of code blocks headed `--- path:start-end ...` and ends with a footer such as `~3,400 tokens | 12 results`.
+
+</Step>
+
+</Steps>
+
+## Make it the default way to explore
+
+Claude Code reads the server's instructions when it connects, which already tell it to start tasks with `get_context`. To make that stronger, add a line to your project's `CLAUDE.md`:
+
+```md title="CLAUDE.md"
+Before reading files to understand code, call the remimem get_context tool with the task.
+Use remimem find_references before changing a function. Record lasting decisions with remimem remember.
+```
+
+## Remove it
+
+```sh
+claude mcp remove remimem
+```
+
+## Common problems
+
+<Accordions>
+  <Accordion title="remimem shows as failed in /mcp">
+    Run `npx -y remimem serve` in a terminal in the project. It should start and wait silently. If it exits, the message on stderr says why: usually an old Node.js (`node --version` must be 22.13 or newer) or an invalid `.remimem/config.json`.
+  </Accordion>
+  <Accordion title="Tools answer that the index is empty">
+    Run `npx -y remimem init` in the project, or let the first tool call build the index and ask again.
+  </Accordion>
+  <Accordion title="The agent keeps reading whole files instead">
+    Add the `CLAUDE.md` lines above, or name the tool in your request: "use remimem get_context for ...".
+  </Accordion>
+</Accordions>

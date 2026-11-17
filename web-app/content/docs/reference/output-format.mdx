@@ -1,0 +1,69 @@
+---
+title: Output format
+description: The exact shape of what the tools return, so you can read it, or parse it.
+icon: FileText
+---
+
+Tools return plain text, not JSON: it is meant to be read by a model, and it costs fewer tokens than the same content wrapped in JSON. The format is stable and simple to parse.
+
+## Code blocks
+
+`get_context`, `search_code`, and `get_symbol` return code as blocks:
+
+```text
+--- <path>:<start>-<end> <kind> <qualified name>[, <more names>] [<reasons>][ (signature only)]
+<code, or the signature and an indented docstring>
+```
+
+- **Path** is relative to the project root, always with forward slashes.
+- **Lines** are 1-based and inclusive.
+- **Kind** is `function`, `method`, `class`, `interface`, `type`, `enum`, or `lines` for a text window. When adjacent chunks were joined into one block, every name is listed.
+- **Reasons** explain why the block is there; see [Search](/docs/concepts/search#reasons). `get_symbol` omits them.
+- **`(signature only)`** marks a block shown as its signature and docstring.
+
+Blocks are separated by a blank line, grouped by file, and in line order within a file. A block's header is the only line that starts with `--- ` followed by a path and a line range.
+
+## The footer
+
+```text
+~3,412 tokens | 12 results | 7 dropped for budget
+```
+
+The last line of `get_context` and `search_code`. The token figure is approximate and counts the whole answer, the footer included. `| N dropped for budget` appears only when something was left out. Other tools end with a plain `~N tokens` line.
+
+## Project memory
+
+At the top of `get_context` when any memory applies:
+
+```text
+=== Project memory (decisions and conventions recorded for this repo) ===
+[<kind>] <id>[ STALE: linked code has changed since this was written]
+  <text>
+  (linked: <path>[ <symbol>], ...; tags: <tag>, ...)
+```
+
+`recall` uses the same memory format, without the heading.
+
+## Notes and errors
+
+| Line | Meaning |
+| --- | --- |
+| `(index refresh still running: results may not include your latest edits)` | The last line when the refresh before the call took longer than two seconds |
+| `Error: <message>` | The call failed; the message says why and usually what to do |
+| `Error: The index is empty. Run ...` | No index in this project yet |
+| `No symbol named "<name>" in the index.` | From `get_symbol` and `find_references` |
+| `<n> symbols are named "<name>". Ask again with a qualified name:` | Followed by the candidates |
+
+## Parsing it
+
+To extract the cited locations from an answer:
+
+```ts
+const blocks = [...answer.matchAll(/^--- (.+?):(\d+)-(\d+) /gm)].map((m) => ({
+  path: m[1],
+  startLine: Number(m[2]),
+  endLine: Number(m[3]),
+}));
+```
+
+This is the same pattern the benchmark uses to score answers.

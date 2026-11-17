@@ -1,0 +1,69 @@
+---
+title: Search
+description: "How a question becomes a ranked list of code: keywords, vectors, exact names, and rank fusion."
+icon: Search
+---
+
+Every search runs three lookups and fuses them into one ranking. Each result keeps the reasons it was found, which you see in its header and in `--debug` output.
+
+## 1. Keyword search
+
+The keyword index is SQLite's FTS5, ranked by BM25. Before text is indexed or searched, every identifier is expanded into itself and its parts:
+
+| Identifier | Indexed as |
+| --- | --- |
+| `authenticateUser` | `authenticateuser authenticate user` |
+| `parseHTTPResponse` | `parsehttpresponse parse http response` |
+| `find_user_by_id` | `find_user_by_id find user by id` |
+
+So the query `user auth` finds `authenticateUser`. Query words of three or more characters also match as prefixes (`auth` matches `authenticate`), and common English words (`the`, `how`, `where`, ...) are dropped. Matches in a symbol's name weigh five times a match in the code, and matches in the path twice.
+
+There is no stemming: `hashed` does not match `hash`. Vector search covers that.
+
+## 2. Vector search
+
+The query is embedded with the same model as the code, and the 50 nearest chunks by cosine similarity are taken. This is what finds code from a description that shares no words with it. On the test fixtures, "confirm sign-in credentials" finds `authenticateUser` by vector alone.
+
+What gets embedded for a chunk is its path, signature, docstring, and then body, in that order. Local models stop reading after 256 tokens, and this order means only the end of a long body is lost, never the signature.
+
+## 3. Exact symbol names
+
+Words in the query that are shaped like identifiers (`camelCase`, `snake_case`, `dotted.paths`, or containing a digit) are looked up as symbol names. A plain word counts only when it is the whole query, so `remimem search resolve` finds `resolve`, while "how to resolve a route" relies on the other two lookups. An exact match always ranks above every other result.
+
+## Fusion
+
+The keyword and vector lists are combined with reciprocal rank fusion: each list adds `1 / (60 + rank)` to every result it contains. A result ranked well by both lists beats one ranked first by only one. Exact symbol matches are then placed on top.
+
+Two adjustments follow, both chosen on the benchmark's training tasks:
+
+- **Text files count a quarter.** Results from files that are not parsed as code (Markdown, JSON, SQL, ...) are multiplied by `textFileWeight` (0.25). Without it, changelogs and docs crowded out code for questions phrased like commit messages. Set it to 1 if you mostly search prose.
+- **Optional per-file cap.** `maxChunksPerFile` limits how many results one file may contribute. Off by default.
+
+## Reasons
+
+| Reason | Meaning |
+| --- | --- |
+| `exact-symbol` | The query named this symbol |
+| `keyword` | Found by the keyword index |
+| `vector` | Found by meaning |
+| `calls X`, `called by Y` | Added by graph expansion |
+| `extends X`, `extended by Y`, `implements X`, `implemented by Y` | Added by graph expansion |
+| `type used by X`, `contains X` | Added by graph expansion |
+
+## Seeing every score
+
+```sh
+remimem search "confirm sign-in credentials" -k 3 --budget 150 --debug
+```
+
+```text
+1. score=0.0164 keyword=- vector=1  src/auth.ts:10-23 authenticateUser
+2. score=0.0161 keyword=- vector=2  src/auth.ts:36-39 resetPassword  (dropped)
+3. score=0.0159 keyword=- vector=3  src/service.ts:33-38 UserService.login  (dropped)
+```
+
+`keyword=` and `vector=` give the rank in each list (`-` means not found there), and `(dropped)` marks results that did not fit the budget.
+
+## Tuning
+
+Every weight and limit is in the [configuration](/docs/reference/configuration): `rrfK`, `keywordLimit`, `vectorLimit`, `keywordWeights`, `textFileWeight`, `maxChunksPerFile`. Setting `keywordLimit` or `vectorLimit` to 0 turns that lookup off. If you change them, the [benchmark](/docs/benchmark) can tell you whether results improved.

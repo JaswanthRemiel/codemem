@@ -1,0 +1,43 @@
+---
+title: Privacy and security
+description: What stays on your machine, what can leave it, and how remimem treats your files.
+icon: ShieldCheck
+---
+
+## Everything runs locally
+
+With the default settings, code is parsed, embedded, and stored on your machine. The index is one SQLite file inside your project. remimem makes exactly one network request on its own: the first download of the embedding model from huggingface.co.
+
+There is no telemetry. The configuration has a `telemetry` field that can only be `false`, so the fact is visible.
+
+## When code leaves your machine
+
+Only if you set `embedding.provider` to `openai` or `voyage`. Then the text of every indexed chunk is sent to that service to be embedded, and so is every search query. `remimem init` states which applies when it runs:
+
+```text
+Privacy: everything runs on this machine. No code leaves it and there is no telemetry.
+```
+
+API keys are read from environment variables only, never from the config file, so the config is safe to commit.
+
+## Files remimem never indexes
+
+Anything that looks like a secret is skipped, whatever `.gitignore` or `include` says: `.env*`, `.npmrc`, `.netrc`, `.pypirc`, SSH keys (`id_rsa*` and the other key names), and `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks`, `*.keystore`. Binary files, files over the size limit, and symlinks are skipped too. A secret pasted into an ordinary source file is indexed like the rest of that file.
+
+## Files remimem never touches
+
+- It never executes code from the repository. Parsing is done by tree-sitter grammars compiled to WebAssembly.
+- Paths are resolved against the project root, and anything outside it is rejected, including through symlinks. `get_file_outline` with `../../etc/passwd` answers that there is no such file in the index.
+- It writes only inside `.remimem/`, to `.gitignore` (one line, during `init`), and to its cache folder.
+
+## The query log
+
+Every tool call is logged in the local index (tool, query text up to 500 characters, tokens, latency) for `remimem stats`. It stays in `.remimem/index.db`, which is not committed and is never sent anywhere.
+
+## What gets shared through git
+
+Only what you commit: typically `.remimem/config.json` and `.remimem/memory.json`. Memories are plain text you or your agent wrote, so review them like code before committing.
+
+## Reporting a security problem
+
+Please report it privately through the Security tab of the [repository](https://github.com/JaswanthRemiel/remimem) rather than in a public issue.

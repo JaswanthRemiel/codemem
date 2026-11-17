@@ -161,6 +161,11 @@ Release checklist:
 - Published to npm as `remimem` 0.1.0 on 2026-11-15 through the release workflow, with provenance; tagged `v0.1.0` and released on GitHub; repository topics set. `npx -y remimem init` was checked in a scratch repo against the published package.
 - After the release, the workflow was changed to trusted publishing (no npm token) and to wait for the exact version on npm, and `RELEASING.md` was rewritten to the order actually used: publish, confirm, then tag and release. The trusted publisher has to be set up once on npmjs.com before the next release; until then the workflow cannot publish.
 
+### Website
+
+- Landing page and documentation in `web-app/`, built with Next.js and Fumadocs: 35 documentation pages covering setup, every client, concepts, guides, the full tool, CLI, and configuration reference, the benchmark, privacy, limitations with workarounds, troubleshooting, FAQ, contributing, and the changelog. Built-in search, Markdown copies of each page, and `llms.txt`.
+- Isolated from the CLI: own `package.json` and lockfile, not in the npm package, outside the root scripts, and built by its own path-filtered workflow. Not deployed yet.
+
 ## Next
 
 Nothing scheduled. The roadmap after v1 is in the README.

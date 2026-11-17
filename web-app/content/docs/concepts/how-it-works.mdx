@@ -1,0 +1,105 @@
+---
+title: How it works
+description: The path from your files to a token-budgeted answer, in one page.
+icon: Workflow
+---
+
+remimem has two flows: indexing, which turns files into a searchable store, and answering, which turns a question into a packed reply.
+
+```text
+files -> scanner -> parser -> chunker -> SQLite (keyword index, vectors, call graph, memory)
+                                              |
+agent -> MCP tool -> retriever (keyword + vector + graph) -> packer -> text within the budget
+```
+
+## Indexing
+
+<Steps>
+
+<Step>
+
+**Scan.** List the files worth indexing: tracked and untracked files that `.gitignore` allows, minus vendored code, generated files, lockfiles, binaries, files over 512 KB, and anything that looks like a secret. [Indexing](/docs/concepts/indexing) has the full rules.
+
+</Step>
+
+<Step>
+
+**Parse.** tree-sitter parses TypeScript, TSX, JavaScript, Python, and Go into symbols (functions, methods, classes, interfaces, types, enums, constants), the calls and type references inside them, and their imports.
+
+</Step>
+
+<Step>
+
+**Chunk.** Each function and method becomes one chunk; a class becomes a header chunk (fields and method signatures) plus one chunk per method. Very long functions are split at statement boundaries. Everything else, including files in other languages, becomes overlapping 60-line windows.
+
+</Step>
+
+<Step>
+
+**Store and embed.** Chunks go into one SQLite file, `.remimem/index.db`, with a keyword index that understands identifiers. A local embedding model turns each chunk into a vector. Unchanged text is never embedded twice.
+
+</Step>
+
+<Step>
+
+**Link.** References are resolved to the symbols they mean, producing a call graph with a confidence on every link. A compact map of the repository is generated for the `remimem://overview` resource.
+
+</Step>
+
+</Steps>
+
+## Answering
+
+<Steps>
+
+<Step>
+
+**Refresh.** Changed files are re-indexed first, so the answer reflects your latest edits. [Keeping the index fresh](/docs/concepts/freshness) explains how this stays fast.
+
+</Step>
+
+<Step>
+
+**Search.** The query runs against the keyword index and the vector index, and identifier-shaped words are looked up as exact symbol names. The two rankings are fused; exact names go on top. [Search](/docs/concepts/search) covers the details.
+
+</Step>
+
+<Step>
+
+**Expand.** The direct neighbors of the top results in the call graph (callers, callees, base classes, referenced types) are added as signatures, each with the reason it is there. See [The call graph](/docs/concepts/call-graph).
+
+</Step>
+
+<Step>
+
+**Remember.** `get_context` adds project memories linked to the code it found or matching the task. See [Project memory](/docs/concepts/memory).
+
+</Step>
+
+<Step>
+
+**Pack.** Everything is fitted into the token budget: best results in full, neighbors as signatures, adjacent pieces of a file joined, grouped by file in line order. The answer never exceeds the budget and ends with a footer that says what was dropped. See [Context packing](/docs/concepts/context-packing).
+
+</Step>
+
+</Steps>
+
+## Where things live
+
+| Module | Responsibility |
+| --- | --- |
+| `scanner` | Which files to index |
+| `parser` | Symbols, references, and imports, through tree-sitter |
+| `chunker` | Turning symbols into chunks |
+| `embedder` | Local, OpenAI, and Voyage providers, with a cache |
+| `indexer` | Full and incremental indexing, the repository overview, `watch` |
+| `store` | All SQLite access: schema, migrations, queries |
+| `graph` | Resolving references into a call graph |
+| `retriever` | Hybrid search and graph expansion |
+| `packer` | Fitting results into a budget |
+| `memory` | Decisions and conventions, staleness, the JSON mirror |
+| `mcp` | The MCP server and its tools |
+| `cli` | The commands |
+| `stats` | The query log behind `remimem stats` |
+
+The source is in [`src/`](https://github.com/JaswanthRemiel/remimem/tree/main/src) of the repository, and the reasons behind each design choice are recorded in [`DECISIONS.md`](https://github.com/JaswanthRemiel/remimem/blob/main/DECISIONS.md).

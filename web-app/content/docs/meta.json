@@ -1,0 +1,24 @@
+{
+  "title": "Documentation",
+  "pages": [
+    "---Get started---",
+    "index",
+    "quickstart",
+    "installation",
+    "clients",
+    "---Concepts---",
+    "...concepts",
+    "---Guides---",
+    "...guides",
+    "---Reference---",
+    "...reference",
+    "---Project---",
+    "benchmark",
+    "privacy",
+    "limitations",
+    "troubleshooting",
+    "faq",
+    "...contributing",
+    "changelog"
+  ]
+}

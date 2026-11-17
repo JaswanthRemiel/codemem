@@ -1,0 +1,73 @@
+---
+title: Limitations and workarounds
+description: What remimem does not do well yet, and what to do about each one.
+icon: Construction
+---
+
+An honest list. Each item says what to do about it today.
+
+## Structural support covers four languages
+
+TypeScript (and TSX), JavaScript, Python, and Go get symbols, a call graph, and per-function chunks. Every other language is searchable as text in 60-line windows, without symbols.
+
+**Workaround:** text search still works, and vector search often finds the right window from a description. To add a language properly, see [Adding a language](/docs/contributing/adding-a-language).
+
+## No type inference in the call graph
+
+`user.save()` is linked only when exactly one symbol in the repository is named `save`. In a hand-check, about one in four of these name-match links was wrong, and many real calls get no link.
+
+**Workaround:** name-match links carry the lowest weight (0.2). To drop them, set `"edgeWeights": { "name-match": 0 }`. `find_references` may miss callers that go through untyped values; complement it with `search_code` for the name.
+
+## Documentation counts a quarter
+
+Results from files that are not parsed as code (Markdown, JSON, SQL) are multiplied by 0.25, because changelogs and docs were crowding out code in the benchmark.
+
+**Workaround:** if you mostly ask about prose, set `"retrieval": { "textFileWeight": 1 }`.
+
+## The benchmark tasks are easier than real bug reports
+
+They are commit messages, written after the change, and they often name what changed. The test split is 36 tasks from three repositories, and the baseline is a simulation of a grep-driven agent.
+
+**Workaround:** run the benchmark on your own expectations with `--tune`, and judge by `remimem stats` and how your agent behaves on your code.
+
+## Remote embedding providers are untested against live services
+
+The OpenAI and Voyage providers are covered by tests against stubbed responses only.
+
+**Workaround:** the default local model is the measured path. If you use a remote provider, run `remimem doctor` first: it makes one real embedding call and reports the result.
+
+## The install is large
+
+The local embedding runtime brings about 430 MB into `node_modules`, and a first `npx` run downloads and unpacks about 750 MB into the npm cache. On a fast connection, install to first answer takes about 26 seconds; on a slow one, much longer.
+
+**Workaround:** install once globally (`npm install -g remimem`) so `npx` does not re-resolve it, or keep a warm npm cache in CI.
+
+## The end-to-end agent benchmark has never been run
+
+`remimem bench --e2e` is designed to give a real agent the same tasks with and without remimem. It costs money, so it only prints an estimate without `--yes`, and the agent flags it would use are unverified.
+
+**Workaround:** none yet; the token benchmark is the measured evidence.
+
+## Memories cost a little code
+
+With memories attached, the share of right files shown with a full body dropped by about two points in the benchmark (90% against 92%), because memory takes up to a quarter of the budget. Only a quarter of the memories attached there were relevant.
+
+**Workaround:** keep memories few and specific, link them to code, and raise `memoryMinSimilarity` if irrelevant ones appear. `"memoryLimit": 0` turns task-matched memories off; linked ones still show.
+
+## The default embedding model is not trained on code
+
+A code-trained alternative found no more of the right files in the benchmark and indexed five times slower, so it is an option rather than the default. See [Embedding providers](/docs/guides/embedding-providers).
+
+## Change detection trusts size and modification time
+
+A change that keeps both is missed by the quick check before tool calls.
+
+**Workaround:** `remimem index` reads and hashes every file.
+
+## Platform gaps
+
+- Vector search has no prebuilt extension for Windows on ARM.
+- TypeScript path aliases from `tsconfig.json` (`paths`, `baseUrl`) are not read: imports through them resolve only when exactly one file matches.
+- Go struct embedding and implicit interface satisfaction produce no graph links.
+- Outside a git repository, `.gitignore` is not read; only the built-in excludes apply. Use `exclude` in the config.
+- The index stores each vector twice (search and cache), about 1.5 KB extra per chunk. `remimem index --full` prunes unused cache entries.

@@ -1,0 +1,51 @@
+---
+title: Context packing
+description: How results are fitted into a token budget, and why the answer never goes over it.
+icon: Package
+---
+
+The packer turns a ranked list into text an agent can read: as much of the best code as the budget allows, nothing duplicated, every block citable.
+
+## The rules
+
+1. **Highest score first.** Results are taken in score order.
+2. **Full body, then signature, then nothing.** A result that does not fit in full is tried as its signature and docstring. If that does not fit either, it is dropped and counted.
+3. **No repeats.** Chunks of a file that overlap or touch are joined into one block without repeating lines. A long function that was split into parts comes back whole.
+4. **Grouped and ordered.** Blocks are grouped by file, files ordered by their best result, and blocks within a file in line order, so the code reads top to bottom.
+5. **Memory first.** In `get_context`, project memory goes above the code and may take up to a quarter of the budget.
+6. **A footer.** The last line gives the size and what was left out: `~3,412 tokens | 12 results | 7 dropped for budget`.
+
+## Never over budget
+
+The token count of the final text, footer included, is measured, and results are removed from the end until it fits. A seeded property test checks this on 400 random inputs on every CI run. A budget too small even for the footer returns an empty answer.
+
+Token counts use the `o200k_base` encoding. Different models count differently, so treat every figure as approximate, typically within a few percent for code.
+
+## Choosing a budget
+
+| Budget | Good for |
+| --- | --- |
+| 2,000 | A quick lookup, or an agent with a small context window |
+| 4,000 (default) | Starting most tasks |
+| 8,000 | A change that spans many files |
+
+On the benchmark, going from 4,000 to 8,000 tokens found no more of the right files but showed more of their symbols in full. Set the default with `retrieval.defaultBudgetTokens`, or pass `budget_tokens` on a call.
+
+## Signature compression
+
+Graph neighbors are always shown as signature and docstring, with their location so the agent can fetch the body with `get_symbol` if it needs it. Showing them in full instead (`compressNeighbors: false`) lowered file recall on the benchmark, because the extra code pushed better results out of the budget.
+
+## Reading a block header
+
+```text
+--- src/auth.ts:10-23 function authenticateUser [keyword, vector, called by UserService.login]
+```
+
+| Part | Meaning |
+| --- | --- |
+| `src/auth.ts:10-23` | File and line range, for citing and opening |
+| `function authenticateUser` | Kind and qualified name; `lines` for a text window |
+| `[keyword, ...]` | Why it was returned |
+| `(signature only)` | Shown as a signature; the body was left out |
+
+The [output format reference](/docs/reference/output-format) describes every line the tools can print.

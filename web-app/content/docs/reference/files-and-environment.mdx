@@ -1,0 +1,53 @@
+---
+title: Files and environment
+description: What remimem writes where, what to commit, and the environment variables it reads.
+icon: FileCog
+---
+
+## In the project
+
+<Files>
+  <Folder name=".remimem" defaultOpen>
+    <File name="config.json" />
+    <File name="memory.json" />
+    <File name="index.db" />
+    <File name="index.db-wal" />
+    <File name="index.db-shm" />
+  </Folder>
+  <File name=".gitignore" />
+</Files>
+
+| File | What it is | Commit it? |
+| --- | --- | --- |
+| `.remimem/config.json` | Your settings. Created empty by `init`. | Yes, to share settings |
+| `.remimem/memory.json` | Project memory, one memory per line. The source of truth for memories. | Yes, to share memories |
+| `.remimem/index.db` | The index: chunks, keyword index, vectors, call graph, query log. One SQLite file. | No. `init` adds it to `.gitignore`. |
+| `.remimem/index.db-wal`, `-shm` | SQLite's write-ahead log, present while the index is open | No (covered by the same `.gitignore` line) |
+
+Deleting `.remimem/index.db` is always safe: the next `remimem index` rebuilds it, and memories come back from `memory.json`.
+
+## In your home folder
+
+| Path | What it is |
+| --- | --- |
+| `~/.cache/remimem/models` | Downloaded embedding models. The default model is 23 MB. |
+| `~/.cache/remimem/bench` | Benchmark clones and their indexes, only if you ran `remimem bench` |
+
+Both move with `REMIMEM_CACHE_DIR`. Deleting them is safe; models download again on next use.
+
+## Environment variables
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `REMIMEM_LOG_LEVEL` | `warn` | `error`, `warn`, `info`, or `debug`. Logs go to stderr only. `debug` adds timings for each indexing stage and each tool call. |
+| `REMIMEM_CACHE_DIR` | `~/.cache/remimem` | Where models and benchmark data are kept |
+| `OPENAI_API_KEY` | none | Required with `"provider": "openai"` |
+| `VOYAGE_API_KEY` | none | Required with `"provider": "voyage"` |
+
+## Index format and upgrades
+
+The index has numbered migrations, applied automatically when a newer remimem opens an older index. When an upgrade changes what the parser or chunker stores, the next index run rebuilds every file on its own. An older remimem refuses to open an index written by a newer one:
+
+```text
+The index was written by a newer remimem (schema N); upgrade remimem or delete .remimem/index.db and run `remimem index`
+```

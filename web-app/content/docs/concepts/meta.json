@@ -1,0 +1,3 @@
+{
+  "pages": ["how-it-works", "indexing", "search", "call-graph", "context-packing", "memory", "freshness"]
+}

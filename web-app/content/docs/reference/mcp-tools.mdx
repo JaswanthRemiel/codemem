@@ -1,0 +1,192 @@
+---
+title: MCP tools
+description: Every tool the server exposes, its inputs, and what it returns.
+icon: Wrench
+---
+
+The server exposes nine tools and one resource. All tools return plain text. Every tool except `index_status` re-indexes changed files before it answers; see [Keeping the index fresh](/docs/concepts/freshness).
+
+A tool that fails returns an error result whose text starts with `Error: `, and the server keeps running. Inputs are validated: a call with a wrong type or a value out of range is rejected before it runs.
+
+## get_context
+
+The best starting context for a task: project memory, the top code in full, and the signatures of what it calls and what calls it.
+
+<TypeTable
+  type={{
+    task: { description: 'What you are about to do, in plain language.', type: 'string', required: true },
+    budget_tokens: { description: 'Maximum tokens to return, 100 to 100,000.', type: 'number', default: '4000' },
+    paths: { description: 'Only return code from files matching these globs, for example ["src/api/**"].', type: 'string[]' },
+  }}
+/>
+
+Looks at `retrieval.contextK` results (20) before packing; the budget decides how many are shown. Memory takes at most a quarter of the budget.
+
+```text
+get_context({ task: "add rate limiting to the login endpoint" })
+```
+
+## search_code
+
+Ranked code for a query, with the reason each result matched. No memories.
+
+<TypeTable
+  type={{
+    query: { description: 'Words, a description, or a symbol name.', type: 'string', required: true },
+    k: { description: 'Number of results, 1 to 50. Graph neighbors come on top of these.', type: 'number', default: '10' },
+    budget_tokens: { description: 'Maximum tokens to return, 100 to 100,000.', type: 'number', default: '4000' },
+    language: { description: 'Only return code in this language.', type: '"typescript" | "tsx" | "javascript" | "python" | "go"' },
+    paths: { description: 'Only return code from files matching these globs.', type: 'string[]' },
+  }}
+/>
+
+With a `language` or `paths` filter, remimem looks up to ten times further down the ranking to fill `k`, so a rare match can still return fewer than `k` results.
+
+```text
+search_code({ query: "parse JWT token", k: 5 })
+```
+
+## get_symbol
+
+One function, class, or type, with its callers and callees.
+
+<TypeTable
+  type={{
+    name: { description: 'Plain or qualified name, for example "login" or "UserService.login".', type: 'string', required: true },
+    include: { description: 'Return the body, or only the signature and docstring.', type: '"body" | "signature"', default: '"body"' },
+    depth: { description: 'Hops of callers and callees to follow, 0 to 2. Other relations are listed for the symbol itself.', type: 'number', default: '1' },
+  }}
+/>
+
+If several symbols share the name, it returns a short list of candidates with their locations instead of guessing; ask again with a qualified name. A function split into several chunks comes back whole.
+
+```text
+--- src/auth.ts:10-23 function authenticateUser
+(the body)
+
+Calls:
+  findUser  src/db.ts:19-21  [import]
+  hash  src/hash.ts:4-10  [import]
+
+Called by:
+  UserService.login  src/service.ts:33-38  [import]
+```
+
+Sections appear when they have entries: Calls, Called by, Extends, Extended by, Implements, Implemented by, Uses types, Used as a type by, Inside, Contains.
+
+## get_file_outline
+
+The symbols in a file with signatures and line numbers, no bodies.
+
+<TypeTable
+  type={{
+    path: { description: 'File path relative to the project root.', type: 'string', required: true },
+  }}
+/>
+
+```text
+src/auth.ts (typescript, 5 symbols)
+5-8 interface Claims
+  export interface Claims
+14-23 function authenticateUser
+  export async function authenticateUser(id: string, password: string): Promise<boolean>
+  16-18 function verify
+    function verify(expected: string, actual: string): boolean
+```
+
+A file in a language without structural support answers that it has no symbols (it is still searchable). A path that is not in the index says so.
+
+## find_references
+
+Every place a symbol is called, extended, used as a type, or imported, grouped by file.
+
+<TypeTable
+  type={{
+    name: { description: 'Plain or qualified symbol name.', type: 'string', required: true },
+  }}
+/>
+
+```text
+4 references in 2 files to function findUser at src/db.ts:19-21
+
+src/auth.ts
+  src/auth.ts:2  import
+  src/auth.ts:20  call in authenticateUser [import]
+
+src/service.ts
+  src/service.ts:2  import
+  src/service.ts:43  call in UserService.find [import]
+```
+
+Only references remimem could resolve are listed: calls into a symbol through a value of unknown type may be missing. See [The call graph](/docs/concepts/call-graph).
+
+## remember
+
+Save a decision, convention, gotcha, or todo.
+
+<TypeTable
+  type={{
+    text: { description: 'The fact to keep, in one or two sentences.', type: 'string', required: true },
+    kind: { description: 'What sort of memory it is.', type: '"decision" | "convention" | "gotcha" | "todo"', required: true },
+    paths: { description: 'Files this is about.', type: 'string[]' },
+    symbols: { description: 'Symbols this is about. Each must resolve to exactly one symbol.', type: 'string[]' },
+    tags: { description: 'Free-form tags, also searched.', type: 'string[]' },
+  }}
+/>
+
+```text
+Stored memory m_7c03d27f (convention), linked to store.go normalize.
+Not linked: nope (no such symbol in the index).
+```
+
+Names that cannot be linked are reported, and the memory is stored anyway.
+
+## recall
+
+Search saved memories. Stale ones are marked.
+
+<TypeTable
+  type={{
+    query: { description: 'What to look for. An empty string lists everything.', type: 'string', required: true },
+    kind: { description: 'Only memories of this kind.', type: '"decision" | "convention" | "gotcha" | "todo"' },
+  }}
+/>
+
+Matching uses the same keyword and vector fusion as code search, with the minimums described in [Project memory](/docs/concepts/memory). Returns `No memories match.` when nothing does.
+
+## forget
+
+Delete a memory.
+
+<TypeTable
+  type={{
+    id: { description: 'The memory id, as shown by recall, for example "m_3f9a2c1b".', type: 'string', required: true },
+  }}
+/>
+
+An unknown id is an error result.
+
+## index_status
+
+What the index covers. No inputs, and it does not refresh first, so it can report pending changes.
+
+```text
+Files: 8 | Symbols: 32 | Chunks: 39 | Edges: 34
+Last indexed: 2026-11-17T19:36:41.639Z at commit 5322fdffbf2c
+Pending changes: 0 changed, 0 new, 0 deleted
+Embedding model: local:Xenova/all-MiniLM-L6-v2 (39 of 39 chunks embedded)
+```
+
+## The overview resource
+
+`remimem://overview` is a compact map of the repository: the directory tree to depth 3, each directory with its file count and its most-referenced symbols, capped at 1,500 tokens. It is rebuilt whenever the index changes.
+
+```text
+8 files, 32 symbols. Directories show their file count and most-referenced symbols.
+db/ (1 files)
+src/ (6 files): User, UserId, findUser, hash, UserService
+```
+
+## Annotations
+
+All tools are marked read-only except `remember` and `forget`, which change project memory. None of them reaches outside your machine, unless you configured a remote embedding provider.

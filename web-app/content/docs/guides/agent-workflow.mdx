@@ -1,0 +1,99 @@
+---
+title: Working with an agent
+description: Which tool to reach for when, and how to steer an agent toward remimem instead of reading whole files.
+icon: Bot
+---
+
+remimem tells clients how to use it when they connect, and most agents pick it up from that. This page is for getting the most out of it.
+
+## The loop
+
+<Steps>
+
+<Step>
+
+**Start with `get_context`.** Describe the task in plain language, the way you would to a colleague. The answer has project memory, the best code in full, and the surrounding code as signatures.
+
+```text
+get_context({ task: "add rate limiting to the login endpoint" })
+```
+
+</Step>
+
+<Step>
+
+**Follow up narrowly.** `search_code` for a specific lookup, `get_symbol` to read the body of something that came back as a signature, `get_file_outline` to see a file's shape without its bodies.
+
+</Step>
+
+<Step>
+
+**Check the blast radius.** `find_references` before renaming or changing a function's signature lists every caller and importer.
+
+</Step>
+
+<Step>
+
+**Leave a note.** When the agent learns something that should outlive the session, `remember` it, linked to the code it is about.
+
+</Step>
+
+</Steps>
+
+## Which tool when
+
+| You want to | Use | Typical size |
+| --- | --- | --- |
+| Start a task | `get_context` | up to the budget, 4,000 tokens by default |
+| Find code by description or name | `search_code` | up to the budget |
+| Read one function and who calls it | `get_symbol` | a few hundred tokens |
+| See what a file contains | `get_file_outline` | a few hundred tokens |
+| Find every use of a symbol | `find_references` | small |
+| Look up past decisions | `recall` | small |
+| Check the index covers your edits | `index_status` | tiny |
+
+## Writing good tasks
+
+- **Say what you are about to do, not just a keyword.** "Fix the retry loop that charges customers twice" finds more than "retry".
+- **Include names you know.** Identifiers in the task (`PaymentService.charge`, `retry_payment`) are matched exactly and ranked first.
+- **Narrow with `paths` when you know the area.** `paths: ["src/billing/**"]` keeps results inside one part of the repository.
+- **Raise the budget for wide changes.** `budget_tokens: 8000` for a change that touches many files.
+
+## Steering an agent
+
+If an agent keeps reading whole files, tell it once, in the file your client reads for project instructions:
+
+```md title="CLAUDE.md, AGENTS.md, or .cursor/rules"
+## Exploring code
+- Start every task by calling the remimem get_context tool with a one-sentence description of the task.
+- Read a specific function with remimem get_symbol instead of opening the whole file.
+- Before changing a function's signature, call remimem find_references.
+- When we agree on a decision or convention, save it with remimem remember, linked to the relevant symbols.
+```
+
+## Good memories
+
+A memory is worth saving when a future session would otherwise get it wrong:
+
+- **Good:** "Money is stored in integer cents everywhere; never use floats." (convention)
+- **Good:** "The legacy `/v1` routes must keep returning XML until the mobile app is retired." (decision, linked to the router)
+- **Not useful:** "Fixed the bug in login." That belongs in a commit message.
+
+Keep memories to one or two sentences, link them to the narrowest code they are about, and delete them when they stop being true.
+
+## Checking what the agent saw
+
+Every tool call is logged locally. To see how much context remimem served:
+
+```sh
+remimem stats
+```
+
+```text
+Queries served: 53 since 2026-11-14
+Tokens served: ~156,884
+Estimated baseline: ~1,688,280 tokens (reading in full every file a result body came from)
+Estimated saving: up to ~1,531,396 tokens (91%)
+```
+
+The baseline is an estimate: it assumes the agent would otherwise have read each of those files in full, so treat the saving as an upper bound. The [benchmark](/docs/benchmark) measures it properly.

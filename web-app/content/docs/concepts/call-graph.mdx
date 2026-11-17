@@ -1,0 +1,78 @@
+---
+title: The call graph
+description: How references become links between symbols, what each confidence means, and where resolution stops.
+icon: Network
+---
+
+remimem links each call, base class, and type reference to the symbol it most likely means. The result powers three things: neighbors in search results, `get_symbol`, and `find_references`.
+
+## Link kinds
+
+| Kind | From | To |
+| --- | --- | --- |
+| `calls` | A function or method | The function, method, or class it calls |
+| `extends` | A class or interface | Its base |
+| `implements` | A class | An interface it implements |
+| `uses-type` | Any symbol | A class, interface, type, or enum it refers to |
+| `contains` | A class or function | The symbols declared inside it |
+
+Imports are recorded too. `find_references` lists them, because an import is how you find the files that use a symbol.
+
+## Resolution and confidence
+
+A name is resolved in a fixed order, and the step that found it becomes the link's confidence:
+
+| Confidence | How it was found | Weight in search |
+| --- | --- | --- |
+| `exact` | In the same file: an enclosing function, the file's top level, or (Go) the same package. Also `this.x()`, `self.x()`, and `cls.x()` inside a class. | 0.5 |
+| `import` | Through an import of this file that leads to a file in the repository | 0.4 |
+| `name-match` | The only symbol of that name in the repository, in the same language family | 0.2 |
+
+Module paths are resolved for TypeScript and JavaScript (relative paths and `index` files), Python (relative and absolute modules), and Go (through `go.mod`).
+
+## Where it stops
+
+Resolution prefers no link to a wrong one:
+
+- **Library calls get no link.** A call through an import that leads outside the repository (`fmt.Println`, `crypto.randomUUID`) is left unresolved and never falls back to a name match.
+- **Globals get no link.** A call on a capitalized name that is neither defined in the file nor imported (`Object.assign`, `Math.max`, `JSON.parse`) is a global, not your code.
+- **Ambiguous names get no link.** If two symbols share a name and nothing narrows it down, there is no link.
+- **No type inference.** `user.save()` is linked only when exactly one symbol in the repository is named `save`.
+
+In a hand-check of 30 resolved calls in a large TypeScript repository, every `exact` and `import` link was right, and about one in four `name-match` links was wrong. That is why name-match links carry the lowest weight.
+
+## Neighbors in search results
+
+For the top 10 results, remimem adds their direct neighbors: callers, callees, base and derived classes, implemented interfaces, referenced types, and the enclosing class. Each neighbor scores its parent's score times the link's weight, at most 20 are added, and they are shown as signature and docstring only:
+
+```text
+--- src/db.ts:19-21 function findUser [called by authenticateUser] (signature only)
+export const findUser = (id: UserId): User | undefined =>
+  Looks up a user by id.
+```
+
+A neighbor that is already a result just gains the reason. A function nested inside a result is skipped, since the result's text already contains it.
+
+## Exploring the graph yourself
+
+```sh
+remimem debug symbol authenticateUser --depth 2
+remimem debug refs findUser
+```
+
+These hidden commands print exactly what the `get_symbol` and `find_references` tools return:
+
+```text
+Calls:
+  authenticateUser.verify  src/auth.ts:16-18  [exact]
+  findUser  src/db.ts:19-21  [import]
+  hash  src/hash.ts:4-10  [import]
+
+Called by:
+  UserService.login  src/service.ts:33-38  [import]
+    LegacyLogin.handle  src/legacy.js:6-8  [name-match]
+```
+
+## Settings
+
+`graphTopN` (10), `graphMaxNeighbors` (20), `edgeWeights` (exact 0.5, import 0.4, name-match 0.2), and `compressNeighbors` (true) are in the [configuration](/docs/reference/configuration). `graphTopN: 0` turns expansion off; a weight of 0 leaves links of that confidence out.

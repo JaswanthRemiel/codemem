@@ -1,0 +1,49 @@
+---
+title: Releasing
+description: "How a version is published: through a workflow with trusted publishing, then tagged once it is live."
+icon: Tag
+---
+
+Releases are published by a GitHub Actions workflow started by hand. npm trusts that workflow directly (trusted publishing), so no npm token is stored anywhere, and each version carries a signed provenance statement. The full checklist is in [`RELEASING.md`](https://github.com/JaswanthRemiel/remimem/blob/main/RELEASING.md).
+
+## The order
+
+<Steps>
+
+<Step>
+
+**Prepare.** Set the version, add a dated section to `CHANGELOG.md`, write release notes in `docs/releases/`, and commit `chore(release): <version>`.
+
+</Step>
+
+<Step>
+
+**Check.** Run every check, and `npm publish --dry-run` to see the files. Push and wait for CI to be green.
+
+</Step>
+
+<Step>
+
+**Publish.** Start the Release workflow. It runs the checks again, publishes, and waits until that exact version can be read back from npm.
+
+</Step>
+
+<Step>
+
+**Confirm.** Check `npm view remimem@<version> version` returns the version. Right after a publish, npm can show a placeholder version for a minute or two; checking that the package merely exists is not enough.
+
+</Step>
+
+<Step>
+
+**Tag and release.** Only once the version is live: tag the published commit, push the tag, and create the GitHub release from the notes.
+
+</Step>
+
+</Steps>
+
+Publishing before tagging means a failed publish leaves nothing to undo.
+
+## What is in the package
+
+`package.json`, `README.md`, `LICENSE`, the compiled `dist/` folder without the benchmark, and `grammars/`: 38 files, about 500 kB packed. This website, the tests, and the benchmark data are not published.

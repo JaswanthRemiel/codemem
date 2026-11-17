@@ -1,0 +1,130 @@
+---
+title: Installation
+description: Requirements, ways to install, platform support, and running without network access.
+icon: Download
+---
+
+## Requirements
+
+| | Requirement |
+| --- | --- |
+| Node.js | 22.13 or newer |
+| Operating system | macOS (Apple Silicon and Intel), Linux (x64 and arm64), Windows (x64) |
+| Disk | About 750 MB for the npm cache on first install, 23 MB for the embedding model, and an index of roughly 7 KB per chunk of code |
+| Network | Only to download the package and, once, the embedding model |
+
+No compiler is needed on the supported platforms: the SQLite engine, the vector extension, and the parsers all ship prebuilt.
+
+## Ways to install
+
+<Tabs items={['npx (recommended)', 'Global install', 'From source']}>
+
+<Tab value="npx (recommended)">
+
+Nothing to install up front. `npx` downloads remimem on first use and caches it:
+
+```sh
+npx -y remimem init
+npx -y remimem serve
+```
+
+MCP client configurations use the same command, so the server always matches the version `npx` resolves.
+
+</Tab>
+
+<Tab value="Global install">
+
+Install once and use the `remimem` command directly:
+
+```sh
+npm install -g remimem
+remimem init
+remimem --version
+```
+
+In client configurations, use `"command": "remimem", "args": ["serve"]`. Upgrade with `npm install -g remimem@latest`.
+
+</Tab>
+
+<Tab value="From source">
+
+For contributors, or to run an unreleased version:
+
+```sh
+git clone https://github.com/JaswanthRemiel/remimem.git
+cd remimem
+npm install
+npx . --version
+```
+
+`npm install` also builds the project into `dist/`. From a checkout, `remimem init` prints configurations that start the server with `node <checkout>/dist/cli/index.js serve`. Developing on remimem needs npm 11 or newer; see [Development](/docs/contributing/development).
+
+</Tab>
+
+</Tabs>
+
+## Check the installation
+
+```sh
+npx -y remimem doctor
+```
+
+A healthy machine prints:
+
+```text
+Node.js: 22.x.x ok
+Grammar javascript: ok
+Grammar typescript: ok
+Grammar tsx: ok
+Grammar python: ok
+Grammar go: ok
+SQLite with FTS5 and sqlite-vec: ok
+Embedding model: local:Xenova/all-MiniLM-L6-v2 ok (384 dimensions)
+Index: none yet (run `remimem init` in the project)
+```
+
+Any failed check prints `failed (...)` with a fix hint, and `doctor` exits with code 1. In an indexed project, the last line shows files, chunks, pending changes, and chunks still waiting for a vector.
+
+## The embedding model
+
+The first `init`, `index`, or `doctor` downloads `Xenova/all-MiniLM-L6-v2` (23 MB) from huggingface.co into `~/.cache/remimem/models`. After that, remimem needs no network.
+
+- To keep the model somewhere else, set `REMIMEM_CACHE_DIR`. The model goes into its `models` subfolder.
+- To work without any model, set `"embedding": { "provider": "none" }` in `.remimem/config.json`. Search then uses keywords and exact symbol names only, which is still useful, but less so for questions phrased in plain language.
+- To use a hosted model instead, see [Embedding providers](/docs/guides/embedding-providers).
+
+## Offline and air-gapped machines
+
+<Steps>
+
+<Step>
+
+On a machine with network access, run `npx -y remimem doctor` once so the model is downloaded.
+
+</Step>
+
+<Step>
+
+Copy `~/.cache/remimem/models` to the same path on the offline machine, or to a folder you point `REMIMEM_CACHE_DIR` at.
+
+</Step>
+
+<Step>
+
+Install remimem there through your internal npm registry or mirror. Its dependencies (the SQLite engine, the vector extension, and the model runtime) are installed with it, so a lone package tarball is not enough. Then run `remimem doctor` to confirm the model loads.
+
+</Step>
+
+</Steps>
+
+## Uninstall
+
+remimem keeps its data in three places. Remove any of them safely:
+
+| Path | What it is |
+| --- | --- |
+| `.remimem/` in each project | Config, index, and memories. Keep `memory.json` if your team shares it. |
+| `~/.cache/remimem/` | The embedding model and benchmark clones. |
+| Your MCP client configuration | Remove the `remimem` entry, for example `claude mcp remove remimem`. |
+
+A global install is removed with `npm uninstall -g remimem`.

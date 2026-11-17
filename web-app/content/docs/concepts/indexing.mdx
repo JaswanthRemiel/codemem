@@ -1,0 +1,76 @@
+---
+title: Indexing
+description: Which files are indexed, how code is parsed and chunked, and how long it takes.
+icon: Database
+---
+
+## Which files are indexed
+
+remimem asks git for the file list: every tracked file, plus untracked files that `.gitignore` does not exclude. Outside a git repository it walks the directory instead (and then cannot read `.gitignore`). From that list it always skips:
+
+| Skipped | Rule |
+| --- | --- |
+| Vendored and build folders | Any path inside `.git`, `.remimem`, `node_modules`, `dist`, `vendor`, `__pycache__`, `.venv`, `venv`, `.next`, or `coverage` |
+| Lockfiles | `package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml`, `bun.lockb`, `go.sum`, and any `*.lock` |
+| Generated files by name | `*.min.js`, `*.min.css`, `*.map`, `*.pb.go`, `*_pb2.py`, `*_pb2_grpc.py`, and names containing `.generated.` |
+| Generated files by content | A `Code generated ... DO NOT EDIT` or `@generated` marker near the top |
+| Minified files | No line break in the first 2,000 characters |
+| Binary files | A NUL byte in the first 8 KB |
+| Secrets | `.env*`, `.npmrc`, `.netrc`, `.pypirc`, `id_rsa*` and the other SSH key names, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks`, `*.keystore` |
+| Large and empty files | Over `maxFileSizeKb` (512 KB by default), or empty |
+| Links | Symlinks and submodules |
+
+You can narrow the set further with `include` and `exclude` globs in the [configuration](/docs/reference/configuration). The built-in rules always apply: an `include` cannot bring back a `.env` file.
+
+## Parsing
+
+Five grammars ship with remimem as WebAssembly, so nothing is compiled on install:
+
+| Language | Extensions |
+| --- | --- |
+| TypeScript | `.ts`, `.mts`, `.cts` |
+| TSX | `.tsx` |
+| JavaScript | `.js`, `.mjs`, `.cjs`, `.jsx` |
+| Python | `.py` |
+| Go | `.go` |
+
+For these files, remimem extracts:
+
+- **Symbols:** functions, methods, classes, interfaces, type aliases, enums, and top-level constants, each with its signature, docstring, line range, and enclosing symbol. Decorators and `export` keywords are part of the symbol. TypeScript overloads fold into the implementation that follows them. Go methods attach to their type, even when declared in another file.
+- **References:** calls (with their receiver, as in `user.save()`), base classes, implemented interfaces, and referenced types.
+- **Imports:** every binding with its local name, including aliases (`import x as y`, Go named imports, CommonJS `require`).
+
+Every other text file (Markdown, SQL, YAML, Rust, Java, and so on) is searchable as text, without symbols.
+
+## Chunking
+
+A chunk is the unit search returns.
+
+- **Functions and methods:** one chunk each, from the doc comment to the end of the body.
+- **Classes:** a header chunk with fields and method signatures, method bodies replaced by `{ ... }` (or `...` in Python), plus one chunk per method.
+- **Interfaces, types, and enums:** one chunk each.
+- **Functions nested in functions:** stay inside the outer function's chunk. They are still symbols, so `get_symbol` and the call graph see them.
+- **Long symbols:** a symbol over 80 lines is split before a statement, with its signature repeated at the top of each later part. A single statement longer than that is cut by line count.
+- **Everything else:** imports, constants, top-level code, and whole files in other languages become 60-line windows with 10 lines of overlap.
+
+Every non-blank line of a file is in at least one chunk.
+
+## How long it takes
+
+Embedding is the slow stage; parsing and chunking are fast. Measured on an Apple M5 laptop with the default model:
+
+| Repository | Lines | Full index |
+| --- | --- | --- |
+| hono (TypeScript) | 99,000 | 38 seconds |
+| nest (TypeScript) | 277,000 | 106 seconds |
+
+Parsing and chunking alone run at several hundred thousand lines per second. The first index is the only slow one: later runs read only changed files and embed only changed chunks. A 20-file change on hono re-indexes in under a second.
+
+## Forcing a rebuild
+
+```sh
+remimem index          # re-read changed files (hashes every file)
+remimem index --full   # re-index everything, rebuild vectors, prune the embedding cache
+```
+
+Use `--full` after changing the embedding model, or if results look wrong after an upgrade. An upgrade that changes what the parser stores triggers a full rebuild on its own.

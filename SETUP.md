@@ -435,6 +435,20 @@ How a task is built: each one is a real commit that fixes a bug or adds a featur
 
 How the baseline works: it takes up to eight keywords from the task text, ranks files by how many of them each contains, and reads whole files in that order until it has read every ground-truth file or used 40,000 tokens.
 
+## The website
+
+The landing page and documentation live in `web-app/`, a separate Next.js project with its own dependencies. Nothing at the repository root depends on it.
+
+```sh
+cd web-app
+npm install
+npm run dev        # serves http://localhost:3000
+npm run build
+npm run typecheck
+```
+
+Expected: `npm run build` ends with a route table that lists `/`, `/docs/[[...slug]]` with about 35 pages, `/api/search`, `/llms.txt`, and `/og/docs/[...slug]`, and no warnings. Pages are MDX files in `web-app/content/docs`.
+
 ## Per-phase verification checklist
 
 ### Phase 0

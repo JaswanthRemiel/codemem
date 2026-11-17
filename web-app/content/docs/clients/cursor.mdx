@@ -1,0 +1,60 @@
+---
+title: Cursor
+description: Add remimem to Cursor through .cursor/mcp.json.
+---
+
+## Add the server
+
+Create `.cursor/mcp.json` in the project root:
+
+```json title=".cursor/mcp.json"
+{
+  "mcpServers": {
+    "remimem": { "command": "npx", "args": ["-y", "remimem", "serve"] }
+  }
+}
+```
+
+Commit it to share the setup with your team.
+
+To use remimem in every project on your machine, put it in `~/.cursor/mcp.json` instead, and pass the open folder explicitly. Cursor fills in `${workspaceFolder}` in `command` and `args`:
+
+```json title="~/.cursor/mcp.json"
+{
+  "mcpServers": {
+    "remimem": {
+      "command": "npx",
+      "args": ["-y", "remimem", "serve", "--root", "${workspaceFolder}"]
+    }
+  }
+}
+```
+
+## Confirm it works
+
+Open Cursor Settings, then MCP. `remimem` should be listed with its 9 tools and a green status. Then ask the agent: `Use remimem get_context for "how is the database connection configured"`.
+
+## Point it at another folder
+
+If the code lives in a subfolder of the workspace, add `--root`:
+
+```json
+{
+  "mcpServers": {
+    "remimem": { "command": "npx", "args": ["-y", "remimem", "serve", "--root", "${workspaceFolder}/packages/api"] }
+  }
+}
+```
+
+Run `npx -y remimem init` inside that folder too.
+
+## Common problems
+
+<Accordions>
+  <Accordion title="The server shows a red status">
+    Open the MCP server log in Cursor to see remimem's stderr. Run `npx -y remimem serve` in a terminal in the project to reproduce. Most often Node.js is older than 22.13, or `npx` is not on the PATH Cursor sees; give the full path to `npx` in `command` if so.
+  </Accordion>
+  <Accordion title="Answers do not include my latest edits">
+    remimem re-indexes changed files before each call. If you saved a file with the same size and timestamp as before, run `npx -y remimem index` to hash every file.
+  </Accordion>
+</Accordions>

@@ -1,0 +1,130 @@
+---
+title: Configuration
+description: Every setting in .remimem/config.json, with its default and what it does.
+icon: Settings
+---
+
+Configuration is optional. It lives in `.remimem/config.json` in the project, which `remimem init` creates empty. Every field has a default, and the file is validated on load: unknown keys are rejected, so a typo does not silently fall back to a default.
+
+```json title=".remimem/config.json"
+{
+  "include": ["src/**"],
+  "exclude": ["**/*.test.ts"],
+  "embedding": { "provider": "local" },
+  "retrieval": { "defaultBudgetTokens": 6000 }
+}
+```
+
+Changes take effect on the next command. A running MCP server reads the config once at start, so restart it from your client.
+
+## Files
+
+<TypeTable
+  type={{
+    include: { description: 'Globs a file must match to be indexed. Empty means every file.', type: 'string[]', default: '[]' },
+    exclude: { description: 'Globs that remove files from the index, on top of the built-in excludes.', type: 'string[]', default: '[]' },
+    maxFileSizeKb: { description: 'Files larger than this are skipped.', type: 'number', default: '512' },
+  }}
+/>
+
+Globs are matched against paths relative to the project root, with forward slashes, using Node.js's `path.matchesGlob`. The built-in rules (vendored folders, lockfiles, generated files, binaries, secrets) always apply; see [Indexing](/docs/concepts/indexing).
+
+## embedding
+
+<TypeTable
+  type={{
+    provider: { description: 'local runs on this machine. openai and voyage send code to that service. none disables vectors.', type: '"local" | "openai" | "voyage" | "none"', default: '"local"' },
+    model: { description: 'Model name. Empty means the provider default: Xenova/all-MiniLM-L6-v2, text-embedding-3-small, or voyage-code-3.', type: 'string', default: '""' },
+    batchSize: { description: 'Texts per embedding call.', type: 'number', default: '8' },
+    maxTokens: { description: 'Local models only: inputs are cut to this many model tokens.', type: 'number', default: '256' },
+  }}
+/>
+
+API keys come from `OPENAI_API_KEY` and `VOYAGE_API_KEY`, never from this file. After changing `provider` or `model`, run `remimem index --full`. See [Embedding providers](/docs/guides/embedding-providers).
+
+## retrieval: search
+
+<TypeTable
+  type={{
+    rrfK: { description: 'Reciprocal rank fusion constant. Larger values flatten the difference between ranks.', type: 'number', default: '60' },
+    keywordLimit: { description: 'Candidates taken from keyword search before fusion. 0 turns keyword search (and exact-name lookup) off.', type: 'number', default: '50' },
+    vectorLimit: { description: 'Candidates taken from vector search before fusion. 0 turns vector search off.', type: 'number', default: '50' },
+    'keywordWeights.content': { description: 'BM25 weight of a match in the code.', type: 'number', default: '1' },
+    'keywordWeights.symbol': { description: 'BM25 weight of a match in the symbol name.', type: 'number', default: '5' },
+    'keywordWeights.path': { description: 'BM25 weight of a match in the file path.', type: 'number', default: '2' },
+    textFileWeight: { description: 'Score multiplier for files not parsed as code (docs, config, data). Between 0 and 1.', type: 'number', default: '0.25' },
+    maxChunksPerFile: { description: 'The most results one file may contribute. 0 means no limit.', type: 'number', default: '0' },
+  }}
+/>
+
+## retrieval: answers
+
+<TypeTable
+  type={{
+    defaultK: { description: 'Results search_code returns when the call does not say.', type: 'number', default: '10' },
+    contextK: { description: 'Results get_context considers before packing. The budget decides how many are shown.', type: 'number', default: '20' },
+    defaultBudgetTokens: { description: 'Token budget when a call does not give one.', type: 'number', default: '4000' },
+    neighborBudgetShare: { description: 'Share of the budget kept free for neighbor signatures, 0 to 0.9.', type: 'number', default: '0' },
+  }}
+/>
+
+## retrieval: call graph
+
+<TypeTable
+  type={{
+    graphTopN: { description: 'How many top results get their neighbors added. 0 turns graph expansion off.', type: 'number', default: '10' },
+    graphMaxNeighbors: { description: 'The most neighbors added in total.', type: 'number', default: '20' },
+    compressNeighbors: { description: 'Show neighbors as signature and docstring only.', type: 'boolean', default: 'true' },
+    'edgeWeights.exact': { description: 'Weight of same-file links. Neighbor score is parent score times this.', type: 'number', default: '0.5' },
+    'edgeWeights.import': { description: 'Weight of links found through an import.', type: 'number', default: '0.4' },
+    'edgeWeights.name-match': { description: 'Weight of links found by a unique name. 0 leaves them out.', type: 'number', default: '0.2' },
+  }}
+/>
+
+## retrieval: memory
+
+<TypeTable
+  type={{
+    memoryLimit: { description: 'The most memories get_context adds by matching the task. 0 turns memories off.', type: 'number', default: '5' },
+    memoryMinKeywordMatch: { description: 'A memory matched by keywords must contain at least this share of the query terms.', type: 'number', default: '0.5' },
+    memoryMinSimilarity: { description: 'A memory matched by meaning needs at least this cosine similarity.', type: 'number', default: '0.4' },
+  }}
+/>
+
+## watch
+
+<TypeTable
+  type={{
+    'watch.debounceMs': { description: 'How long remimem watch waits after the last change before re-indexing.', type: 'number', default: '500' },
+  }}
+/>
+
+## telemetry
+
+<TypeTable
+  type={{
+    telemetry: { description: 'Always false. There is no telemetry; the field exists so that fact is visible.', type: 'false', default: 'false' },
+  }}
+/>
+
+## Where the defaults come from
+
+The search, graph, and memory defaults were chosen on the training split of the [benchmark](/docs/benchmark) and checked on held-out tasks. `textFileWeight` and `memoryMinSimilarity` were changed by that tuning; the rest held up as first chosen. Run `npx . bench --tune` from a checkout to try your own values.
+
+## Errors
+
+An invalid file stops every command with a message that names the field:
+
+```text
+error: Invalid .remimem/config.json:
+  Unrecognized key: "rrfk"
+  at retrieval
+```
+
+(The real output also prefixes the first line of each problem with a cross mark and the second with an arrow.) A file that is not valid JSON says so, with the position of the error:
+
+```text
+error: .remimem/config.json is not valid JSON: SyntaxError: Expected property name or '}' in JSON at position 2 (line 1 column 3)
+```
+
+Fix the file, or delete it to go back to the defaults.
