@@ -1,138 +1,189 @@
+import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
-import { gitConfig, githubUrl } from '@/lib/shared';
+import { SetupPanel } from '@/components/setup-panel';
+import { githubUrl, npmUrl } from '@/lib/shared';
 
-const demoGif = `https://raw.githubusercontent.com/${gitConfig.user}/${gitConfig.repo}/${gitConfig.branch}/docs/demo.gif`;
+const steps = [
+  {
+    title: 'Index',
+    body: 'Parses your code into functions, classes, and the calls between them. Locally, in seconds.',
+  },
+  {
+    title: 'Retrieve',
+    body: 'Finds the code that answers the question by name, by meaning, and through the call graph.',
+  },
+  {
+    title: 'Remember',
+    body: 'Keeps the decisions your team made, linked to code, and flags them when the code changes.',
+  },
+];
 
 const stats = [
-  { value: '86%', label: 'fewer tokens per task than grep and read' },
-  { value: '0.93', label: 'recall@10 on held-out tasks (target 0.80)' },
-  { value: '38s', label: 'to index a 99k-line repo on a laptop' },
-  { value: '35 ms', label: 'p95 query latency, warm index' },
+  { value: '0.93', label: 'recall@10 on held-out tasks' },
+  { value: '35 ms', label: 'p95 query latency' },
+  { value: '38 s', label: 'to index 99k lines' },
 ];
 
-const features = [
+const pillars = [
   {
-    title: 'Structure-aware index',
-    body: 'tree-sitter parses TypeScript, JavaScript, Python, and Go into functions, methods, classes, and types. Every other text file is searchable in line windows.',
+    title: 'Local',
+    body: 'Parsing, embedding, and storage run on your machine, in one SQLite file. No telemetry.',
   },
   {
-    title: 'Hybrid search',
-    body: 'An identifier-aware keyword index, a local embedding model, and exact symbol lookup, fused by rank. Each result says why it was returned.',
+    title: 'Budgeted',
+    body: 'Every answer fits the token budget you set and says exactly what it left out.',
   },
   {
-    title: 'Call graph',
-    body: 'Callers, callees, base classes, and referenced types of the top results come along as signatures, with a confidence on every link.',
-  },
-  {
-    title: 'Token budgets',
-    body: 'Answers fit the budget you give, grouped by file with path:start-end headers, and say exactly what was dropped. They never go over.',
-  },
-  {
-    title: 'Project memory',
-    body: 'Decisions, conventions, and gotchas linked to code, shared through a committed JSON file, and flagged stale when the code changes.',
-  },
-  {
-    title: 'Local first',
-    body: 'Parsing, embedding, and storage happen on your machine in one SQLite file. No telemetry. Remote embeddings only if you ask for them.',
+    title: 'Open',
+    body: 'MIT licensed. Every number on this page comes from a benchmark you can rerun.',
   },
 ];
-
-const clients = ['Claude Code', 'Cursor', 'VS Code Copilot', 'any MCP client'];
 
 export default function HomePage() {
   return (
     <main className="flex flex-1 flex-col">
-      <section className="mx-auto flex w-full max-w-5xl flex-col items-center px-4 pt-16 pb-12 text-center md:pt-24">
-        <p className="mb-4 rounded-full border px-3 py-1 text-xs text-fd-muted-foreground">
-          Open source, MIT licensed, version 0.1.0
-        </p>
-        <h1 className="text-4xl font-bold tracking-tight md:text-6xl">
-          Codebase memory for <span className="text-fd-primary">coding agents</span>
-        </h1>
-        <p className="mt-6 max-w-2xl text-lg text-fd-muted-foreground">
-          remimem indexes your codebase and gives Claude Code, Cursor, VS Code, or any MCP client
-          the smallest set of code that answers the question, within a token budget, plus the
-          decisions your team already made.
-        </p>
-        <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row">
-          <Link
-            href="/docs/quickstart"
-            className="rounded-lg bg-fd-primary px-5 py-2.5 text-sm font-medium text-fd-primary-foreground hover:opacity-90"
-          >
-            Get started
-          </Link>
+      {/* Hero */}
+      <section className="mx-auto grid w-full max-w-6xl items-center gap-12 px-6 pt-20 pb-24 md:pt-28 lg:grid-cols-2">
+        <div>
           <a
-            href={githubUrl}
-            className="rounded-lg border px-5 py-2.5 text-sm font-medium hover:bg-fd-accent"
+            href={npmUrl}
+            className="mb-6 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs text-fd-muted-foreground transition-colors hover:text-fd-foreground"
           >
-            View on GitHub
+            v0.1.0 is out <ArrowUpRight className="size-3" />
           </a>
-        </div>
-        <code className="mt-6 rounded-lg border bg-fd-card px-4 py-2 font-mono text-sm">
-          npx -y remimem init
-        </code>
-        <p className="mt-3 text-xs text-fd-muted-foreground">Works with {clients.join(', ')}.</p>
-      </section>
-
-      <section className="mx-auto w-full max-w-5xl px-4">
-        {/* eslint-disable-next-line @next/next/no-img-element -- an animated GIF served from GitHub */}
-        <img
-          src={demoGif}
-          alt="remimem indexing a project, answering a question within a token budget, saving a memory, and showing its stats"
-          className="w-full rounded-xl border shadow-lg"
-          width={1200}
-          height={720}
-        />
-      </section>
-
-      <section className="mx-auto grid w-full max-w-5xl grid-cols-2 gap-4 px-4 py-16 md:grid-cols-4">
-        {stats.map((stat) => (
-          <div key={stat.label} className="rounded-xl border bg-fd-card p-5">
-            <div className="text-3xl font-bold text-fd-primary">{stat.value}</div>
-            <div className="mt-2 text-sm text-fd-muted-foreground">{stat.label}</div>
+          <h1 className="text-4xl font-semibold tracking-tight text-balance md:text-5xl">
+            Codebase memory for coding agents.
+          </h1>
+          <p className="mt-5 max-w-md text-lg text-fd-muted-foreground">
+            Your agent gets only the code it needs, within a token budget. Open source and local
+            first.
+          </p>
+          <div className="mt-8 flex items-center gap-5">
+            <Link
+              href="/docs/quickstart"
+              className="inline-flex items-center gap-2 rounded-lg bg-fd-foreground px-5 py-2.5 text-sm font-medium text-fd-background transition-opacity hover:opacity-85"
+            >
+              Get started <ArrowRight className="size-4" />
+            </Link>
+            <a
+              href={githubUrl}
+              className="text-sm font-medium text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+            >
+              GitHub
+            </a>
           </div>
-        ))}
-        <p className="col-span-full text-xs text-fd-muted-foreground">
-          From the reproducible benchmark: 36 held-out tasks taken from real commits in hono,
-          httpx, and echo, measured on an Apple M5.{' '}
-          <Link href="/docs/benchmark" className="underline">
-            Method, full results, and what the numbers do not show
-          </Link>
-          .
-        </p>
+        </div>
+        <SetupPanel />
       </section>
 
-      <section className="mx-auto w-full max-w-5xl px-4 pb-16">
-        <h2 className="text-2xl font-semibold">What it does</h2>
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
-          {features.map((feature) => (
-            <div key={feature.title} className="rounded-xl border bg-fd-card p-5">
-              <h3 className="font-semibold">{feature.title}</h3>
-              <p className="mt-2 text-sm text-fd-muted-foreground">{feature.body}</p>
+      {/* One number */}
+      <section className="border-y">
+        <div className="mx-auto w-full max-w-6xl px-6 py-20 text-center">
+          <div className="text-6xl font-semibold tracking-tight md:text-7xl">86%</div>
+          <p className="mx-auto mt-4 max-w-md text-fd-muted-foreground">
+            fewer tokens per task than an agent that greps and reads whole files, on 36 held-out
+            tasks from real commits.
+          </p>
+          <div className="mx-auto mt-12 grid max-w-2xl grid-cols-3 gap-6">
+            {stats.map((stat) => (
+              <div key={stat.label}>
+                <div className="text-2xl font-semibold">{stat.value}</div>
+                <div className="mt-1 text-xs text-fd-muted-foreground">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="mx-auto w-full max-w-6xl px-6 py-24">
+        <p className="text-sm text-fd-muted-foreground">How it works</p>
+        <h2 className="mt-2 max-w-xl text-3xl font-semibold tracking-tight">
+          Index once. Ask anything. Remember what matters.
+        </h2>
+        <div className="mt-12 grid gap-10 md:grid-cols-3">
+          {steps.map((step, i) => (
+            <div key={step.title}>
+              <div className="text-sm text-fd-muted-foreground">0{i + 1}</div>
+              <h3 className="mt-3 text-lg font-semibold">{step.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-fd-muted-foreground">{step.body}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-5xl px-4 pb-24">
-        <div className="rounded-xl border bg-fd-card p-6 md:p-10">
-          <h2 className="text-2xl font-semibold">Two commands to connect an agent</h2>
-          <pre className="mt-6 overflow-x-auto rounded-lg border bg-fd-background p-4 text-left font-mono text-sm">
-            {`# in your project
-npx -y remimem init
-
-# Claude Code
-claude mcp add remimem -- npx -y remimem serve`}
-          </pre>
-          <p className="mt-4 text-sm text-fd-muted-foreground">
-            Setup for Cursor, VS Code, and other clients is in the{' '}
-            <Link href="/docs/clients" className="underline">
-              client guides
-            </Link>
-            .
-          </p>
+      {/* Benchmark callout */}
+      <section className="mx-auto w-full max-w-6xl px-6">
+        <div className="flex flex-col items-start justify-between gap-6 rounded-xl bg-fd-muted px-8 py-10 md:flex-row md:items-center">
+          <div>
+            <span className="rounded-full border bg-fd-background px-2.5 py-0.5 text-xs">
+              Benchmark
+            </span>
+            <h2 className="mt-4 max-w-lg text-xl font-semibold tracking-tight">
+              Measured on hono, httpx, and echo. Method, every table, and what the numbers do not
+              show.
+            </h2>
+          </div>
+          <Link
+            href="/docs/benchmark"
+            className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium hover:underline"
+          >
+            Read the benchmark <ArrowRight className="size-4" />
+          </Link>
         </div>
       </section>
+
+      {/* Pillars */}
+      <section className="mx-auto w-full max-w-6xl px-6 py-24">
+        <div className="grid gap-10 md:grid-cols-3">
+          {pillars.map((pillar) => (
+            <div key={pillar.title} className="border-t pt-6">
+              <h3 className="font-semibold">{pillar.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-fd-muted-foreground">{pillar.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Closing call to action */}
+      <section className="mx-auto w-full max-w-6xl px-6 pb-24 text-center">
+        <h2 className="text-3xl font-semibold tracking-tight">Give your agent a memory.</h2>
+        <code className="mt-6 inline-block rounded-lg border bg-fd-card px-4 py-2 font-mono text-sm">
+          npx -y remimem init
+        </code>
+        <div className="mt-6">
+          <Link
+            href="/docs/quickstart"
+            className="inline-flex items-center gap-2 rounded-lg bg-fd-foreground px-5 py-2.5 text-sm font-medium text-fd-background transition-opacity hover:opacity-85"
+          >
+            Read the quickstart <ArrowRight className="size-4" />
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10 text-sm text-fd-muted-foreground md:flex-row md:items-center md:justify-between">
+          <span>remimem. MIT licensed.</span>
+          <nav className="flex flex-wrap gap-6">
+            <Link href="/docs" className="hover:text-fd-foreground">
+              Docs
+            </Link>
+            <Link href="/docs/benchmark" className="hover:text-fd-foreground">
+              Benchmark
+            </Link>
+            <Link href="/docs/privacy" className="hover:text-fd-foreground">
+              Privacy
+            </Link>
+            <a href={githubUrl} className="hover:text-fd-foreground">
+              GitHub
+            </a>
+            <a href={npmUrl} className="hover:text-fd-foreground">
+              npm
+            </a>
+          </nav>
+        </div>
+      </footer>
     </main>
   );
 }
