@@ -2,7 +2,7 @@
 
 remimem: codebase memory for coding agents.
 
-![remimem indexing a project, answering a question within a token budget, saving a memory, and showing its stats](docs/demo.gif)
+https://github.com/user-attachments/assets/ca02a242-60c0-4910-ae9c-9347d5a76393
 
 It is a local-first MCP server and CLI that indexes a codebase and gives coding agents (Claude Code, Cursor, VS Code Copilot, any MCP client) the smallest set of code that answers their question, within a token budget. It also keeps project memory, decisions and conventions that persist across sessions, and ships the benchmark below so the savings can be checked.
 
