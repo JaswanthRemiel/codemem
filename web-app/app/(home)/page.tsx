@@ -1,44 +1,59 @@
-import { ArrowRight, ArrowUpRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { amphora, COLUMN, SYSTEM_MONO, TEMPLE } from '@/components/ascii';
 import { CountUp, Reveal } from '@/components/motion';
 import { SetupPanel } from '@/components/setup-panel';
+import { TerminalDemo } from '@/components/terminal-demo';
 import { githubUrl, npmUrl } from '@/lib/shared';
-
-const steps = [
-  {
-    title: 'Index',
-    body: 'Parses your code into functions, classes, and the calls between them. Locally, in seconds.',
-  },
-  {
-    title: 'Retrieve',
-    body: 'Finds the code that answers the question by name, by meaning, and through the call graph.',
-  },
-  {
-    title: 'Remember',
-    body: 'Keeps the decisions your team made, linked to code, and flags them when the code changes.',
-  },
-];
-
-const stats = [
-  { value: '0.93', label: 'recall@10 on held-out tasks' },
-  { value: '35 ms', label: 'p95 query latency' },
-  { value: '38 s', label: 'to index 99k lines' },
-];
 
 const pillars = [
   {
-    title: 'Local',
-    body: 'Parsing, embedding, and storage run on your machine, in one SQLite file. No telemetry.',
+    numeral: 'I',
+    greek: 'Mneme',
+    title: 'Index',
+    body: 'Every function, class, and call in your codebase, parsed and mapped on your own machine.',
   },
   {
-    title: 'Budgeted',
-    body: 'Every answer fits the token budget you set and says exactly what it left out.',
+    numeral: 'II',
+    greek: 'Anamnesis',
+    title: 'Recall',
+    body: 'The code that answers the question, found by name, by meaning, and through the call graph.',
   },
   {
-    title: 'Open',
-    body: 'MIT licensed. Every number on this page comes from a benchmark you can rerun.',
+    numeral: 'III',
+    greek: 'Mnemosyne',
+    title: 'Remember',
+    body: 'The decisions your team made, linked to code, kept across sessions, flagged when code changes.',
   },
 ];
+
+const numbers = [
+  { value: '86%', label: 'fewer tokens per task than grep and read' },
+  { value: '0.93', label: 'recall@10 on held-out tasks' },
+  { value: '35 ms', label: 'p95 query latency' },
+  { value: '38 s', label: 'to index 99,000 lines' },
+];
+
+// Mnemosyne had nine daughters, the Muses; remimem has nine tools.
+const muses = [
+  ['Calliope', 'get_context', 'The best starting context for a task, memory included.'],
+  ['Clio', 'search_code', 'Ranked code for a query, with the reason for each result.'],
+  ['Erato', 'get_symbol', 'One function or class, with its callers and callees.'],
+  ['Euterpe', 'get_file_outline', 'What a file contains, without reading it.'],
+  ['Melpomene', 'find_references', 'Every caller and importer, before you change a symbol.'],
+  ['Polyhymnia', 'remember', 'Keep a decision or convention, linked to code.'],
+  ['Terpsichore', 'recall', 'Search what the project already decided.'],
+  ['Thalia', 'forget', 'Let go of a memory that is no longer true.'],
+  ['Urania', 'index_status', 'What the index covers, and what changed.'],
+];
+
+const roman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'];
+
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="font-mono text-[11px] tracking-[0.25em] text-fd-primary uppercase">{children}</p>
+  );
+}
 
 export default function HomePage() {
   return (
@@ -46,150 +61,239 @@ export default function HomePage() {
       {/* Hero */}
       <section className="relative overflow-hidden">
         <div aria-hidden className="hero-grid" />
-        <div aria-hidden className="hero-glow" />
-        <div className="relative mx-auto grid w-full max-w-6xl items-center gap-12 px-6 pt-20 pb-24 md:pt-28 lg:grid-cols-2">
+        <div className="relative mx-auto grid w-full max-w-6xl items-center gap-14 px-6 pt-16 pb-20 [&>*]:min-w-0 md:pt-24 lg:grid-cols-[1.05fr_1fr]">
           <div>
-            <a
-              href={npmUrl}
-              style={{ animationDelay: '0ms' }}
-              className="enter mb-6 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs text-fd-muted-foreground transition-colors hover:text-fd-foreground"
-            >
-              v0.1.0 is out <ArrowUpRight className="size-3" />
-            </a>
+            <div style={{ animationDelay: '0ms' }} className="enter">
+              <Eyebrow>ΜΝΗΜΟΣΥΝΗ &nbsp;/&nbsp; memory for machines</Eyebrow>
+            </div>
             <h1
-              style={{ animationDelay: '80ms' }}
-              className="enter text-4xl font-semibold tracking-tight text-balance md:text-5xl"
+              style={{ animationDelay: '90ms' }}
+              className="enter mt-6 font-serif text-5xl leading-[1.02] font-semibold tracking-tight text-balance md:text-7xl"
             >
-              Codebase memory for coding agents.
+              Your agents forget.{' '}
+              <em className="font-medium text-fd-primary">remimem remembers.</em>
             </h1>
             <p
-              style={{ animationDelay: '160ms' }}
-              className="enter mt-5 max-w-md text-lg text-fd-muted-foreground"
+              style={{ animationDelay: '180ms' }}
+              className="enter mt-6 max-w-lg text-lg leading-relaxed text-fd-muted-foreground"
             >
-              Your agent gets only the code it needs, within a token budget. Open source and local
-              first.
+              Poets called on Mnemosyne, goddess of memory, before they began. remimem gives your
+              coding agent the same: the right code within a token budget, and every decision your
+              team already made.
             </p>
-            <div style={{ animationDelay: '240ms' }} className="enter mt-8 flex items-center gap-5">
+            <div
+              style={{ animationDelay: '270ms' }}
+              className="enter mt-9 flex flex-wrap items-center gap-4"
+            >
               <Link
                 href="/docs/quickstart"
-                className="group inline-flex items-center gap-2 rounded-lg bg-fd-foreground px-5 py-2.5 text-sm font-medium text-fd-background transition-opacity hover:opacity-85"
+                className="group inline-flex items-center gap-2 rounded-sm bg-fd-foreground px-5 py-3 text-sm font-medium text-fd-background transition-opacity hover:opacity-85"
               >
-                Get started{' '}
+                Get started
                 <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
-              <a
-                href={githubUrl}
-                className="text-sm font-medium text-fd-muted-foreground transition-colors hover:text-fd-foreground"
-              >
-                GitHub
-              </a>
+              <code className="rounded-sm border border-fd-border bg-fd-card px-4 py-3 font-mono text-sm">
+                npx -y remimem init
+              </code>
             </div>
+            <p
+              style={{ animationDelay: '340ms' }}
+              className="enter mt-5 text-xs text-fd-muted-foreground"
+            >
+              Open source. Runs on your machine. Works with Claude Code, Cursor, VS Code, and any
+              MCP client.
+            </p>
           </div>
-          <div style={{ animationDelay: '320ms' }} className="enter">
-            <SetupPanel />
+          <div style={{ animationDelay: '300ms' }} className="enter">
+            <TerminalDemo />
           </div>
         </div>
       </section>
 
-      {/* One number */}
-      <section className="border-y">
-        <div className="mx-auto w-full max-w-6xl px-6 py-20 text-center">
-          <div className="text-6xl font-semibold tracking-tight md:text-7xl">
-            <CountUp value="86%" />
-          </div>
-          <p className="mx-auto mt-4 max-w-md text-fd-muted-foreground">
-            fewer tokens per task than an agent that greps and reads whole files, on 36 held-out
-            tasks from real commits.
+      <div aria-hidden className="meander" />
+
+      {/* The myth */}
+      <section className="mx-auto grid w-full max-w-6xl items-center gap-12 px-6 py-24 lg:grid-cols-2 [&>*]:min-w-0">
+        <Reveal>
+          <pre
+            aria-hidden
+            className="ascii-gleam overflow-x-auto font-mono text-[10px] leading-[1.3] sm:text-xs"
+          >
+            {TEMPLE}
+          </pre>
+        </Reveal>
+        <Reveal delay={120}>
+          <Eyebrow>The problem</Eyebrow>
+          <h2 className="mt-4 font-serif text-4xl font-semibold tracking-tight md:text-5xl">
+            Every session starts with amnesia.
+          </h2>
+          <p className="mt-5 text-lg leading-relaxed text-fd-muted-foreground">
+            Agents grep, open whole files, and fill their context with code that has nothing to do
+            with the task. Then the session ends and they forget what was decided.
           </p>
-          <div className="mx-auto mt-12 grid max-w-2xl grid-cols-3 gap-6">
-            {stats.map((stat) => (
-              <div key={stat.label}>
-                <div className="text-2xl font-semibold">
-                  <CountUp value={stat.value} duration={1000} />
+          <p className="mt-4 text-lg leading-relaxed text-fd-muted-foreground">
+            remimem builds a temple of your codebase instead: every function indexed, every call
+            mapped, every decision kept, in one local file.
+          </p>
+        </Reveal>
+      </section>
+
+      {/* Three pillars */}
+      <section className="border-y border-fd-border bg-fd-card/60">
+        <div className="mx-auto w-full max-w-6xl px-6 py-24">
+          <Reveal>
+            <Eyebrow>How it works</Eyebrow>
+            <h2 className="mt-4 max-w-2xl font-serif text-4xl font-semibold tracking-tight md:text-5xl">
+              Three pillars hold it up.
+            </h2>
+          </Reveal>
+          <div className="mt-16 grid gap-12 md:grid-cols-3">
+            {pillars.map((pillar, i) => (
+              <Reveal key={pillar.title} delay={i * 140} className="flex gap-5">
+                <pre
+                  aria-hidden
+                  className="shrink-0 font-mono text-[11px] leading-[1.3] text-fd-primary/70"
+                >
+                  {COLUMN}
+                </pre>
+                <div>
+                  <div className="font-serif text-sm text-fd-muted-foreground italic">
+                    {pillar.numeral}. {pillar.greek}
+                  </div>
+                  <h3 className="mt-1 font-serif text-3xl font-semibold">{pillar.title}</h3>
+                  <p className="mt-3 text-sm leading-relaxed text-fd-muted-foreground">
+                    {pillar.body}
+                  </p>
                 </div>
-                <div className="mt-1 text-xs text-fd-muted-foreground">{stat.label}</div>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
-      {/* How it works */}
+      {/* Numbers */}
       <section className="mx-auto w-full max-w-6xl px-6 py-24">
         <Reveal>
-          <p className="text-sm text-fd-muted-foreground">How it works</p>
-          <h2 className="mt-2 max-w-xl text-3xl font-semibold tracking-tight">
-            Index once. Ask anything. Remember what matters.
+          <Eyebrow>Benchmark</Eyebrow>
+          <h2 className="mt-4 font-serif text-4xl font-semibold tracking-tight md:text-5xl">
+            Measured, not mythologized.
           </h2>
         </Reveal>
-        <div className="mt-12 grid gap-10 md:grid-cols-3">
-          {steps.map((step, i) => (
-            <Reveal key={step.title} delay={i * 120}>
-              <div className="text-sm text-fd-muted-foreground">0{i + 1}</div>
-              <h3 className="mt-3 text-lg font-semibold">{step.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-fd-muted-foreground">{step.body}</p>
-            </Reveal>
+        <div className="mt-14 grid grid-cols-2 gap-px overflow-hidden rounded-sm border border-fd-border bg-fd-border md:grid-cols-4">
+          {numbers.map((n) => (
+            <div key={n.label} className="bg-fd-background p-7">
+              <div className="font-serif text-5xl font-semibold tracking-tight md:text-6xl">
+                <CountUp value={n.value} />
+              </div>
+              <div className="mt-3 text-sm text-fd-muted-foreground">{n.label}</div>
+            </div>
           ))}
+        </div>
+        <Reveal className="mt-6 flex flex-col justify-between gap-3 text-sm text-fd-muted-foreground md:flex-row">
+          <span>
+            36 held-out tasks from real commits in hono, httpx, and echo. Rerun it yourself with one
+            command.
+          </span>
+          <Link
+            href="/docs/benchmark"
+            className="inline-flex items-center gap-1.5 font-medium text-fd-foreground hover:underline"
+          >
+            Method, every table, and what the numbers do not show <ArrowRight className="size-4" />
+          </Link>
+        </Reveal>
+      </section>
+
+      {/* Nine Muses */}
+      <section className="border-y border-fd-border bg-fd-card/60">
+        <div className="mx-auto w-full max-w-6xl px-6 py-24">
+          <Reveal>
+            <Eyebrow>The tools</Eyebrow>
+            <h2 className="mt-4 max-w-3xl font-serif text-4xl font-semibold tracking-tight md:text-5xl">
+              Mnemosyne had nine daughters. remimem has nine tools.
+            </h2>
+          </Reveal>
+          <div className="mt-14 grid gap-px overflow-hidden rounded-sm border border-fd-border bg-fd-border sm:grid-cols-2 lg:grid-cols-3">
+            {muses.map(([muse, tool, body], i) => (
+              <Reveal
+                key={tool}
+                delay={(i % 3) * 90}
+                className="group bg-fd-background p-6 transition-colors hover:bg-fd-card"
+              >
+                <div className="flex items-baseline justify-between">
+                  <span className="font-serif text-sm text-fd-muted-foreground italic">
+                    {roman[i]}. {muse}
+                  </span>
+                </div>
+                <div className="mt-3 font-mono text-base text-fd-primary">{tool}</div>
+                <p className="mt-2 text-sm leading-relaxed text-fd-muted-foreground">{body}</p>
+              </Reveal>
+            ))}
+          </div>
+          <Reveal className="mt-6 text-sm">
+            <Link
+              href="/docs/reference/mcp-tools"
+              className="inline-flex items-center gap-1.5 font-medium hover:underline"
+            >
+              The full tool reference <ArrowRight className="size-4" />
+            </Link>
+          </Reveal>
         </div>
       </section>
 
-      {/* Benchmark callout */}
-      <section className="mx-auto w-full max-w-6xl px-6">
+      {/* Connect */}
+      <section className="mx-auto grid w-full max-w-6xl items-center gap-12 px-6 py-24 lg:grid-cols-2 [&>*]:min-w-0">
         <Reveal>
-          <div className="lift flex flex-col items-start justify-between gap-6 rounded-xl bg-fd-muted px-8 py-10 md:flex-row md:items-center">
-            <div>
-              <span className="rounded-full border bg-fd-background px-2.5 py-0.5 text-xs">
-                Benchmark
-              </span>
-              <h2 className="mt-4 max-w-lg text-xl font-semibold tracking-tight">
-                Measured on hono, httpx, and echo. Method, every table, and what the numbers do not
-                show.
-              </h2>
-            </div>
+          <Eyebrow>Begin</Eyebrow>
+          <h2 className="mt-4 font-serif text-4xl font-semibold tracking-tight md:text-5xl">
+            Two commands to invoke her.
+          </h2>
+          <p className="mt-5 max-w-md text-lg leading-relaxed text-fd-muted-foreground">
+            Index the project, connect your agent, and ask. Everything stays on your machine, in one
+            SQLite file. No account, no telemetry.
+          </p>
+        </Reveal>
+        <Reveal delay={120}>
+          <SetupPanel />
+        </Reveal>
+      </section>
+
+      {/* Closing */}
+      <section className="mx-auto flex w-full max-w-6xl flex-col items-center px-6 pb-28 text-center">
+        <Reveal>
+          <pre
+            aria-hidden
+            style={{ fontFamily: SYSTEM_MONO }}
+            className="ascii-gleam text-sm leading-[1.25]"
+          >
+            {amphora(1).join('\n')}
+          </pre>
+        </Reveal>
+        <Reveal delay={100}>
+          <h2 className="mt-8 font-serif text-5xl font-semibold tracking-tight">
+            Give your agent a <em className="text-fd-primary">memory</em>.
+          </h2>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+            <code className="rounded-sm border border-fd-border bg-fd-card px-4 py-3 font-mono text-sm">
+              npx -y remimem init
+            </code>
             <Link
-              href="/docs/benchmark"
-              className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium hover:underline"
+              href="/docs/quickstart"
+              className="group inline-flex items-center gap-2 rounded-sm bg-fd-foreground px-5 py-3 text-sm font-medium text-fd-background transition-opacity hover:opacity-85"
             >
-              Read the benchmark <ArrowRight className="size-4" />
+              Read the quickstart
+              <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
           </div>
         </Reveal>
       </section>
 
-      {/* Pillars */}
-      <section className="mx-auto w-full max-w-6xl px-6 py-24">
-        <div className="grid gap-10 md:grid-cols-3">
-          {pillars.map((pillar, i) => (
-            <Reveal key={pillar.title} delay={i * 120} className="border-t pt-6">
-              <h3 className="font-semibold">{pillar.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-fd-muted-foreground">{pillar.body}</p>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      {/* Closing call to action */}
-      <section className="mx-auto w-full max-w-6xl px-6 pb-24 text-center">
-        <Reveal>
-          <h2 className="text-3xl font-semibold tracking-tight">Give your agent a memory.</h2>
-        </Reveal>
-        <code className="mt-6 inline-block rounded-lg border bg-fd-card px-4 py-2 font-mono text-sm">
-          npx -y remimem init
-        </code>
-        <div className="mt-6">
-          <Link
-            href="/docs/quickstart"
-            className="group inline-flex items-center gap-2 rounded-lg bg-fd-foreground px-5 py-2.5 text-sm font-medium text-fd-background transition-opacity hover:opacity-85"
-          >
-            Read the quickstart <ArrowRight className="size-4" />
-          </Link>
-        </div>
-      </section>
-
       {/* Footer */}
-      <footer className="border-t">
+      <div aria-hidden className="meander" />
+      <footer>
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10 text-sm text-fd-muted-foreground md:flex-row md:items-center md:justify-between">
-          <span>remimem. MIT licensed.</span>
+          <span className="font-serif text-base">
+            remimem <span className="italic">is memory, kept.</span> MIT licensed.
+          </span>
           <nav className="flex flex-wrap gap-6">
             <Link href="/docs" className="hover:text-fd-foreground">
               Docs

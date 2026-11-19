@@ -303,3 +303,12 @@ Each entry: context, options, decision, consequences.
   - A separate workflow (`.github/workflows/web.yml`) builds the site only when files under `web-app/` change.
   - The docs repeat facts from `SETUP.md`, the README, and the code, so a change to a command, a default, or the benchmark has to be mirrored in `web-app/content/docs`. Benchmark figures on the site are copied from the README by hand, with the date they were measured.
   - The landing page loads the demo GIF from GitHub instead of keeping a second copy.
+
+## 039: Brand: Mnemosyne, and a CLI drawn for people
+
+- **Context:** The owner asked for a friendlier CLI with a logo like Claude Code's, a drawn download progress, and a website with a Greek-mythology memory theme and ASCII art, with the docs recolored to match.
+- **Decision:**
+  - The theme is Mnemosyne, the Titaness of memory and mother of the nine Muses: parchment and ink with bronze in light mode, obsidian and gold in dark mode, Cormorant Garamond for headings, JetBrains Mono for code, and Greek key bands. The nine MCP tools are presented as the nine Muses. The docs and the landing page share the same colors.
+  - The CLI's logo, colors, welcome screen, grouped help, and the amphora that fills while the embedding model downloads are drawn only for a person at a terminal. Piped output stays plain, `NO_COLOR` is honored (through Node's `styleText`), and the MCP server never sets the download listener or prints the logo. No dependency was added.
+  - ASCII drawings that use box-drawing or shade characters are set in the system monospace font on the website, because the web mono font lacks those glyphs and mixing fonts misaligns them.
+- **Consequences:** `remimem` with no command now prints a welcome screen and exits 0, instead of commander's help with exit code 1. Output examples in `SETUP.md` remain those of piped runs.

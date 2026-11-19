@@ -3,7 +3,7 @@ import { baseOptions } from '@/lib/layout.shared';
 
 export default function Layout({ children }: LayoutProps<'/'>) {
   return (
-    <div className="home-neutral flex flex-1 flex-col bg-fd-background text-fd-foreground">
+    <div className="grain flex flex-1 flex-col">
       <HomeLayout {...baseOptions()}>{children}</HomeLayout>
     </div>
   );

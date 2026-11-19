@@ -1,5 +1,5 @@
 @import 'tailwindcss';
-@import 'fumadocs-ui/css/emerald.css';
+@import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
 
 html {
@@ -11,44 +11,111 @@ html > body[data-scroll-locked] {
   --removed-body-scroll-bar-size: 0px !important;
 }
 
-/* The landing page is neutral black and white, with the brand green kept only as an accent.
-   The docs keep the emerald theme. */
-.home-neutral {
-  --color-fd-background: hsl(0, 0%, 100%);
-  --color-fd-foreground: hsl(0, 0%, 4%);
-  --color-fd-muted: hsl(0, 0%, 96%);
-  --color-fd-muted-foreground: hsl(0, 0%, 42%);
-  --color-fd-popover: hsl(0, 0%, 100%);
-  --color-fd-popover-foreground: hsl(0, 0%, 9%);
-  --color-fd-card: hsl(0, 0%, 98.5%);
-  --color-fd-card-foreground: hsl(0, 0%, 4%);
-  --color-fd-border: hsl(0, 0%, 90%);
-  --color-fd-secondary: hsl(0, 0%, 96%);
-  --color-fd-secondary-foreground: hsl(0, 0%, 9%);
-  --color-fd-accent: hsl(0, 0%, 95%);
-  --color-fd-accent-foreground: hsl(0, 0%, 9%);
-  --color-fd-primary: hsl(168, 70%, 36%);
-  --color-fd-primary-foreground: hsl(0, 0%, 100%);
-  --color-fd-ring: hsl(0, 0%, 64%);
+/* Brand: Mnemosyne, the Greek Titaness of memory. Parchment and ink, with bronze for accents;
+   obsidian and gold in the dark. Used by the docs and the landing page alike. */
+:root {
+  --color-fd-background: #f2ede1;
+  --color-fd-foreground: #26251e;
+  --color-fd-muted: #e8e1d0;
+  --color-fd-muted-foreground: #6b6656;
+  --color-fd-popover: #faf7f0;
+  --color-fd-popover-foreground: #26251e;
+  --color-fd-card: #f7f3ea;
+  --color-fd-card-foreground: #26251e;
+  --color-fd-border: #dcd3be;
+  --color-fd-primary: #9a6b1f;
+  --color-fd-primary-foreground: #fbf8f1;
+  --color-fd-secondary: #eae3d2;
+  --color-fd-secondary-foreground: #26251e;
+  --color-fd-accent: #e9dfc6;
+  --color-fd-accent-foreground: #26251e;
+  --color-fd-ring: #9a6b1f;
+  --brand-terracotta: #a4502f;
 }
 
-.dark .home-neutral {
-  --color-fd-background: hsl(0, 0%, 4%);
-  --color-fd-foreground: hsl(0, 0%, 93%);
-  --color-fd-muted: hsl(0, 0%, 9%);
-  --color-fd-muted-foreground: hsl(0, 0%, 62%);
-  --color-fd-popover: hsl(0, 0%, 7%);
-  --color-fd-popover-foreground: hsl(0, 0%, 90%);
-  --color-fd-card: hsl(0, 0%, 6.5%);
-  --color-fd-card-foreground: hsl(0, 0%, 93%);
-  --color-fd-border: hsl(0, 0%, 15%);
-  --color-fd-secondary: hsl(0, 0%, 12%);
-  --color-fd-secondary-foreground: hsl(0, 0%, 93%);
-  --color-fd-accent: hsl(0, 0%, 12%);
-  --color-fd-accent-foreground: hsl(0, 0%, 93%);
-  --color-fd-primary: hsl(168, 70%, 55%);
-  --color-fd-primary-foreground: hsl(0, 0%, 4%);
-  --color-fd-ring: hsl(0, 0%, 40%);
+.dark {
+  --color-fd-background: #14130f;
+  --color-fd-foreground: #ece6d6;
+  --color-fd-muted: #1e1c17;
+  --color-fd-muted-foreground: #a39c88;
+  --color-fd-popover: #1a1914;
+  --color-fd-popover-foreground: #ece6d6;
+  --color-fd-card: #1a1914;
+  --color-fd-card-foreground: #ece6d6;
+  --color-fd-border: #2e2b23;
+  --color-fd-primary: #d9a94b;
+  --color-fd-primary-foreground: #14130f;
+  --color-fd-secondary: #24211b;
+  --color-fd-secondary-foreground: #ece6d6;
+  --color-fd-accent: #2a2620;
+  --color-fd-accent-foreground: #ece6d6;
+  --color-fd-ring: #d9a94b;
+  --brand-terracotta: #d9774f;
+}
+
+@theme inline {
+  --font-serif: var(--font-cormorant), ui-serif, Georgia, serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+}
+
+/* Classical headings in the docs too. */
+#nd-page h1,
+.prose :where(h2, h3) {
+  font-family: var(--font-serif);
+  letter-spacing: -0.01em;
+}
+#nd-page h1 {
+  font-weight: 600;
+}
+.prose :where(h2) {
+  font-weight: 600;
+  font-size: 1.75em;
+}
+
+/* A Greek key (meander) band. */
+.meander {
+  height: 14px;
+  color: var(--color-fd-primary);
+  opacity: 0.55;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14' viewBox='0 0 28 14'%3E%3Cpath d='M0 13h4V1h12v8H8V5h4' fill='none' stroke='black' stroke-width='1.5'/%3E%3Cpath d='M16 13h12' fill='none' stroke='black' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14' viewBox='0 0 28 14'%3E%3Cpath d='M0 13h4V1h12v8H8V5h4' fill='none' stroke='black' stroke-width='1.5'/%3E%3Cpath d='M16 13h12' fill='none' stroke='black' stroke-width='1.5'/%3E%3C/svg%3E");
+  mask-repeat: repeat-x;
+  background-color: currentColor;
+}
+
+/* Paper grain over the landing page. */
+.grain::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* A slow gleam that passes over ASCII art, like light on marble. */
+@keyframes gleam {
+  0% {
+    background-position: 160% 0;
+  }
+  100% {
+    background-position: -60% 0;
+  }
+}
+.ascii-gleam {
+  background-image: linear-gradient(
+    100deg,
+    var(--color-fd-muted-foreground) 40%,
+    var(--color-fd-primary) 50%,
+    var(--color-fd-muted-foreground) 60%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gleam 7s ease-in-out infinite;
 }
 
 /* Landing page motion. Everything here is switched off for people who ask for less motion. */
@@ -151,8 +218,13 @@ html > body[data-scroll-locked] {
 @media (prefers-reduced-motion: reduce) {
   .enter,
   .hero-glow,
-  .typing-cursor {
+  .typing-cursor,
+  .ascii-gleam {
     animation: none;
+  }
+
+  .ascii-gleam {
+    color: var(--color-fd-muted-foreground);
   }
 
   .reveal {

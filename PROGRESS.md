@@ -164,6 +164,7 @@ Release checklist:
 ### Website
 
 - Landing page and documentation in `web-app/`, built with Next.js and Fumadocs: 35 documentation pages covering setup, every client, concepts, guides, the full tool, CLI, and configuration reference, the benchmark, privacy, limitations with workarounds, troubleshooting, FAQ, contributing, and the changelog. Built-in search, Markdown copies of each page, and `llms.txt`.
+- Branded around Mnemosyne, goddess of memory: parchment, ink, and bronze (obsidian and gold in dark mode), serif headings, Greek key bands, ASCII art (temple, columns, amphora, the CLI logo), and an animated terminal replay of `remimem init`. The docs share the palette.
 - Isolated from the CLI: own `package.json` and lockfile, not in the npm package, outside the root scripts, and built by its own path-filtered workflow. Not deployed yet.
 
 ## Next

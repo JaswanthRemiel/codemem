@@ -3,12 +3,12 @@ import { appName, githubUrl, npmUrl } from './shared';
 
 export function Logo() {
   return (
-    <span className="flex items-center gap-2 font-semibold">
+    <span className="flex items-center gap-2 font-serif text-xl font-semibold tracking-tight">
       <span
         aria-hidden
-        className="grid size-6 place-items-center rounded-md bg-fd-primary text-xs font-bold text-fd-primary-foreground"
+        className="grid size-6 place-items-center rounded-sm border border-fd-primary font-serif text-sm text-fd-primary"
       >
-        r
+        μ
       </span>
       {appName}
     </span>
