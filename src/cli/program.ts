@@ -19,48 +19,88 @@ import {
   runSymbol,
 } from './commands.js';
 import { resolveInRoot, scan } from '../scanner/index.js';
+import { banner, clearLine, embedProgress, paint } from './ui.js';
 
 const pkg = createRequire(import.meta.url)('../../package.json') as { version: string };
 
+const HELP_ORDER = [
+  'init',
+  'search',
+  'context',
+  'memory',
+  'index',
+  'watch',
+  'stats',
+  'doctor',
+  'serve',
+  'bench',
+];
+
 export function buildProgram(): Command {
   const program = new Command('remimem')
-    .description('Local-first code context and project memory for coding agents')
-    .version(pkg.version);
+    .description(
+      'Gives coding agents only the code they need, within a token budget, and remembers your project.',
+    )
+    .version(pkg.version, '-v, --version', 'print the version')
+    .helpOption('-h, --help', 'show help for a command')
+    .helpCommand(false)
+    .showSuggestionAfterError(true)
+    // The logo above help, only when a person is reading it in a terminal.
+    .addHelpText('beforeAll', () => (process.stdout.isTTY ? banner(pkg.version) : ''))
+    .addHelpText(
+      'after',
+      () => `
+${paint('bold', 'Examples:')}
+  ${paint('cyan', 'remimem init')}                                  set up this project, print client configs
+  ${paint('cyan', 'remimem search "how are passwords hashed"')}     find code by meaning or by name
+  ${paint('cyan', 'remimem context "add rate limiting to login"')}  everything an agent needs for a task
+  ${paint('cyan', 'remimem memory add "Money is stored in cents" --kind convention')}
+
+Help for one command: ${paint('cyan', 'remimem <command> --help')}
+Docs: https://github.com/JaswanthRemiel/remimem`,
+    );
 
   program
     .command('doctor')
-    .description('Check that this machine can run remimem')
+    .helpGroup('Check:')
+    .description('Check that everything is installed and working')
     .action(async () => {
       const { lines, ok } = await runDoctor(process.cwd());
       console.log(lines.join('\n'));
       if (!ok) process.exitCode = 1;
     });
 
-  const tty = process.stderr.isTTY;
-  /** A progress bar on stderr while chunks are embedded. Silent when not a terminal. */
-  const onEmbedProgress = (done: number, total: number): void => {
-    if (!tty) return;
-    const filled = Math.round((done / Math.max(total, 1)) * 24);
-    process.stderr.write(
-      `\rEmbedding [${'#'.repeat(filled)}${'.'.repeat(24 - filled)}] ${done}/${total}`,
-    );
-  };
-  const clearProgress = (): void => {
-    if (tty) process.stderr.write('\r\x1b[K');
-  };
-
   program
     .command('init')
-    .description('Set up remimem in the current directory and print MCP client configuration')
+    .helpGroup('Get started:')
+    .description('Set up this project: index the code and print the config for your agent')
     .action(async () => {
-      const report = await runInit(process.cwd(), { onEmbedProgress });
-      clearProgress();
-      console.log(report);
+      const root = process.cwd();
+      if (process.stdout.isTTY) {
+        console.log(banner(pkg.version));
+        console.log(`Setting up remimem in ${paint('bold', root)}\n`);
+      }
+      const report = await runInit(root, { onEmbedProgress: embedProgress });
+      clearLine();
+      // The status lines come first, before the blank line that starts the client configs.
+      const split = report.indexOf('\n\n');
+      const status = split === -1 ? report : report.slice(0, split);
+      const rest = split === -1 ? '' : report.slice(split);
+      const check = paint('green', '✓');
+      console.log(
+        process.stdout.isTTY
+          ? status
+              .split('\n')
+              .map((line) => `${check} ${line}`)
+              .join('\n') + rest
+          : report,
+      );
     });
 
   program
     .command('serve')
-    .description('Start the MCP server on stdio (this is what MCP clients run)')
+    .helpGroup('For MCP clients:')
+    .description('Start the MCP server (your agent runs this, not you)')
     .option('--root <dir>', 'project directory, default the current directory')
     .action(async (options: { root?: string }) => {
       await serve(resolve(options.root ?? process.cwd()));
@@ -68,14 +108,18 @@ export function buildProgram(): Command {
 
   program
     .command('context <task>')
-    .description('Print the context an agent would get for a task, to paste into any chat')
+    .helpGroup('Find code:')
+    .description('Everything an agent needs for a task, ready to paste into any chat')
     .option('--budget <tokens>', 'token budget for the output')
     .action(async (task: string, options: { budget?: string }) => {
       const budget = Number(options.budget);
       console.log(await runContext(process.cwd(), task, Number.isFinite(budget) ? { budget } : {}));
     });
 
-  const memory = program.command('memory').description('Manage project memory by hand');
+  const memory = program
+    .command('memory')
+    .helpGroup('Project memory:')
+    .description('Save, list, and delete decisions and conventions by hand');
   const collect = (value: string, all: string[]): string[] => [...all, value];
   memory
     .command('list')
@@ -122,17 +166,19 @@ export function buildProgram(): Command {
 
   program
     .command('index')
-    .description('Index the current directory, skipping files that have not changed')
+    .helpGroup('Keep the index fresh:')
+    .description('Bring the index up to date (only changed files are re-read)')
     .option('--full', 'reindex every file and rebuild vectors')
     .action(async (options: { full?: boolean }) => {
-      const summary = await runIndex(process.cwd(), { ...options, onEmbedProgress });
-      clearProgress();
+      const summary = await runIndex(process.cwd(), { ...options, onEmbedProgress: embedProgress });
+      clearLine();
       console.log(summary);
     });
 
   program
     .command('watch')
-    .description('Keep the index fresh while you work')
+    .helpGroup('Keep the index fresh:')
+    .description('Re-index automatically while you edit')
     .action(async () => {
       const stop = await runWatch(process.cwd(), (line) => console.log(line));
       process.once('SIGINT', () => void stop().then(() => process.exit(0)));
@@ -140,13 +186,15 @@ export function buildProgram(): Command {
 
   program
     .command('stats')
-    .description('Show queries served and tokens served against an estimated baseline')
+    .helpGroup('Check:')
+    .description('Show how many tokens remimem saved your agent')
     .action(() => {
       console.log(runStats(process.cwd()));
     });
 
   program
     .command('bench')
+    .helpGroup('Contributors:')
     .description('Run the benchmark (from a source checkout of remimem)')
     .option('--mine', 'rebuild the task files from the pinned repositories instead of running')
     .option(
@@ -187,7 +235,8 @@ export function buildProgram(): Command {
 
   program
     .command('search <query>')
-    .description('Search the index and print the best matching code within a token budget')
+    .helpGroup('Find code:')
+    .description('Find code by meaning or by name, packed into a token budget')
     .option('-k, --limit <n>', 'number of results to consider')
     .option('--budget <tokens>', 'token budget for the output')
     .option('--debug', 'print every score before the results')
@@ -262,6 +311,14 @@ export function buildProgram(): Command {
         if (options.content) console.log(`${chunk.content}\n`);
       }
     });
+
+  // Help lists groups and commands in the order a new user needs them.
+  const rank = (c: Command): number => {
+    const i = HELP_ORDER.indexOf(c.name());
+    return i === -1 ? HELP_ORDER.length : i;
+  };
+  // `commands` is typed read-only but is the list help reads, so sorting it in place is the hook.
+  (program.commands as Command[]).sort((a, b) => rank(a) - rank(b));
 
   return program;
 }

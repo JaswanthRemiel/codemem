@@ -41,6 +41,37 @@ function normalize(vector: Float32Array): Float32Array {
   return vector.map((x) => x / norm);
 }
 
+type DownloadListener = (model: string, loaded: number, total: number) => void;
+let downloadListener: DownloadListener | undefined;
+
+/**
+ * Lets the CLI draw the first download of a local model. The MCP server never sets it, so
+ * nothing extra is ever written while it serves.
+ */
+export function onModelDownload(listener: DownloadListener | undefined): void {
+  downloadListener = listener;
+}
+
+/** Sums byte progress across a model's files, and reports it only while files download. */
+function progressReporter(model: string): (info: unknown) => void {
+  const files = new Map<string, { loaded: number; total: number }>();
+  let downloading = false;
+  return (info) => {
+    const event = info as { status?: string; file?: string; loaded?: number; total?: number };
+    // Files read from the cache also report progress; only a real download is shown.
+    if (event.status === 'download') downloading = true;
+    if (!downloading || !downloadListener || event.status !== 'progress' || !event.file) return;
+    files.set(event.file, { loaded: event.loaded ?? 0, total: event.total ?? 0 });
+    let loaded = 0;
+    let total = 0;
+    for (const f of files.values()) {
+      loaded += f.loaded;
+      total += f.total;
+    }
+    downloadListener(model, loaded, total);
+  };
+}
+
 function localProvider(model: string, maxTokens: number): EmbeddingProvider {
   // Loaded on first use: importing the runtime and reading the model takes a while.
   let ready: Promise<(texts: string[]) => Promise<Float32Array[]>> | undefined;
@@ -48,8 +79,9 @@ function localProvider(model: string, maxTokens: number): EmbeddingProvider {
     const { AutoModel, AutoTokenizer, env, mean_pooling } =
       await import('@huggingface/transformers');
     env.cacheDir = modelCacheDir();
-    const tokenizer = await AutoTokenizer.from_pretrained(model);
-    const network = await AutoModel.from_pretrained(model, { dtype: 'q8' });
+    const progress_callback = progressReporter(model);
+    const tokenizer = await AutoTokenizer.from_pretrained(model, { progress_callback });
+    const network = await AutoModel.from_pretrained(model, { dtype: 'q8', progress_callback });
     return async (texts) => {
       const inputs = tokenizer(texts, { padding: true, truncation: true, max_length: maxTokens });
       const output = await network(inputs);

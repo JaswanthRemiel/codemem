@@ -10,6 +10,10 @@ remimem --version
 remimem --help
 ```
 
+Run `remimem` with no command for a welcome screen with the next steps for the current folder, and `remimem <command> --help` for one command's options. `remimem --help` lists commands grouped by task, with examples.
+
+In a terminal, the CLI shows the remimem logo on `init` and in help, and draws an amphora that fills as the embedding model downloads the first time. Piped or redirected output stays plain text, and `NO_COLOR=1` turns colors off. The MCP server never prints any of it.
+
 With `npx`, prefix every command: `npx -y remimem init`. All commands work on the current directory. Results go to stdout, diagnostics to stderr, and a failure exits with a non-zero code.
 
 ## init

@@ -68,6 +68,8 @@ Index: none yet (run `remimem init` in the project)
 
 The Node.js line shows your own version. In an indexed project the last line reads like `Index: 8 files, 39 chunks, 0 pending changes, 0 chunks without a vector`. A failed check prints `failed (...)` with a fix hint, and `doctor` exits with code 1.
 
+In a terminal, the CLI is drawn for people: `remimem` with no command shows the logo and the next steps for the current folder, `remimem --help` shows the logo and the commands grouped by task with examples, `init` shows the logo and a check mark per step, and the first download of the embedding model draws an amphora that fills as the 23 MB arrive. When output is piped or redirected (as in the examples in this file), none of that is printed and colors are off; `NO_COLOR=1` turns colors off in a terminal too. The MCP server never draws anything.
+
 ## Inspect how a file is chunked
 
 `debug chunks` is a hidden developer command. Paths are relative to the current directory and must stay inside it.
