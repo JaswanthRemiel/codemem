@@ -155,9 +155,13 @@ html > body[data-scroll-locked] {
   transform: none;
 }
 
-/* Keeps the hero text readable: the field shows around it and fades out at the edges. */
+/* The field rises below the hero text, runs behind the terminal, and fades out at the
+   sides and before the next section, so it never ends in a hard edge. */
 .ascii-field {
-  mask-image: radial-gradient(ellipse 85% 55% at 50% 100%, black 35%, transparent 100%);
+  mask-image:
+    linear-gradient(to bottom, transparent 30%, black 50%, black 68%, transparent 96%),
+    linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+  mask-composite: intersect;
   opacity: 0.6;
   pointer-events: none;
 }

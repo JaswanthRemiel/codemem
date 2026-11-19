@@ -45,7 +45,7 @@ export function AsciiField({ className }: { className?: string }) {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = color;
-      const horizon = height * 0.55;
+      const horizon = height * 0.36;
       const cx = width / 2;
       for (let y = horizon + CELL; y < height; y += CELL) {
         // Inverse perspective: distance into the floor for this screen row.
