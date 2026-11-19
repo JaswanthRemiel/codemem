@@ -167,6 +167,11 @@ Release checklist:
 - Branded around Mnemosyne, goddess of memory: parchment, ink, and bronze (obsidian and gold in dark mode), serif headings, Greek key bands, ASCII art (temple, columns, amphora, the CLI logo), and an animated terminal replay of `remimem init`. The docs share the palette.
 - Isolated from the CLI: own `package.json` and lockfile, not in the npm package, outside the root scripts, and built by its own path-filtered workflow. Not deployed yet.
 
+### 0.2.0: dashboard
+
+- A local dashboard (`src/dashboard/`): an HTTP server on 127.0.0.1 run by `remimem serve` and by `remimem dashboard`, with a JSON API over the same tool context as the MCP tools, and a page bundled with esbuild (Cytoscape.js for the graph) into `dist/dashboard/ui/`. Five views: health and savings, the folder-level code graph with symbol neighbors, a search playground, a memory manager, and a validated config editor. Security per decision 040: Host check, per-run token, same-origin JSON for changes, no CORS, and a discovery file readable only by the user. Under `serve` the HTTP server does not keep the process alive, so it ends with the agent session.
+- Verified in a real browser at desktop and phone widths, light and dark, against an indexed clone of this repository, and end to end with a live `remimem serve` found by `remimem dashboard`. Version set to 0.2.0; not released.
+
 ## Next
 
 Nothing scheduled. The roadmap after v1 is in the README.

@@ -21,8 +21,8 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && node -e \"require('fs').chmodSync('dist/cli/index.js', 0o755)\"",
-    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json && node scripts/build-dashboard.mjs && node -e \"require('fs').chmodSync('dist/cli/index.js', 0o755)\"",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p src/dashboard/ui",
     "lint": "eslint src test scripts eslint.config.js vitest.config.js",
     "format": "prettier --write src scripts .github grammars/README.md \"docs/**/*.md\" \"test/*.{ts,mjs}\" \"*.{js,json}\" README.md DECISIONS.md PROGRESS.md SETUP.md CONTRIBUTING.md CHANGELOG.md RELEASING.md",
     "format:check": "prettier --check src scripts .github grammars/README.md \"docs/**/*.md\" \"test/*.{ts,mjs}\" \"*.{js,json}\" README.md DECISIONS.md PROGRESS.md SETUP.md CONTRIBUTING.md CHANGELOG.md RELEASING.md",
@@ -49,6 +49,8 @@
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.20.5",
     "@vitest/coverage-v8": "^5.1.0",
+    "cytoscape": "^3.35.0",
+    "esbuild": "^0.28.2",
     "eslint": "^10.14.0",
     "prettier": "^3.10.1",
     "typescript": "~6.0.3",

@@ -147,6 +147,7 @@ test('config: every default, nested overrides, and clear errors', () => {
     exclude: [],
     maxFileSizeKb: 512,
     watch: { debounceMs: 500 },
+    dashboard: { enabled: true, port: 0 },
     telemetry: false,
     embedding: { provider: 'local', model: '', batchSize: 8, maxTokens: 256 },
     retrieval: {

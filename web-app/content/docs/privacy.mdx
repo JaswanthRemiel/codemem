@@ -28,7 +28,11 @@ Anything that looks like a secret is skipped, whatever `.gitignore` or `include`
 
 - It never executes code from the repository. Parsing is done by tree-sitter grammars compiled to WebAssembly.
 - Paths are resolved against the project root, and anything outside it is rejected, including through symlinks. `get_file_outline` with `../../etc/passwd` answers that there is no such file in the index.
-- It writes only inside `.remimem/`, to `.gitignore` (one line, during `init`), and to its cache folder.
+- It writes only inside `.remimem/`, to `.gitignore` (one line, during `init`), to its cache folder, and, while a dashboard runs, to one small file in the system's temporary folder that holds the dashboard's address, readable only by you.
+
+## The local dashboard
+
+`remimem serve` and `remimem dashboard` serve a page on `127.0.0.1` only, never on the network. Its data needs the random token in its address, requests must be addressed to the dashboard itself (which stops DNS rebinding), and changes must come from the dashboard page. Set `dashboard.enabled` to `false` to keep `remimem serve` from opening a port. See [The local dashboard](/docs/guides/dashboard#security).
 
 ## The query log
 

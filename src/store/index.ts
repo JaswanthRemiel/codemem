@@ -388,6 +388,45 @@ export class Store {
       );
   }
 
+  /** Queries and tokens per day, oldest first, for the dashboard's savings chart. */
+  queryLogDaily(): {
+    day: string;
+    queries: number;
+    tokensReturned: number;
+    baselineTokens: number;
+  }[] {
+    return this.db
+      .prepare(
+        `SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS queries,
+                SUM(tokens_returned) AS tokensReturned, SUM(baseline_tokens_estimate) AS baselineTokens
+         FROM query_log GROUP BY day ORDER BY day`,
+      )
+      .all() as { day: string; queries: number; tokensReturned: number; baselineTokens: number }[];
+  }
+
+  /** Every file with its language and number of symbols, for the dashboard's graph. */
+  fileSummaries(): { path: string; language: string | null; symbols: number }[] {
+    return this.db
+      .prepare(
+        `SELECT f.path, f.language, COUNT(s.id) AS symbols
+         FROM files f LEFT JOIN symbols s ON s.file_id = f.id GROUP BY f.id ORDER BY f.path`,
+      )
+      .all() as { path: string; language: string | null; symbols: number }[];
+  }
+
+  /** Resolved symbol edges summed per pair of different files. */
+  fileEdges(): { src: string; dst: string; weight: number }[] {
+    return this.db
+      .prepare(
+        `SELECT sf.path AS src, df.path AS dst, COUNT(*) AS weight
+         FROM edges e
+         JOIN symbols s ON s.id = e.src_symbol_id JOIN files sf ON sf.id = s.file_id
+         JOIN symbols d ON d.id = e.dst_symbol_id JOIN files df ON df.id = d.file_id
+         WHERE sf.id <> df.id GROUP BY sf.id, df.id`,
+      )
+      .all() as { src: string; dst: string; weight: number }[];
+  }
+
   /** Totals per tool over the whole query log. */
   queryLogSummary(): QueryLogSummary[] {
     return this.db

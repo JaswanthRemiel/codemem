@@ -1,0 +1,78 @@
+---
+title: The local dashboard
+description: See the code graph, try searches, manage memories, and check savings and settings in your browser.
+icon: LayoutDashboard
+---
+
+The dashboard is a page in your browser that shows what remimem knows about your project. It runs on your machine, on `127.0.0.1`, and reads the same index your agent uses.
+
+## Open it
+
+<Steps>
+<Step>
+
+### With an agent running
+
+Every `remimem serve` started by your agent also serves the dashboard. In the project, run:
+
+```sh
+remimem dashboard
+```
+
+It finds the running server and opens its dashboard in your browser. You can also ask your agent to call `index_status`: the last line of its answer is the dashboard's address.
+
+</Step>
+<Step>
+
+### Without an agent
+
+The same command starts a dashboard of its own when no agent is running, and keeps it open until you press Ctrl+C:
+
+```text
+Dashboard: http://127.0.0.1:53817/?token=...
+Press Ctrl+C to stop.
+```
+
+Add `--no-open` to print the address without opening a browser, and `--port 4700` to choose the port.
+
+</Step>
+</Steps>
+
+The project must be indexed first (`remimem init`).
+
+## What it shows
+
+**Health.** The size of the index (files, symbols, resolved edges, chunks, how many chunks have a vector, memories), when it was last indexed and whether files changed since, buttons to re-index, the tokens saved per day and per tool from the query log, files per language, and the checks from `remimem doctor`.
+
+**Graph.** Your project one folder at a time. Each node is a folder (square) or a file (circle), sized by its number of symbols and colored by language. A line means code in one calls or uses a type from the other, and its width grows with the number of such links. Click a folder to open it and a file to list its symbols with their callers and callees, each marked with how sure the link is (`exact`, `import`, or `name-match`). Click a symbol to read its code, or a caller to jump to its file. Files that are not code are hidden until you tick the box above the graph.
+
+**Search.** The same search and packing your agent gets. Each result shows its score, why it was found (`keyword`, `vector`, `exact-symbol`, `calls X`, ...), and whether it made it into the answer in full, as a signature, or not at all because the budget ran out. Below the results is the exact text the agent would receive. Change the budget and the number of results to see how the answer changes. Searches made here are not logged, so they do not count toward the savings.
+
+**Memory.** Every decision, convention, gotcha, and todo, filterable by kind and text, with the files and symbols each one is linked to. Memories whose code changed since they were written are marked stale. Add, edit, and forget memories here; the changes go to `.remimem/memory.json` and your agent sees them at once.
+
+**Settings.** An editor for `.remimem/config.json`, next to the effective settings with every default filled in. A change is checked against the same rules as the CLI before it is saved, and the running server uses it from then on. Changing the embedding settings offers a full re-index, because the vectors must be rebuilt.
+
+## Security
+
+The dashboard can change memories, the index, and the config, so it is locked down:
+
+- It listens on `127.0.0.1` only, never on the network.
+- The address contains a random token, made when the server starts. Every request to the dashboard's data must carry it, so another program or web page on your machine cannot read your code through it.
+- Requests must name the dashboard's own address as their host, which stops DNS rebinding attacks, and changes must come from the dashboard page itself.
+- The address is written to a file in your system's temporary folder, readable only by you, so that `remimem dashboard` can find it. The file is removed when the server stops.
+
+Treat the address like a password while the server runs: anyone with it can use the dashboard.
+
+## Turn it off
+
+Set `dashboard.enabled` to `false` in `.remimem/config.json` and `remimem serve` no longer opens a port. `remimem dashboard` still works on demand. See [Configuration](/docs/reference/configuration#dashboard).
+
+## On a remote machine
+
+The dashboard only answers on the machine it runs on. When remimem runs over SSH or in a container, pin the port with `dashboard.port` or `--port`, forward the same port number to your machine, and open the printed address there:
+
+```sh
+ssh -L 4700:127.0.0.1:4700 your-server
+```
+
+The port must be the same on both ends, because the dashboard only accepts requests addressed to its own port.

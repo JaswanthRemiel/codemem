@@ -1,8 +1,13 @@
+import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { statSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, statSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { Command } from 'commander';
+import { CONFIG_DIR, loadConfig } from '../config/index.js';
+import { findDashboard, startDashboard } from '../dashboard/server.js';
+import { createProvider } from '../embedder/index.js';
 import { processFile } from '../indexer/index.js';
+import { Store } from '../store/index.js';
 import { RemimemError } from '../errors.js';
 import { MEMORY_KINDS, MemoryError } from '../memory/index.js';
 import { serve } from '../mcp/server.js';
@@ -30,11 +35,43 @@ const HELP_ORDER = [
   'memory',
   'index',
   'watch',
+  'dashboard',
   'stats',
   'doctor',
   'serve',
   'bench',
 ];
+
+/** True when a dashboard answers at `url`; a stale discovery file can outlive its server. */
+async function reachable(url: string): Promise<boolean> {
+  const { origin, searchParams } = new URL(url);
+  try {
+    const res = await fetch(`${origin}/api/overview`, {
+      headers: { 'x-remimem-token': searchParams.get('token') ?? '' },
+      signal: AbortSignal.timeout(1500),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Opens a URL in the default browser; failures are ignored, the URL is printed anyway. */
+function openBrowser(url: string): void {
+  const [command, args] =
+    process.platform === 'darwin'
+      ? ['open', [url]]
+      : process.platform === 'win32'
+        ? ['cmd', ['/c', 'start', '""', url]]
+        : ['xdg-open', [url]];
+  try {
+    spawn(command, args, { stdio: 'ignore', detached: true })
+      .on('error', () => undefined)
+      .unref();
+  } catch {
+    // No browser available (a server or container): the printed URL is enough.
+  }
+}
 
 export function buildProgram(): Command {
   const program = new Command('remimem')
@@ -182,6 +219,45 @@ Docs: https://github.com/JaswanthRemiel/remimem`,
     .action(async () => {
       const stop = await runWatch(process.cwd(), (line) => console.log(line));
       process.once('SIGINT', () => void stop().then(() => process.exit(0)));
+    });
+
+  program
+    .command('dashboard')
+    .helpGroup('Check:')
+    .description('Open the local dashboard: code graph, search, memories, savings, and settings')
+    .option(
+      '--port <n>',
+      'port on 127.0.0.1 when starting a new dashboard (default: any free port)',
+    )
+    .option('--no-open', 'print the address without opening a browser')
+    .action(async (options: { port?: string; open: boolean }) => {
+      const root = process.cwd();
+      // An agent's `remimem serve` already runs one for this project: use that.
+      const running = findDashboard(root);
+      if (running && (await reachable(running.url))) {
+        console.log(`Dashboard (served by a running remimem server): ${running.url}`);
+        if (options.open) openBrowser(running.url);
+        return;
+      }
+      if (!existsSync(join(root, CONFIG_DIR, 'index.db'))) {
+        throw new RemimemError('No index here yet. Run `remimem init` in the project first.');
+      }
+      const config = loadConfig(root);
+      const store = new Store(join(root, CONFIG_DIR, 'index.db'));
+      const ctx = { root, config, store, provider: createProvider(config.embedding) };
+      const port = options.port === undefined ? config.dashboard.port : Number(options.port);
+      const dashboard = await startDashboard(ctx, port);
+      console.log(`Dashboard: ${paint('cyan', dashboard.url)}\nPress Ctrl+C to stop.`);
+      if (options.open) openBrowser(dashboard.url);
+      // Ctrl+C, or a kill: close cleanly so the discovery file goes away with the server.
+      const stop = (): void => {
+        void dashboard.close().then(() => {
+          store.close();
+          process.exit(0);
+        });
+      };
+      process.once('SIGINT', stop);
+      process.once('SIGTERM', stop);
     });
 
   program

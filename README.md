@@ -159,7 +159,11 @@ Changed files are re-indexed before each tool call, so answers follow your edits
 
 There is also one resource, `remimem://overview`: a directory map with the most-referenced symbols per directory.
 
-The same functions are available from the command line: `remimem init`, `index [--full]`, `watch`, `serve`, `search "<query>"`, `context "<task>"`, `memory list|add|rm`, `stats`, `doctor`, and `bench` (from a source checkout).
+## Dashboard
+
+`remimem dashboard` opens a local page with the code graph (folders, files, then each symbol's callers and callees), a search playground that shows scores, reasons, and the exact packed answer, a memory manager, tokens saved per day, the setup checks, and a settings editor. An agent's `remimem serve` runs it too, and `index_status` gives its address. It listens on 127.0.0.1 only, and every request needs the random token in the printed address. Set `dashboard.enabled` to `false` to keep `serve` from opening a port.
+
+The same functions are available from the command line: `remimem init`, `index [--full]`, `watch`, `serve`, `search "<query>"`, `context "<task>"`, `memory list|add|rm`, `dashboard`, `stats`, `doctor`, and `bench` (from a source checkout).
 
 ## Configuration
 
@@ -177,12 +181,13 @@ Optional, in `.remimem/config.json`. Every setting has a default; unknown keys a
 | `retrieval.graphTopN`, `graphMaxNeighbors`, `edgeWeights`               | 10, 20, exact 0.5 / import 0.4 / name-match 0.2 | Call graph expansion.                                                                                                                                                        |
 | `retrieval.memoryLimit`, `memoryMinKeywordMatch`, `memoryMinSimilarity` | 5, 0.5, 0.4                                     | Which memories `get_context` attaches.                                                                                                                                       |
 | `watch.debounceMs`                                                      | 500                                             | How long `remimem watch` waits after the last change.                                                                                                                        |
+| `dashboard.enabled`, `dashboard.port`                                   | true, 0 (any free port)                         | Whether `remimem serve` also runs the local dashboard, and on which port of 127.0.0.1.                                                                                       |
 
 Memories are mirrored to `.remimem/memory.json`, which is meant to be committed so a team shares them. The index, `.remimem/index.db`, is local and is added to `.gitignore` by `init`.
 
 ## Privacy
 
-Everything runs on your machine. Code is parsed, embedded, and stored locally, in one SQLite file inside the project. Nothing is sent anywhere unless you set `embedding.provider` to `openai` or `voyage`, in which case the text of indexed code goes to that service to be embedded. There is no telemetry. The query log behind `remimem stats` stays in the local index. The one network request in the default setup is the first download of the embedding model from huggingface.co.
+Everything runs on your machine. Code is parsed, embedded, and stored locally, in one SQLite file inside the project. Nothing is sent anywhere unless you set `embedding.provider` to `openai` or `voyage`, in which case the text of indexed code goes to that service to be embedded. There is no telemetry. The query log behind `remimem stats` stays in the local index. The dashboard listens on 127.0.0.1 only and needs the token in its address. The one network request in the default setup is the first download of the embedding model from huggingface.co.
 
 ## Limitations
 

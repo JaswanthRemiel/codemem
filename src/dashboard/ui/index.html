@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>remimem dashboard</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="side">
+        <div class="brand">
+          <span class="mark" aria-hidden="true">μ</span>
+          <span class="name">remimem</span>
+        </div>
+        <p class="root" id="root" title=""></p>
+        <nav class="tabs" aria-label="Views">
+          <a href="#health" data-view="health">Health</a>
+          <a href="#graph" data-view="graph">Graph</a>
+          <a href="#search" data-view="search">Search</a>
+          <a href="#memory" data-view="memory">Memory</a>
+          <a href="#settings" data-view="settings">Settings</a>
+        </nav>
+        <p class="version" id="version"></p>
+      </aside>
+      <main id="main" tabindex="-1"></main>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

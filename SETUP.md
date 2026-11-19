@@ -399,6 +399,38 @@ Expected: the same memory is listed again. A memory linked to a whole file (`--p
 
 Other commands: `memory list "<query>"` searches, `memory list --kind todo` filters, `memory rm <id>` deletes, and `memory add` takes `--path <file>` as well as `--symbol` (both repeatable).
 
+## The dashboard
+
+The dashboard is a local page with the code graph, a search playground, the memories, savings, and settings. In `/tmp/remimem-demo` (indexed above):
+
+```sh
+node "$REMIMEM/dist/cli/index.js" dashboard --no-open
+```
+
+Expected (the port and token differ each run):
+
+```text
+Dashboard: http://127.0.0.1:53817/?token=4tp9gpNNJ5lwE03yNcmVsJs8O2tJkxC0
+Press Ctrl+C to stop.
+```
+
+Open the printed address in a browser. Expected: the Health view with the file, symbol, and edge counts; Graph shows `src/` and, inside it, the files linked by their calls (click `auth.ts` for its symbols and callers); Search answers `hash a password` with `src/hash.ts` among the results; Memory lists the memory added above. Leave it running for the checks below.
+
+The security checks, in a second terminal, with `T` set to the token and `P` to the port from the printed address:
+
+```sh
+curl -s -o /dev/null -w '%{http_code}\n' "http://127.0.0.1:$P/api/overview"
+curl -s -o /dev/null -w '%{http_code}\n' -H "Host: evil.example:$P" -H "x-remimem-token: $T" "http://127.0.0.1:$P/api/overview"
+curl -s -o /dev/null -w '%{http_code}\n' -X POST -H 'Origin: https://evil.example' -H 'content-type: application/json' -H "x-remimem-token: $T" -d '{}' "http://127.0.0.1:$P/api/index"
+curl -s -o /dev/null -w '%{http_code}\n' -H "x-remimem-token: $T" "http://127.0.0.1:$P/api/overview"
+```
+
+Expected: `401` (no token), `421` (another host name, as in DNS rebinding), `403` (a change from another site), then `200`. Stop the dashboard with Ctrl+C.
+
+`remimem serve` runs the same dashboard while an agent is connected, unless `dashboard.enabled` is `false` in `.remimem/config.json`. It writes the address to a file in the system's temporary folder, so `remimem dashboard` run in the same project opens that one instead of starting another: expected output `Dashboard (served by a running remimem server): http://127.0.0.1:...`. The `index_status` tool ends with a `Dashboard:` line holding the same address.
+
+To work on the page itself: it lives in `src/dashboard/ui/` (plain TypeScript and CSS, with Cytoscape.js for the graph) and is bundled by `node scripts/build-dashboard.mjs`, which `npm run build` runs. The server reads the bundle from `dist/dashboard/ui/` on every request, so rebuilding is enough to see a change; there is no need to restart the server.
+
 ## Run the benchmark
 
 The benchmark runs from a checkout of this repo, with one command. It needs network access the first time, to clone three repositories (about 150 MB) and download the embedding model, and no API key. It takes 5 to 10 minutes.

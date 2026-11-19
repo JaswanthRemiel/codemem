@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CONFIG_DIR, loadConfig } from '../config/index.js';
+import { startDashboard } from '../dashboard/server.js';
 import { createProvider } from '../embedder/index.js';
 import { RemimemError } from '../errors.js';
 import { log } from '../log.js';
@@ -78,9 +79,22 @@ export async function serve(root: string): Promise<void> {
   mkdirSync(join(root, CONFIG_DIR), { recursive: true });
   const store = new Store(join(root, CONFIG_DIR, 'index.db'));
   const ctx: ToolContext = { root, config, store, provider: createProvider(config.embedding) };
+  // The dashboard is a convenience: if its port cannot be opened, the tools still work.
+  const dashboard = config.dashboard.enabled
+    ? await startDashboard(ctx, config.dashboard.port).catch((error: unknown) => {
+        log.warn(`dashboard not started: ${String(error)}`);
+        return undefined;
+      })
+    : undefined;
+  // The dashboard lives as long as the agent's session: it never keeps the process alive.
+  dashboard?.unref();
+  ctx.dashboardUrl = dashboard?.url;
   const server = createServer(ctx);
   const transport = new StdioServerTransport();
-  transport.onclose = () => store.close();
+  transport.onclose = () => {
+    void dashboard?.close();
+    store.close();
+  };
   await server.connect(transport);
   log.info(`serving ${root} over stdio`);
 }

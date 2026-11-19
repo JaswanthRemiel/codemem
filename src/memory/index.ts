@@ -148,6 +148,8 @@ export interface RememberInput {
   paths?: string[] | undefined;
   symbols?: string[] | undefined;
   tags?: string[] | undefined;
+  /** Replaces this existing memory instead of adding one; its creation time is kept. */
+  id?: string | undefined;
 }
 
 /** Stores a memory and links it to code. Names that cannot be linked are reported back. */
@@ -182,12 +184,15 @@ export function remember(
   }
 
   const now = new Date().toISOString();
+  const existing =
+    input.id === undefined ? undefined : store.listMemories().find((m) => m.id === input.id);
+  if (input.id !== undefined && !existing) throw new MemoryError(`No memory with id ${input.id}.`);
   const memory: Omit<Memory, 'stale'> = {
-    id: `m_${randomBytes(4).toString('hex')}`,
+    id: existing?.id ?? `m_${randomBytes(4).toString('hex')}`,
     kind: input.kind,
     text: input.text.trim(),
     tags: [...new Set(input.tags ?? [])],
-    createdAt: now,
+    createdAt: existing?.createdAt ?? now,
     updatedAt: now,
     links,
   };

@@ -10,5 +10,5 @@
     "noEmit": true
   },
   "include": ["src", "test"],
-  "exclude": ["test/fixtures"]
+  "exclude": ["src/dashboard/ui", "test/fixtures"]
 }

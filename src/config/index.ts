@@ -81,6 +81,14 @@ const ConfigSchema = z.strictObject({
       debounceMs: z.number().int().nonnegative().default(500),
     })
     .prefault({}),
+  dashboard: z
+    .strictObject({
+      /** `remimem serve` also serves the local dashboard. */
+      enabled: z.boolean().default(true),
+      /** Port on 127.0.0.1. 0 picks a free one, so several agent sessions do not collide. */
+      port: z.number().int().min(0).max(65535).default(0),
+    })
+    .prefault({}),
   /** There is no telemetry. The field exists so that fact is visible in the config. */
   telemetry: z.literal(false).default(false),
 });

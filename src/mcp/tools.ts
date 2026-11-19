@@ -31,6 +31,8 @@ export interface ToolContext {
   refreshing?: Promise<unknown> | undefined;
   /** True while a refresh has not finished within the time a tool call may wait for it. */
   refreshPending?: boolean;
+  /** The local dashboard's address, when the server runs one. */
+  dashboardUrl?: string | undefined;
 }
 
 /** What a tool returns: text for the agent, and the files its code came from. */
@@ -410,5 +412,6 @@ export async function indexStatus(ctx: ToolContext): Promise<string> {
     `Last indexed: ${store.getMeta('last_indexed_at') ?? 'unknown'}${commit ? ` at commit ${commit.slice(0, 12)}` : ' (no git commit)'}`,
     `Pending changes: ${pending.changed} changed, ${pending.added} new, ${pending.deleted} deleted${pending.changed + pending.added + pending.deleted > 0 ? ' (run `remimem index`)' : ''}`,
     `Embedding model: ${model ? `${model} (${store.vectorCount()} of ${counts.chunks} chunks embedded)` : 'none (keyword search only)'}`,
+    ...(ctx.dashboardUrl ? [`Dashboard: ${ctx.dashboardUrl}`] : []),
   ].join('\n');
 }

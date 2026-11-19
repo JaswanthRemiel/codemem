@@ -142,6 +142,28 @@ By tool (queries, tokens served, estimated baseline, mean latency):
 
 Every tool call from the MCP server, `context`, and `memory` is logged in the local index. The baseline assumes each file a result body came from would have been read in full, so the saving is an upper bound. On a very small repository it is close to 0%.
 
+## dashboard
+
+Open the local dashboard: the code graph, a search playground, project memory, savings, and settings. See [The local dashboard](/docs/guides/dashboard).
+
+```sh
+remimem dashboard
+```
+
+When an agent's `remimem serve` is running for the project, this opens its dashboard. Otherwise it starts one and keeps it open until Ctrl+C:
+
+```text
+Dashboard: http://127.0.0.1:53817/?token=...
+Press Ctrl+C to stop.
+```
+
+| Option | Meaning |
+| --- | --- |
+| `--port <n>` | Port on 127.0.0.1 when starting a new dashboard. Default: `dashboard.port`, or any free port. |
+| `--no-open` | Print the address without opening a browser. |
+
+Fails with `No index here yet` in a project that has not been indexed.
+
 ## doctor
 
 Check that this machine can run remimem.
