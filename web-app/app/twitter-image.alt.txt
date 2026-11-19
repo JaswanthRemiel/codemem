@@ -1,0 +1,1 @@
+remimem: codebase memory for coding agents. Your agents forget, remimem remembers. An ASCII temple of Mnemosyne on dark ground, and the command npx -y remimem init.
