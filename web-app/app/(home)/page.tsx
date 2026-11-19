@@ -1,6 +1,7 @@
 import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { amphora, COLUMN, SYSTEM_MONO, TEMPLE } from '@/components/ascii';
+import { AsciiField } from '@/components/ascii-field';
 import { CountUp, Reveal } from '@/components/motion';
 import { SetupPanel } from '@/components/setup-panel';
 import { TerminalDemo } from '@/components/terminal-demo';
@@ -60,53 +61,58 @@ export default function HomePage() {
     <main className="flex flex-1 flex-col">
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div aria-hidden className="hero-grid" />
-        <div className="relative mx-auto grid w-full max-w-6xl items-center gap-14 px-6 pt-16 pb-20 [&>*]:min-w-0 md:pt-24 lg:grid-cols-[1.05fr_1fr]">
-          <div>
-            <div style={{ animationDelay: '0ms' }} className="enter">
-              <Eyebrow>ΜΝΗΜΟΣΥΝΗ &nbsp;/&nbsp; memory for machines</Eyebrow>
-            </div>
-            <h1
-              style={{ animationDelay: '90ms' }}
-              className="enter mt-6 font-serif text-5xl leading-[1.02] font-semibold tracking-tight text-balance md:text-7xl"
-            >
-              Your agents forget.{' '}
-              <em className="font-medium text-fd-primary">remimem remembers.</em>
-            </h1>
-            <p
-              style={{ animationDelay: '180ms' }}
-              className="enter mt-6 max-w-lg text-lg leading-relaxed text-fd-muted-foreground"
-            >
-              Poets called on Mnemosyne, goddess of memory, before they began. remimem gives your
-              coding agent the same: the right code within a token budget, and every decision your
-              team already made.
-            </p>
-            <div
-              style={{ animationDelay: '270ms' }}
-              className="enter mt-9 flex flex-wrap items-center gap-4"
-            >
-              <Link
-                href="/docs/quickstart"
-                className="group inline-flex items-center gap-2 rounded-sm bg-fd-foreground px-5 py-3 text-sm font-medium text-fd-background transition-opacity hover:opacity-85"
-              >
-                Get started
-                <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-              </Link>
-              <code className="rounded-sm border border-fd-border bg-fd-card px-4 py-3 font-mono text-sm">
-                npx -y remimem init
-              </code>
-            </div>
-            <p
-              style={{ animationDelay: '340ms' }}
-              className="enter mt-5 text-xs text-fd-muted-foreground"
-            >
-              Open source. Runs on your machine. Works with Claude Code, Cursor, VS Code, and any
-              MCP client.
-            </p>
+        <AsciiField className="ascii-field absolute inset-0 size-full text-fd-primary" />
+        <div className="relative mx-auto flex min-h-[86svh] w-full max-w-4xl flex-col items-center justify-center px-5 pt-28 pb-16 text-center sm:px-6">
+          <div style={{ animationDelay: '0ms' }} className="enter">
+            <span className="inline-flex items-center gap-2 rounded-full border border-fd-border bg-fd-background/70 px-3.5 py-1.5 font-mono text-[10px] tracking-[0.22em] text-fd-primary uppercase backdrop-blur sm:text-[11px]">
+              ΜΝΗΜΟΣΥΝΗ <span className="text-fd-muted-foreground">/</span> memory for machines
+            </span>
           </div>
-          <div style={{ animationDelay: '300ms' }} className="enter">
-            <TerminalDemo />
+          <h1
+            style={{ animationDelay: '90ms' }}
+            className="enter mt-7 font-serif text-[2.75rem] leading-[1.02] font-semibold tracking-tight text-balance sm:text-6xl md:text-7xl lg:text-8xl"
+          >
+            Your agents forget.
+            <br />
+            <em className="font-medium text-fd-primary">remimem remembers.</em>
+          </h1>
+          <p
+            style={{ animationDelay: '180ms' }}
+            className="enter mt-6 max-w-xl text-base leading-relaxed text-pretty text-fd-muted-foreground sm:text-lg"
+          >
+            Poets called on Mnemosyne, goddess of memory, before they began. remimem gives your
+            coding agent the same: the right code within a token budget, and every decision your
+            team already made.
+          </p>
+          <div
+            style={{ animationDelay: '270ms' }}
+            className="enter mt-9 flex w-full flex-col items-stretch justify-center gap-3 sm:w-auto sm:flex-row sm:items-center"
+          >
+            <Link
+              href="/docs/quickstart"
+              className="group inline-flex items-center justify-center gap-2 rounded-sm bg-fd-foreground px-5 py-3 text-sm font-medium text-fd-background transition-opacity hover:opacity-85"
+            >
+              Get started
+              <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+            <code className="rounded-sm border border-fd-border bg-fd-background/80 px-4 py-3 text-center font-mono text-sm backdrop-blur">
+              npx -y remimem init
+            </code>
           </div>
+          <p
+            style={{ animationDelay: '340ms' }}
+            className="enter mt-5 text-xs text-fd-muted-foreground"
+          >
+            Open source. Runs on your machine. Works with Claude Code, Cursor, VS Code, and any MCP
+            client.
+          </p>
+        </div>
+      </section>
+
+      {/* The replay of a first run, just below the hero. */}
+      <section className="relative mx-auto -mt-4 w-full max-w-3xl px-4 pb-24 sm:px-6">
+        <div style={{ animationDelay: '420ms' }} className="enter">
+          <TerminalDemo />
         </div>
       </section>
 

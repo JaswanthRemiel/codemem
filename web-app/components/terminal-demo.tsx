@@ -104,7 +104,7 @@ export function TerminalDemo() {
       </p>
       <div
         aria-hidden
-        className="h-[400px] overflow-hidden p-5 font-mono text-[11.5px] leading-[1.45]"
+        className="h-[380px] overflow-hidden p-4 font-mono text-[10px] leading-[1.45] sm:h-[400px] sm:p-5 sm:text-[11.5px]"
       >
         <div>
           <span className="text-[#d9a94b]">$ </span>
@@ -127,16 +127,16 @@ export function TerminalDemo() {
           </div>
         )}
         {showDownload && (
-          <div className="mt-3 flex gap-4">
+          <div className="mt-3 flex gap-3 sm:gap-4">
             <pre style={{ fontFamily: SYSTEM_MONO }} className="leading-[1.25] text-[#d9a94b]">
               {amphora(fraction).join('\n')}
             </pre>
-            <div className="pt-6">
+            <div className="min-w-0 pt-6">
               <div className="text-white/85">Downloading the embedding model</div>
               <div className="text-white/40">downloaded once, then cached</div>
               <div className="mt-2 text-[#d9a94b]">
-                {'█'.repeat(Math.round(fraction * 22))}
-                <span className="text-white/20">{'░'.repeat(22 - Math.round(fraction * 22))}</span>
+                {'█'.repeat(Math.round(fraction * 16))}
+                <span className="text-white/20">{'░'.repeat(16 - Math.round(fraction * 16))}</span>
                 <span className="ml-2 text-white/80">{Math.round(fraction * 100)}%</span>
               </div>
               <div className="text-white/40">
