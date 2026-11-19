@@ -1,6 +1,6 @@
 {
   "name": "remimem",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Codebase memory for coding agents: a local-first MCP server and CLI that serves only the code context an agent needs",
   "license": "MIT",
   "author": "Jaswanth Remiel AG",

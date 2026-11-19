@@ -6,6 +6,13 @@ icon: ClockFading
 
 remimem follows [Semantic Versioning](https://semver.org). While the version is below 1.0.0, a minor version may contain breaking changes. The changelog in the repository is the source; this page mirrors it.
 
+## 0.2.0
+
+- **Dashboard:** a local page with the code graph (folders and files, then the symbols of a file with their callers and callees), a search playground that shows scores, reasons, and the packed answer, a memory manager, savings per day and per tool, the setup checks, and a settings editor. `remimem serve` runs it alongside the tools; `remimem dashboard` opens it, or starts one when no agent is running. It listens on 127.0.0.1 only and every request needs the token in its address.
+- **Configuration:** `dashboard.enabled` and `dashboard.port`.
+- **index_status** reports the dashboard's address.
+- **CLI:** a welcome screen for a bare `remimem`, help grouped by task with examples, and a drawing of the embedding model download.
+
 ## 0.1.0 (2026-11-15)
 
 First release.

@@ -2,6 +2,20 @@
 
 All notable changes to this project are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html). While the version is below 1.0.0, a minor version may contain breaking changes.
 
+## 0.2.0 - 2026-11-19
+
+### Added
+
+- A local dashboard: the code graph one folder at a time (click a file for its symbols with their callers and callees, and click a symbol for its code), a search playground that shows each result's score and reasons and the exact packed answer, a memory manager (add, edit, forget, stale flags), savings per day and per tool, the `doctor` checks, re-indexing, and a validated editor for `.remimem/config.json`. `remimem serve` runs it alongside the MCP tools, and `remimem dashboard` opens it or starts one when no agent is running. It listens on 127.0.0.1 only; every data request needs the random token in the printed address, must be addressed to the dashboard's own host, and changes must be JSON from the dashboard page.
+- `dashboard.enabled` (default `true`) and `dashboard.port` (default `0`, any free port) in the configuration.
+- `index_status` ends with the dashboard's address when one is running.
+- A welcome screen for a bare `remimem`, help grouped by task with examples, a logo for people at a terminal, and an amphora that fills while the embedding model downloads. Piped output stays plain and `NO_COLOR` is honored.
+
+### Changed
+
+- `remimem` with no command prints the welcome screen and exits with code 0 instead of 1.
+- `remimem serve` opens a local port for the dashboard unless `dashboard.enabled` is `false`.
+
 ## 0.1.0 - 2026-11-15
 
 First version.
