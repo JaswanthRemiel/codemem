@@ -81,18 +81,18 @@ export function TerminalDemo() {
   return (
     <div
       ref={ref}
-      className="w-full overflow-hidden rounded-lg border border-fd-foreground/15 bg-[#1b1a15] text-left text-[#ece6d6] shadow-2xl shadow-black/20"
+      className="w-full overflow-hidden rounded-lg border border-transparent bg-[#080a1f] [box-shadow:0_0_0_1px_oklch(1_0_0/0.1),0_12px_32px_-8px_oklch(0_0_0/0.45),0_2px_6px_oklch(0_0_0/0.2)] text-left text-[#eef0ff]"
     >
       <div className="flex items-center gap-2 border-b border-white/10 px-4 py-2.5">
         <span className="size-2.5 rounded-full bg-[#d9774f]" />
-        <span className="size-2.5 rounded-full bg-[#d9a94b]" />
+        <span className="size-2.5 rounded-full bg-[#8b95ff]" />
         <span className="size-2.5 rounded-full bg-[#8a9a5b]" />
         <span className="ml-3 font-mono text-xs text-white/40">~/your-project</span>
         <button
           type="button"
           onClick={play}
           aria-label="Replay"
-          className="ml-auto rounded p-1 text-white/40 transition-colors hover:text-white/80"
+          className="press ml-auto rounded p-1 text-white/40 transition-colors hover:text-white/80"
         >
           <RotateCcw className="size-3.5" />
         </button>
@@ -107,7 +107,7 @@ export function TerminalDemo() {
         className="h-[380px] overflow-hidden p-4 font-mono text-[10px] leading-[1.45] sm:h-[400px] sm:p-5 sm:text-[11.5px]"
       >
         <div>
-          <span className="text-[#d9a94b]">$ </span>
+          <span className="text-[#8b95ff]">$ </span>
           {COMMAND.slice(0, typed)}
           {stage === 'typing' && <span className="typing-cursor" />}
         </div>
@@ -117,7 +117,7 @@ export function TerminalDemo() {
               // The web mono font has no box-drawing characters; one system font keeps the
               // logo's glyphs the same width.
               style={{ fontFamily: SYSTEM_MONO }}
-              className="overflow-hidden text-[5.4px] leading-[1.05] text-[#d9a94b] sm:text-[9.5px]"
+              className="overflow-hidden text-[5.4px] leading-[1.05] text-[#8b95ff] sm:text-[9.5px]"
             >
               {LOGO}
             </pre>
@@ -128,13 +128,13 @@ export function TerminalDemo() {
         )}
         {showDownload && (
           <div className="mt-3 flex gap-3 sm:gap-4">
-            <pre style={{ fontFamily: SYSTEM_MONO }} className="leading-[1.25] text-[#d9a94b]">
+            <pre style={{ fontFamily: SYSTEM_MONO }} className="leading-[1.25] text-[#8b95ff]">
               {amphora(fraction).join('\n')}
             </pre>
             <div className="min-w-0 pt-6">
               <div className="text-white/85">Downloading the embedding model</div>
               <div className="text-white/40">downloaded once, then cached</div>
-              <div className="mt-2 text-[#d9a94b]">
+              <div className="mt-2 text-[#8b95ff]">
                 {'█'.repeat(Math.round(fraction * 16))}
                 <span className="text-white/20">{'░'.repeat(16 - Math.round(fraction * 16))}</span>
                 <span className="ml-2 text-white/80">{Math.round(fraction * 100)}%</span>
@@ -149,7 +149,7 @@ export function TerminalDemo() {
           <div className="mt-2 space-y-0.5">
             {DONE.slice(0, checked).map((line) => (
               <div key={line} className="enter">
-                <span className="text-[#8fbf7a]">✓</span> {line}
+                <span className="text-[#7ee0a8]">✓</span> {line}
               </div>
             ))}
             {checked === DONE.length && (

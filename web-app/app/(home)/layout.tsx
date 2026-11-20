@@ -1,14 +1,14 @@
 import { HomeLayout } from 'fumadocs-ui/layouts/home';
-import { Dock } from '@/components/dock';
+import { Navbar } from '@/components/navbar';
 import { baseOptions } from '@/lib/layout.shared';
 
 export default function Layout({ children }: LayoutProps<'/'>) {
   const options = baseOptions();
   return (
-    <div className="grain flex flex-1 flex-col">
-      {/* The landing page uses the floating dock instead of the full-width navbar. */}
+    <div className="flex flex-1 flex-col">
+      {/* The landing page draws its own navbar, on the brand blue like the hero. */}
       <HomeLayout {...options} nav={{ ...options.nav, enabled: false }}>
-        <Dock />
+        <Navbar />
         {children}
       </HomeLayout>
     </div>

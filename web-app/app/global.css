@@ -11,65 +11,79 @@ html > body[data-scroll-locked] {
   --removed-body-scroll-bar-size: 0px !important;
 }
 
-/* Brand: Mnemosyne, the Greek Titaness of memory. Parchment and ink, with bronze for accents;
-   obsidian and gold in the dark. Used by the docs and the landing page alike. */
+/* Brand: Mnemosyne, goddess of memory, in electric blue on deep navy, with halftone imagery and
+   bitmap headings. Dark only. Used by the docs and the landing page alike. */
 :root {
-  --color-fd-background: #f2ede1;
-  --color-fd-foreground: #26251e;
-  --color-fd-muted: #e8e1d0;
-  --color-fd-muted-foreground: #6b6656;
-  --color-fd-popover: #faf7f0;
-  --color-fd-popover-foreground: #26251e;
-  --color-fd-card: #f7f3ea;
-  --color-fd-card-foreground: #26251e;
-  --color-fd-border: #dcd3be;
-  --color-fd-primary: #9a6b1f;
-  --color-fd-primary-foreground: #fbf8f1;
-  --color-fd-secondary: #eae3d2;
-  --color-fd-secondary-foreground: #26251e;
-  --color-fd-accent: #e9dfc6;
-  --color-fd-accent-foreground: #26251e;
-  --color-fd-ring: #9a6b1f;
-  --brand-terracotta: #a4502f;
-}
-
-.dark {
-  --color-fd-background: #14130f;
-  --color-fd-foreground: #ece6d6;
-  --color-fd-muted: #1e1c17;
-  --color-fd-muted-foreground: #a39c88;
-  --color-fd-popover: #1a1914;
-  --color-fd-popover-foreground: #ece6d6;
-  --color-fd-card: #1a1914;
-  --color-fd-card-foreground: #ece6d6;
-  --color-fd-border: #2e2b23;
-  --color-fd-primary: #d9a94b;
-  --color-fd-primary-foreground: #14130f;
-  --color-fd-secondary: #24211b;
-  --color-fd-secondary-foreground: #ece6d6;
-  --color-fd-accent: #2a2620;
-  --color-fd-accent-foreground: #ece6d6;
-  --color-fd-ring: #d9a94b;
-  --brand-terracotta: #d9774f;
+  --brand-blue: #1f2bff;
+  --color-fd-background: #05061a;
+  --color-fd-foreground: #eef0ff;
+  --color-fd-muted: #0d0f2b;
+  --color-fd-muted-foreground: #9aa0c8;
+  --color-fd-popover: #0a0c24;
+  --color-fd-popover-foreground: #eef0ff;
+  --color-fd-card: #0a0c24;
+  --color-fd-card-foreground: #eef0ff;
+  --color-fd-border: #1c2050;
+  --color-fd-primary: #7581ff;
+  --color-fd-primary-foreground: #05061a;
+  --color-fd-secondary: #12153a;
+  --color-fd-secondary-foreground: #eef0ff;
+  --color-fd-accent: #161a45;
+  --color-fd-accent-foreground: #eef0ff;
+  --color-fd-ring: #7581ff;
+  color-scheme: dark;
 }
 
 @theme inline {
-  --font-serif: var(--font-cormorant), ui-serif, Georgia, serif;
+  --font-display: var(--font-pixel), ui-monospace, monospace;
   --font-mono: var(--font-jetbrains), ui-monospace, monospace;
 }
 
-/* Classical headings in the docs too. */
-#nd-page h1,
-.prose :where(h2, h3) {
-  font-family: var(--font-serif);
-  letter-spacing: -0.01em;
-}
+/* Bitmap page titles in the docs; section headings stay in the text face for reading. */
 #nd-page h1 {
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.02em;
 }
-.prose :where(h2) {
-  font-weight: 600;
-  font-size: 1.75em;
+
+/* Halftone dots on the brand blue, for panels and cards. */
+.halftone {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(circle, rgb(255 255 255 / 0.26) 1.1px, transparent 1.7px) 0 0 / 7px 7px,
+    linear-gradient(180deg, #2c38ff, #141fd8);
+  color: #ffffff;
+}
+
+/* A sparse layer of square pixels drifting across the dots: slow, constant, so linear. It moves
+   by transform only, on its own layer. */
+.halftone::before {
+  content: '';
+  position: absolute;
+  inset: -84px;
+  z-index: -1;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84' fill='white'%3E%3Crect x='9' y='21' width='3' height='3' opacity='.55'/%3E%3Crect x='51' y='9' width='3' height='3' opacity='.35'/%3E%3Crect x='66' y='48' width='3' height='3' opacity='.6'/%3E%3Crect x='27' y='63' width='3' height='3' opacity='.4'/%3E%3Crect x='39' y='36' width='3' height='3' opacity='.25'/%3E%3C/svg%3E");
+  background-size: 84px 84px;
+  animation: pixel-drift 22s linear infinite;
+}
+
+@keyframes pixel-drift {
+  to {
+    transform: translate(84px, -84px);
+  }
+}
+
+/* Sprite sheets: slide one frame at a time. */
+.pixel-sheet {
+  animation: sheet var(--sheet-duration) steps(var(--sheet-frames)) infinite;
+}
+
+@keyframes sheet {
+  to {
+    transform: translateX(var(--sheet-shift));
+  }
 }
 
 /* A Greek key (meander) band. */
@@ -84,41 +98,11 @@ html > body[data-scroll-locked] {
   background-color: currentColor;
 }
 
-/* Paper grain over the landing page. */
-.grain::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 50;
-  opacity: 0.05;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+/* Landing page motion. Strong custom curves: the built-in easings feel limp. */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-/* A slow gleam that passes over ASCII art, like light on marble. */
-@keyframes gleam {
-  0% {
-    background-position: 160% 0;
-  }
-  100% {
-    background-position: -60% 0;
-  }
-}
-.ascii-gleam {
-  background-image: linear-gradient(
-    100deg,
-    var(--color-fd-muted-foreground) 40%,
-    var(--color-fd-primary) 50%,
-    var(--color-fd-muted-foreground) 60%
-  );
-  background-size: 250% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: gleam 7s ease-in-out infinite;
-}
-
-/* Landing page motion. Everything here is switched off for people who ask for less motion. */
 @keyframes fade-up {
   from {
     opacity: 0;
@@ -130,6 +114,12 @@ html > body[data-scroll-locked] {
   }
 }
 
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
 @keyframes blink {
   50% {
     opacity: 0;
@@ -138,16 +128,16 @@ html > body[data-scroll-locked] {
 
 /* Staggered entrance for the hero; runs without JavaScript too. */
 .enter {
-  animation: fade-up 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: fade-up 0.6s var(--ease-out) both;
 }
 
 /* Scroll reveals, applied by the Reveal component only to elements below the fold. */
 .reveal {
   opacity: 0;
-  transform: translateY(18px);
+  transform: translateY(16px);
   transition:
-    opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
-    transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+    opacity 0.6s var(--ease-out),
+    transform 0.6s var(--ease-out);
 }
 
 .reveal.reveal-in {
@@ -155,15 +145,27 @@ html > body[data-scroll-locked] {
   transform: none;
 }
 
-/* The field rises below the hero text, runs behind the terminal, and fades out at the
-   sides and before the next section, so it never ends in a hard edge. */
-.ascii-field {
-  mask-image:
-    linear-gradient(to bottom, transparent 30%, black 50%, black 68%, transparent 96%),
-    linear-gradient(to right, transparent, black 15%, black 85%, transparent);
-  mask-composite: intersect;
-  opacity: 0.6;
-  pointer-events: none;
+/* Pressable things answer the press. No grey tap flash on top of it. */
+.press {
+  transition: transform 160ms var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.press:active {
+  transform: scale(0.97);
+}
+
+/* Eased fades, so the gradients over the halftone have no visible edge. */
+.fade-down {
+  background: linear-gradient(
+    to bottom,
+    var(--brand-blue) 0%,
+    var(--brand-blue) 62%,
+    rgb(31 43 255 / 0.8) 74%,
+    rgb(31 43 255 / 0.45) 84%,
+    rgb(31 43 255 / 0.15) 93%,
+    rgb(31 43 255 / 0) 100%
+  );
 }
 
 .typing-cursor {
@@ -176,34 +178,31 @@ html > body[data-scroll-locked] {
   animation: blink 1s steps(1) infinite;
 }
 
-.lift {
-  transition:
-    transform 0.25s ease,
-    border-color 0.25s ease;
-}
-
-.lift:hover {
-  transform: translateY(-3px);
-}
-
+/* Less motion means gentler motion: keep the fades, drop the movement. */
 @media (prefers-reduced-motion: reduce) {
-  .enter,
-  .typing-cursor,
-  .ascii-gleam {
+  .enter {
+    animation: fade 0.4s ease both;
+  }
+
+  .typing-cursor {
     animation: none;
   }
 
-  .ascii-gleam {
-    color: var(--color-fd-muted-foreground);
-  }
-
   .reveal {
-    opacity: 1;
     transform: none;
-    transition: none;
+    transition: opacity 0.4s ease;
   }
 
-  .lift:hover {
+  .press:active {
     transform: none;
+  }
+
+  .halftone::before {
+    animation: none;
+  }
+
+  .pixel-sheet {
+    animation: none;
+    transform: translateX(var(--sheet-last));
   }
 }

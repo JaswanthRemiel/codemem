@@ -108,9 +108,13 @@ export function SetupPanel() {
           type="button"
           onClick={copy}
           aria-label={copied ? 'Copied' : 'Copy to clipboard'}
-          className="rounded-md p-2 text-fd-muted-foreground transition-colors hover:bg-fd-accent hover:text-fd-foreground"
+          className="press rounded-md p-2 text-fd-muted-foreground transition-colors hover:bg-fd-accent hover:text-fd-foreground"
         >
-          {copied ? <Check className="size-4 text-fd-primary" /> : <Copy className="size-4" />}
+          {copied ? (
+            <Check strokeWidth={1.5} className="size-4 text-fd-primary" />
+          ) : (
+            <Copy strokeWidth={1.5} className="size-4" />
+          )}
         </button>
       </div>
       {/* The full text for screen readers; the typed copy is decoration. */}
